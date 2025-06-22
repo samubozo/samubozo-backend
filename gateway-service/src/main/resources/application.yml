@@ -1,0 +1,121 @@
+server:
+  port: 8000
+
+spring:
+  application:
+    name: gateway-service
+  cloud:
+    gateway:
+      globalcors:
+        cors-configurations:
+          "[/**]":
+            allowed-origins:
+
+              - "http://localhost:9090" #사용자 프론트 서버
+              - "https://samubozo.co.kr" #AWS 정적 서버
+
+            allowed-methods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - PATCH
+              - OPTIONS
+            allowed-headers:
+              - Content-Type
+              - Authorization
+              - X-Requested-With
+            allow-credentials: true
+
+      default-filters:
+        - name: GlobalFilter
+          args:
+            baseMessage: hello gateway!
+            preLogger: false
+            postLogger: true
+      routes:
+        - id: auth-service
+          uri: lb://AUTH-SERVICE
+          predicates:
+            - Path=/auth-service/auth/doLogin
+            - Method=POST
+          filters:
+            - RemoveRequestHeader=Cookie
+            - RewritePath=/auth-service/(?<segment>.*), /$\{segment}
+
+
+        #인증 관리
+        - id: auth-service
+          uri: lb://AUTH-SERVICE
+          predicates:
+            - Path=/auth-service/**
+          filters:
+            - RemoveRequestHeader=Cookie
+            - RewritePath=/auth-service/(?<segment>.*), /$\{segment}
+            - AuthorizationHeaderFilter
+
+        #인사 관리
+        - id: hr-service
+          uri: lb://HR-SERVICE
+          predicates:
+            - Path=/hr-service/**
+          filters:
+            - RemoveRequestHeader=Cookie
+            - RewritePath=/hr-service/(?<segment>.*), /$\{segment}
+            - AuthorizationHeaderFilter
+
+        # attendance-service 라우트
+        - id: attendance-service # 이 ID는 실제 ID로 변경해주세요. (gateway config에 없어서 가정)
+          uri: lb://ATTENDANCE-SERVICE
+          predicates:
+            - Path=/attendance-service/** # 들어오는 요청 경로
+          filters:
+            - RemoveRequestHeader=Cookie
+            # RewritePath는 경로를 /attendance/hello 로 바꿉니다.
+            - RewritePath=/attendance-service/(?<segment>.*), /$\{segment}
+            # --- AuthorizationHeaderFilter를 RewritePath 뒤에 위치시킵니다. ---
+            - AuthorizationHeaderFilter # 이제 필터는 /attendance/hello 경로를 보게 됩니다.
+
+        #연차 관리
+        - id: vacation-service
+          uri: lb://VACATION-SERVICE
+          predicates:
+            - Path=/vacation-service/**
+          filters:
+            - RemoveRequestHeader=Cookie
+            - RewritePath=/vacation-service/(?<segment>.*), /$\{segment}
+            - AuthorizationHeaderFilter
+
+        #급여 관리
+        - id: payroll-service
+          uri: lb://PAYROLL-SERVICE
+          predicates:
+            - Path=/payroll-service/**
+          filters:
+            - RemoveRequestHeader=Cookie
+            - RewritePath=/payroll-service/(?<segment>.*), /$\{segment}
+            - AuthorizationHeaderFilter
+
+        #일정 관리
+        - id: schedule-service
+          uri: lb://SCHEDULE-SERVICE
+          predicates:
+            - Path=/schedule-service/**
+          filters:
+            - RemoveRequestHeader=Cookie
+            - RewritePath=/schedule-service/(?<segment>.*), /$\{segment}
+            - AuthorizationHeaderFilter
+
+
+
+
+
+
+
+
+
+
+
+
+
+
