@@ -56,9 +56,6 @@ public class AuthController {
         loginInfo.put("token", token);
         loginInfo.put("employeeNo", user.getEmployeeNo());
         loginInfo.put("user_name", user.getUserName());
-        loginInfo.put("email", user.getEmail());
-        loginInfo.put("phone", user.getPhone());
-        loginInfo.put("address", user.getAddress());
         loginInfo.put("roleId", user.getRoleId().toString());
 
         CommonResDto resDto
