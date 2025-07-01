@@ -6,6 +6,7 @@ import com.playdata.hrservice.common.auth.Role;
 import lombok.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Getter
 @Setter
@@ -15,15 +16,21 @@ import java.time.LocalDate;
 @Builder
 public class UserResDto {
 
-    private Long userid;
+    private Long employeeNo;
+    private String userName;
     private String email;
-    private String name;
-    private Role role;
+    private String gender;
+    private Long roleId;
+    private String roleName;
+    private Long departmentId;
+    private String departmentName;
+    private Long positionId;
+    private String positionName;
     private String address;
     private String profileImage;
-    private String socialProvider;
     private String phone;
-    private LocalDate birthdate;
-
+    private LocalDateTime birthDate;
+    private LocalDate hireDate;
+    private String activate;
 
 }

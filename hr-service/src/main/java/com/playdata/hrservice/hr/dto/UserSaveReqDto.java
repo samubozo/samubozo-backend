@@ -1,10 +1,9 @@
 package com.playdata.hrservice.hr.dto;
 
 
+
 import com.fasterxml.jackson.annotation.JsonFormat;
-import com.playdata.hrservice.common.auth.Role;
-import com.playdata.hrservice.hr.entity.User;
-import com.playdata.hrservice.hr.entity.UserStatus;
+import com.playdata.hrservice.hr.entity.*;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import lombok.*;
@@ -21,9 +20,11 @@ import java.time.LocalDateTime;
 @Builder
 public class UserSaveReqDto {
 
-    private String role;
+    private Long roleId;         // 역할 id (FK)
+    private Long departmentId;   // 부서 id (FK)
+    private Long positionId;     // 직책 id (FK)
 
-    private String name;
+    private String userName;
 
     @NotEmpty(message = "이메일은 필수입니다!")
     private String email;
@@ -36,19 +37,31 @@ public class UserSaveReqDto {
     private String phone;
 
     @JsonFormat(pattern = "yyyy-MM-dd")
-    private LocalDate birthDate;
+    private LocalDateTime birthDate;
 
-    public User toEntity(PasswordEncoder encoder) {
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate hireDate;
+
+    private String gender;
+
+    private String activate;
+
+    public User toEntity(PasswordEncoder encoder, Department department, Position position, Role role) {
         return User.builder()
-                .name(this.name)
+                .userName(this.userName)
                 .email(this.email)
                 .password(encoder.encode(this.password))
                 .address(this.address)
                 .phone(this.phone)
                 .birthDate(this.birthDate)
-                .role(Role.valueOf(this.role.toUpperCase()))
-                .registeredAt(LocalDateTime.now())
-                .status(UserStatus.ACTIVE)
+                .hireDate(this.hireDate)
+                .gender(this.gender)
+                .activate(this.activate != null ? this.activate : "Y")
+                .createdAt(LocalDateTime.now())
+                .profileImage(null)
+                .department(department)
+                .position(position)
+                .role(role)
                 .build();
     }
 

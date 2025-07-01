@@ -1,7 +1,6 @@
 package com.playdata.hrservice.hr.entity;
 
 
-import com.playdata.hrservice.common.auth.Role;
 import com.playdata.hrservice.hr.dto.UserResDto;
 import jakarta.persistence.*;
 import lombok.*;
@@ -21,63 +20,82 @@ public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "user_id")
-    private Long userId;
+    @Column(name = "employee_no",nullable = false)
+    private Long employeeNo;
 
-    @Column(length = 50, nullable = false)
-    private String name;
+    @Column(name = "user_name",length = 50, nullable = false)
+    private String userName;
 
-    @Column( length = 255, nullable = true)
+    @Column(nullable = false, length = 255)
     private String password;
 
     @Column(unique = true, nullable = false, length = 100)
     private String email;
 
-    @Column(nullable = true)
-    private String address;
-
-    @Enumerated(EnumType.STRING)
-    @Builder.Default
-    private Role role =  Role.USER;
-
-    @Enumerated(EnumType.STRING)
-    private UserStatus status = UserStatus.ACTIVE;
-
-    public boolean isAdmin() {
-        return this.role == Role.ADMIN;
-    }
-
-    @Column(length = 20, name = "phone", nullable = true)
+    @Column(length = 20, nullable = false)
     private String phone;
 
-    @Column(name = "birth_date", nullable = true)
-    private LocalDate birthDate;
+    @Column(name = "birth_date", nullable = false)
+    private LocalDateTime birthDate;
 
-    @Column(name = "registered_at", nullable = false)
-    private LocalDateTime registeredAt;
+    @Column(nullable = false, length = 1)
+    private String gender;
 
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
 
-    @Column
-    private String socialId;
+    @Column(name = "hire_date", nullable = false)
+    private LocalDate hireDate;
 
-    @Column
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String address;
+
+    @Column(length = 255)
     private String profileImage;
 
-    @Column
-    private String socialProvider;
+    @Column(length = 4, nullable = false)
+    private String activate = "Y";
 
+    @Column(name = "department_id", nullable = false)
+    private Long departmentId;
+
+    @Column(name = "position_id", nullable = false)
+    private Long positionId;
+
+    @Column(name = "role_id", nullable = false)
+    private Long roleId;
+
+    // === 연관관계 ===
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "department_id", nullable = false)
+    private Department department;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "position_id", nullable = false)
+    private Position position;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "role_id", nullable = false)
+    private Role role;
 
     public UserResDto fromEntity() {
         return UserResDto.builder()
-                .userid(userId)
-                .name(name)
+                .employeeNo(employeeNo)
+                .userName(userName)
                 .email(email)
-                .role(role)
+                .gender(gender)
+                .roleId(role != null ? role.getRoleId() : null)
+                .roleName(role != null ? role.getRoleName() : null)
+                .departmentId(department != null ? department.getDepartmentId() : null)
+                .departmentName(department != null ? department.getName() : null)
+                .positionId(position != null ? position.getPositionId() : null)
+                .positionName(position != null ? position.getPositionName() : null)
                 .address(address)
                 .profileImage(profileImage)
-                .socialProvider(socialProvider)
                 .phone(phone)
-                .birthdate(birthDate)
+                .birthDate(birthDate)
+                .hireDate(hireDate)
+                .activate(activate)
                 .build();
     }
 

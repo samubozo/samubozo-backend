@@ -34,67 +34,53 @@ import java.util.concurrent.TimeUnit;
 @RefreshScope // spring cloud config가 관리하는 파일의 데이터가 변경되면 빈들을 새로고침해주는 어노테이션
 public class HRController {
 
-    @GetMapping("/hello")
-    public ResponseEntity<CommonResDto> hrHello() {
-        CommonResDto commonResDto = new CommonResDto();
-        //상태코드
-        commonResDto.setStatusCode(200);
-        //상태메세지
-        commonResDto.setStatusMessage("hr 서비스 소통성공!");
-        //응답할 데이터
-        commonResDto.setResult("Hello HR");
-        return  ResponseEntity.ok(commonResDto);
+    private final UserService userService;
+    private final JwtTokenProvider jwtTokenProvider;
+    private final RedisTemplate<String, Object> redisTemplate;
+
+    private final Environment env;
+
+    @PostMapping("/users/signup")
+    public ResponseEntity<?> createUser(@Valid @RequestBody UserSaveReqDto dto) {
+        UserResDto saved = userService.createUser(dto);
+        CommonResDto resDto = new CommonResDto(HttpStatus.CREATED, "User created", saved);
+        return new ResponseEntity<>(resDto, HttpStatus.CREATED);
+    }
+
+    @PostMapping("/user/login")
+    public ResponseEntity<?> login(@RequestBody UserLoginReqDto dto) {
+        UserResDto user = userService.login(dto);
+
+        String token
+                = jwtTokenProvider.createToken(user.getEmail(), user.getRoleId().toString());
+        String refreshToken
+                = jwtTokenProvider.createRefreshToken(user.getEmail(), user.getRoleId().toString());
+
+        redisTemplate.opsForValue().set("user:refresh:" + user.getEmployeeNo(), refreshToken, 7, TimeUnit.MINUTES);
+
+        Map<String, Object> loginInfo = new HashMap<>();
+        loginInfo.put("token", token);
+        loginInfo.put("employeeNo", user.getEmployeeNo());
+        loginInfo.put("user_name", user.getUserName());
+        loginInfo.put("email", user.getEmail());
+        loginInfo.put("phone", user.getPhone());
+        loginInfo.put("address", user.getAddress());
+        loginInfo.put("roleId", user.getRoleId().toString());
+
+        CommonResDto resDto
+                = new CommonResDto(HttpStatus.OK,
+                "Login Success", loginInfo);
+        return new ResponseEntity<>(resDto, HttpStatus.OK);
+    }
+
+    // 유효한 이메일인지 검증 요청
+    @PostMapping("/email-valid")
+    public ResponseEntity<?> emailValid(@RequestBody Map<String, String> map) {
+
     }
 
 //   밑에거는 참고용으로 남겨놔요. 쓸거 쓰시고 지우셔도 될듯
-//    private final UserService userService;
-//    private final JwtTokenProvider jwtTokenProvider;
-//    private final RedisTemplate<String, Object> redisTemplate;
 //    private final Set<String> usedCode = ConcurrentHashMap.newKeySet();
-//
-//
-//    private final Environment env;
-//
-//    @PostMapping("/create")
-//    public ResponseEntity<?> userCreate(@Valid @RequestBody UserSaveReqDto dto,
-//                                        @RequestParam(required = false, defaultValue = "user") String role) {
-//
-//        dto.setRole(role);
-//        User saved = userService.userCreate(dto);
-//
-//        CommonResDto resDto
-//                = new CommonResDto(HttpStatus.CREATED,
-//                "User Created", saved.getName());
-//
-//        return new ResponseEntity<>(resDto, HttpStatus.CREATED);
-//    }
-//
-//    @PostMapping("/doLogin")
-//    public ResponseEntity<?> doLogin(@RequestBody UserLoginReqDto dto) {
-//        User user = userService.login(dto);
-//        String token
-//                = jwtTokenProvider.createToken(user.getEmail(), user.getRole().toString());
-//
-//
-//        String refreshToken
-//                = jwtTokenProvider.createRefreshToken(user.getEmail(), user.getRole().toString());
-//        redisTemplate.opsForValue().set("user:refresh:" + user.getUserId(), refreshToken, 7, TimeUnit.MINUTES);
-//
-//
-//        Map<String, Object> loginInfo = new HashMap<>();
-//        loginInfo.put("token", token);
-//        loginInfo.put("email", user.getEmail());
-//        loginInfo.put("phone", user.getPhone());
-//        loginInfo.put("address", user.getAddress());
-//        loginInfo.put("role", user.getRole().toString());
-//        loginInfo.put("id", user.getUserId());
-//
-//        CommonResDto resDto
-//                = new CommonResDto(HttpStatus.OK,
-//                "Login Success", loginInfo);
-//        return new ResponseEntity<>(resDto, HttpStatus.OK);
-//    }
-//
 //
 //    @PreAuthorize("hasRole('ADMIN')")
 //    @GetMapping("/list")

@@ -2,6 +2,7 @@ package com.playdata.authservice.auth.service;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
+import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -57,4 +58,24 @@ public class MailSenderService {
         log.info("check number is {}", v);
         return v;
     }
+
+    public void sendPasswordResetMail(@NotBlank(message = "이메일을 입력해 주세요.") String email, String nickName, String code) throws MessagingException {
+        String subject = "[YourApp] 비밀번호 재설정 인증 코드 안내";
+        String content = new StringBuilder()
+                .append(nickName).append("님, 안녕하세요!<br><br>")
+                .append("아래 인증 코드를 입력하시면 비밀번호 재설정을 진행하실 수 있습니다.<br>")
+                .append("<strong>").append(code).append("</strong><br><br>")
+                .append("이 코드는 발송 시점부터 5분간 유효합니다.")
+                .toString();
+
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, false, "utf-8");
+        helper.setFrom("uiuo1266@gmail.com");
+        helper.setTo(email);
+        helper.setSubject(subject);
+        helper.setText(content, true);
+
+        mailSender.send(message);
+    }
+
 }
