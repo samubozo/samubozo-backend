@@ -10,5 +10,4 @@ import lombok.*;
 public class SalaryResDto {
 
     private Long salaryId;
-    private Long userId;
 }
