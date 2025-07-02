@@ -35,7 +35,7 @@ public class User {
     private String phone;
 
     @Column(name = "birth_date", nullable = false)
-    private LocalDateTime birthDate;
+    private LocalDate birthDate;
 
     @Column(nullable = false, length = 1)
     private String gender;
@@ -60,11 +60,6 @@ public class User {
 
     @Column(name = "position_id", nullable = false)
     private Long positionId;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "role_id", nullable = false)
-    private Role role;
-
 
 }
 

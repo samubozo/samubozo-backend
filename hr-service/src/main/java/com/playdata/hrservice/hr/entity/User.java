@@ -36,9 +36,9 @@ public class User {
     private String phone;
 
     @Column(name = "birth_date", nullable = false)
-    private LocalDateTime birthDate;
+    private LocalDate birthDate;
 
-    @Column(nullable = false, length = 1)
+    @Column(nullable = false, length = 10)
     private String gender;
 
     @Column(name = "created_at", nullable = false)
@@ -52,6 +52,9 @@ public class User {
 
     @Column(length = 255)
     private String profileImage;
+
+    @Column(name = "retire_date")
+    private LocalDate retireDate;
 
     @Column(length = 4, nullable = false)
     @Builder.Default
@@ -81,6 +84,7 @@ public class User {
                 .phone(phone)
                 .birthDate(birthDate)
                 .hireDate(hireDate)
+                .retireDate(retireDate)
                 .activate(activate)
                 .build();
     }

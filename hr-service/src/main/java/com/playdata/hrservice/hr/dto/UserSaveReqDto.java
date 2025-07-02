@@ -33,7 +33,7 @@ public class UserSaveReqDto {
     private String phone;
 
     @JsonFormat(pattern = "yyyy-MM-dd")
-    private LocalDateTime birthDate;
+    private LocalDate birthDate;
 
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate hireDate;

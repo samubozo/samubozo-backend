@@ -20,8 +20,6 @@ public class UserResDto {
     private String userName;
     private String email;
     private String gender;
-    private Long roleId;
-    private String roleName;
     private Long departmentId;
     private String departmentName;
     private Long positionId;
@@ -29,8 +27,9 @@ public class UserResDto {
     private String address;
     private String profileImage;
     private String phone;
-    private LocalDateTime birthDate;
+    private LocalDate birthDate;
     private LocalDate hireDate;
+    private LocalDate retireDate;
     private String activate;
 
 }

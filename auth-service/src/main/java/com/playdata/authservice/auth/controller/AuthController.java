@@ -46,9 +46,9 @@ public class AuthController {
         User user = authService.login(dto);
 
         String token
-                = jwtTokenProvider.createToken(user.getEmail(), user.getRole().getRoleId().toString());
+                = jwtTokenProvider.createToken(user.getEmail(), user.getPositionId().toString());
         String refreshToken
-                = jwtTokenProvider.createRefreshToken(user.getEmail(), user.getRole().getRoleId().toString());
+                = jwtTokenProvider.createRefreshToken(user.getEmail(), user.getPositionId().toString());
 
         redisTemplate.opsForValue().set("user:refresh:" + user.getEmployeeNo(), refreshToken, 7, TimeUnit.MINUTES);
 
@@ -56,7 +56,7 @@ public class AuthController {
         loginInfo.put("token", token);
         loginInfo.put("employeeNo", user.getEmployeeNo());
         loginInfo.put("user_name", user.getUserName());
-        loginInfo.put("roleId", user.getRole().getRoleId());
+        loginInfo.put("positionId", user.getPositionId());
 
         CommonResDto resDto
                 = new CommonResDto(HttpStatus.OK,
@@ -65,7 +65,7 @@ public class AuthController {
     }
 
     // 토큰 재발급
-    @PostMapping("/token/refresh")
+    @PostMapping("/refresh")
     public ResponseEntity<?> refreshToken(@RequestBody TokenRefreshRequestDto requestDto) {
         try {
             TokenUserInfo userInfo = jwtTokenProvider.validateAndGetTokenUserInfo(requestDto.getRefreshToken());
