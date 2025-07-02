@@ -54,16 +54,8 @@ public class User {
     private String profileImage;
 
     @Column(length = 4, nullable = false)
+    @Builder.Default
     private String activate = "Y";
-
-    @Column(name = "department_id", nullable = false)
-    private Long departmentId;
-
-    @Column(name = "position_id", nullable = false)
-    private Long positionId;
-
-    @Column(name = "role_id", nullable = false)
-    private Long roleId;
 
     // === 연관관계 ===
     @ManyToOne(fetch = FetchType.LAZY)
@@ -74,18 +66,12 @@ public class User {
     @JoinColumn(name = "position_id", nullable = false)
     private Position position;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "role_id", nullable = false)
-    private Role role;
-
     public UserResDto fromEntity() {
         return UserResDto.builder()
                 .employeeNo(employeeNo)
                 .userName(userName)
                 .email(email)
                 .gender(gender)
-                .roleId(role != null ? role.getRoleId() : null)
-                .roleName(role != null ? role.getRoleName() : null)
                 .departmentId(department != null ? department.getDepartmentId() : null)
                 .departmentName(department != null ? department.getName() : null)
                 .positionId(position != null ? position.getPositionId() : null)

@@ -40,6 +40,7 @@ public class HRController {
 
     private final Environment env;
 
+    // 회원가입
     @PostMapping("/users/signup")
     public ResponseEntity<?> createUser(@Valid @RequestBody UserSaveReqDto dto) {
         UserResDto saved = userService.createUser(dto);
@@ -47,37 +48,14 @@ public class HRController {
         return new ResponseEntity<>(resDto, HttpStatus.CREATED);
     }
 
-    @PostMapping("/user/login")
-    public ResponseEntity<?> login(@RequestBody UserLoginReqDto dto) {
-        UserResDto user = userService.login(dto);
+    // 프로필
+//    @PostMapping("/user/profile")
+//    public ResponseEntity<?> uploadProfile(@ModelAttribute UserRequestDto dto) {
+//        String newProfile = userService.uploadProfile(dto);
+//        CommonResDto resDto = new CommonResDto(HttpStatus.OK,
+//                "User profile created", newProfile);
+//    }
 
-        String token
-                = jwtTokenProvider.createToken(user.getEmail(), user.getRoleId().toString());
-        String refreshToken
-                = jwtTokenProvider.createRefreshToken(user.getEmail(), user.getRoleId().toString());
-
-        redisTemplate.opsForValue().set("user:refresh:" + user.getEmployeeNo(), refreshToken, 7, TimeUnit.MINUTES);
-
-        Map<String, Object> loginInfo = new HashMap<>();
-        loginInfo.put("token", token);
-        loginInfo.put("employeeNo", user.getEmployeeNo());
-        loginInfo.put("user_name", user.getUserName());
-        loginInfo.put("email", user.getEmail());
-        loginInfo.put("phone", user.getPhone());
-        loginInfo.put("address", user.getAddress());
-        loginInfo.put("roleId", user.getRoleId().toString());
-
-        CommonResDto resDto
-                = new CommonResDto(HttpStatus.OK,
-                "Login Success", loginInfo);
-        return new ResponseEntity<>(resDto, HttpStatus.OK);
-    }
-
-    // 유효한 이메일인지 검증 요청
-    @PostMapping("/email-valid")
-    public ResponseEntity<?> emailValid(@RequestBody Map<String, String> map) {
-
-    }
 
 //   밑에거는 참고용으로 남겨놔요. 쓸거 쓰시고 지우셔도 될듯
 //    private final Set<String> usedCode = ConcurrentHashMap.newKeySet();

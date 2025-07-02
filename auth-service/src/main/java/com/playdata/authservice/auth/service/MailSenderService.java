@@ -23,11 +23,16 @@ public class MailSenderService {
         int authNum = makeRandomNumber();
         String setFrom = "gh939@naver.com"; // 발신용 이메일 주소 (yml과 동일하게)
         String toMail = email;
-        String title = "SAYTOUCHE 회원가입 인증 이메일 입니다.";
-        String content = "홈페이지 가입을 신청해 주셔서 감사합니다." +
-                "<br><br>" +
-                "인증 번호는 <strong>" + authNum + "</strong> 입니다. <br>" +
-                "해당 인증 번호를 인증번호 확인란에 기입해 주세요."; // 이메일에 삽입할 내용 (더 꾸며보세요)
+        String title = "SAMUBOZO ERP 회원가입 인증번호 안내";
+        String content = "<strong>[사무보조 ERP 회원가입 인증번호 안내]</strong><br><br>" +
+                        "안녕하세요.<br>" +
+                        "사무보조 ERP 시스템 신규 계정 등록 요청이 접수되었습니다.<br><br>" +
+                        "아래 인증번호를 회원가입 화면에 입력해 주세요.<br><br>" +
+                        "<strong>인증번호: " + authNum + "</strong><br><br>" +
+                        "- 인증번호는 30분간 유효합니다. 만료 시 재발급을 요청하세요.<br>" +
+                        "- 본 메일은 사내 ERP 신규 계정 신청 시 자동 발송됩니다.<br>" +
+                        "- 본인이 직접 요청하지 않은 경우, 사내 IT팀(it-support@samubozo.com)으로 문의 바랍니다.<br><br>" +
+                        "사무보조 ERP 시스템 드림"; // 이메일에 삽입할 내용 (더 꾸며보세요)
         mailSend(setFrom,toMail, title, content);
 
         return Integer.toString(authNum);
@@ -59,10 +64,10 @@ public class MailSenderService {
         return v;
     }
 
-    public void sendPasswordResetMail(@NotBlank(message = "이메일을 입력해 주세요.") String email, String nickName, String code) throws MessagingException {
+    public void sendPasswordResetMail(@NotBlank(message = "이메일을 입력해 주세요.") String email, String userName, String code) throws MessagingException {
         String subject = "[YourApp] 비밀번호 재설정 인증 코드 안내";
         String content = new StringBuilder()
-                .append(nickName).append("님, 안녕하세요!<br><br>")
+                .append(userName).append("님, 안녕하세요!<br><br>")
                 .append("아래 인증 코드를 입력하시면 비밀번호 재설정을 진행하실 수 있습니다.<br>")
                 .append("<strong>").append(code).append("</strong><br><br>")
                 .append("이 코드는 발송 시점부터 5분간 유효합니다.")

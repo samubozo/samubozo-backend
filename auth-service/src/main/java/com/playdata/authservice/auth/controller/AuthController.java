@@ -46,9 +46,9 @@ public class AuthController {
         User user = authService.login(dto);
 
         String token
-                = jwtTokenProvider.createToken(user.getEmail(), user.getRoleId().toString());
+                = jwtTokenProvider.createToken(user.getEmail(), user.getRole().getRoleId().toString());
         String refreshToken
-                = jwtTokenProvider.createRefreshToken(user.getEmail(), user.getRoleId().toString());
+                = jwtTokenProvider.createRefreshToken(user.getEmail(), user.getRole().getRoleId().toString());
 
         redisTemplate.opsForValue().set("user:refresh:" + user.getEmployeeNo(), refreshToken, 7, TimeUnit.MINUTES);
 
@@ -56,7 +56,7 @@ public class AuthController {
         loginInfo.put("token", token);
         loginInfo.put("employeeNo", user.getEmployeeNo());
         loginInfo.put("user_name", user.getUserName());
-        loginInfo.put("roleId", user.getRoleId().toString());
+        loginInfo.put("roleId", user.getRole().getRoleId());
 
         CommonResDto resDto
                 = new CommonResDto(HttpStatus.OK,

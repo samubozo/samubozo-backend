@@ -20,10 +20,6 @@ import java.time.LocalDateTime;
 @Builder
 public class UserSaveReqDto {
 
-    private Long roleId;         // 역할 id (FK)
-    private Long departmentId;   // 부서 id (FK)
-    private Long positionId;     // 직책 id (FK)
-
     private String userName;
 
     @NotEmpty(message = "이메일은 필수입니다!")
@@ -44,9 +40,11 @@ public class UserSaveReqDto {
 
     private String gender;
 
-    private String activate;
+    private String departmentName;
 
-    public User toEntity(PasswordEncoder encoder, Department department, Position position, Role role) {
+    private String positionName;
+
+    public User toEntity(PasswordEncoder encoder, Department department, Position position) {
         return User.builder()
                 .userName(this.userName)
                 .email(this.email)
@@ -56,12 +54,10 @@ public class UserSaveReqDto {
                 .birthDate(this.birthDate)
                 .hireDate(this.hireDate)
                 .gender(this.gender)
-                .activate(this.activate != null ? this.activate : "Y")
                 .createdAt(LocalDateTime.now())
                 .profileImage(null)
                 .department(department)
                 .position(position)
-                .role(role)
                 .build();
     }
 

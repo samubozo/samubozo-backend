@@ -198,7 +198,7 @@ public class AuthService {
         }
 
         log.info("이메일 인증 성공!, email={}", map.get("email"));
-        redisTemplate.delete(key); // 레디스에서 인증번호 삭제
+//        redisTemplate.delete(key); // 레디스에서 인증번호 삭제
         return map;
     }
 
