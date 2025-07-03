@@ -34,7 +34,7 @@ public class SecurityConfig {
         //여기에 권한 없이 접근해야할 URL을 명시해주세요. "/actuator/**" 는 건드시면 안됩니다.
         http.authorizeHttpRequests(auth -> {
             auth
-                    .requestMatchers("/actuator/**", "/hr/hello").permitAll()
+                    .requestMatchers("/actuator/**", "/hr/users/signup").permitAll()
                     .anyRequest().authenticated();
         });
 

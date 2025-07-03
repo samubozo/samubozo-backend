@@ -1,9 +1,6 @@
 package com.playdata.authservice.auth.entity;
 
 
-
-import com.playdata.authservice.auth.dto.UserResDto;
-import com.playdata.authservice.common.auth.Role;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -22,65 +19,47 @@ public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "user_id")
-    private Long userId;
+    @Column(name = "employee_no",nullable = false)
+    private Long employeeNo;
 
-    @Column(length = 50, nullable = false)
-    private String name;
+    @Column(name = "user_name",length = 50, nullable = false)
+    private String userName;
 
-    @Column( length = 255, nullable = true)
+    @Column(nullable = false, length = 255)
     private String password;
 
     @Column(unique = true, nullable = false, length = 100)
     private String email;
 
-    @Column(nullable = true)
-    private String address;
-
-    @Enumerated(EnumType.STRING)
-    @Builder.Default
-    private Role role =  Role.USER;
-
-    @Enumerated(EnumType.STRING)
-    private UserStatus status = UserStatus.ACTIVE;
-
-    public boolean isAdmin() {
-        return this.role == Role.ADMIN;
-    }
-
-    @Column(length = 20, name = "phone", nullable = true)
+    @Column(length = 20, nullable = false)
     private String phone;
 
-    @Column(name = "birth_date", nullable = true)
+    @Column(name = "birth_date", nullable = false)
     private LocalDate birthDate;
 
-    @Column(name = "registered_at", nullable = false)
-    private LocalDateTime registeredAt;
+    @Column(nullable = false, length = 1)
+    private String gender;
 
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
 
-    @Column
-    private String socialId;
+    @Column(name = "hire_date", nullable = false)
+    private LocalDate hireDate;
 
-    @Column
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String address;
+
+    @Column(length = 255)
     private String profileImage;
 
-    @Column
-    private String socialProvider;
+    @Column(length = 4, nullable = false)
+    private String activate = "Y";
 
+    @Column(name = "department_id", nullable = false)
+    private Long departmentId;
 
-    public UserResDto fromEntity() {
-        return UserResDto.builder()
-                .userid(userId)
-                .name(name)
-                .email(email)
-                .role(role)
-                .address(address)
-                .profileImage(profileImage)
-                .socialProvider(socialProvider)
-                .phone(phone)
-                .birthdate(birthDate)
-                .build();
-    }
+    @Column(name = "position_id", nullable = false)
+    private Long positionId;
 
 }
 

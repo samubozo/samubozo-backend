@@ -1,14 +1,31 @@
 package com.playdata.authservice.auth.controller;
 
 
+import com.playdata.authservice.auth.dto.FindPwDto;
+import com.playdata.authservice.auth.dto.ResetPasswordDto;
+import com.playdata.authservice.auth.dto.UserLoginReqDto;
+import com.playdata.authservice.auth.dto.VerifyCodeDto;
+import com.playdata.authservice.auth.entity.User;
+import com.playdata.authservice.auth.service.AuthService;
+import com.playdata.authservice.common.auth.JwtTokenProvider;
+import com.playdata.authservice.common.auth.TokenRefreshRequestDto;
+import com.playdata.authservice.common.auth.TokenUserInfo;
 import com.playdata.authservice.common.dto.CommonResDto;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
+import org.springframework.core.env.Environment;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.parameters.P;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @RestController
 @RequestMapping("/auth")
@@ -17,313 +34,164 @@ import org.springframework.web.bind.annotation.RestController;
 @RefreshScope // spring cloud config가 관리하는 파일의 데이터가 변경되면 빈들을 새로고침해주는 어노테이션
 public class AuthController {
 
-    @GetMapping("/hello")
-    public ResponseEntity<CommonResDto> hrHello() {
-        CommonResDto commonResDto = new CommonResDto();
-        //상태코드
-        commonResDto.setStatusCode(200);
-        //상태메세지
-        commonResDto.setStatusMessage("auth 서비스 소통성공!");
-        //응답할 데이터
-        commonResDto.setResult("Hello auth service!");
-        return  ResponseEntity.ok(commonResDto);
+    private final AuthService authService;
+    private final JwtTokenProvider jwtTokenProvider;
+    private final RedisTemplate<String, Object> redisTemplate;
+
+    private final Environment env;
+
+    // 로그인
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody UserLoginReqDto dto) {
+        User user = authService.login(dto);
+
+        String token
+                = jwtTokenProvider.createToken(user.getEmail(), user.getPositionId().toString());
+        String refreshToken
+                = jwtTokenProvider.createRefreshToken(user.getEmail(), user.getPositionId().toString());
+
+        redisTemplate.opsForValue().set("user:refresh:" + user.getEmployeeNo(), refreshToken, 7, TimeUnit.MINUTES);
+
+        Map<String, Object> loginInfo = new HashMap<>();
+        loginInfo.put("token", token);
+        loginInfo.put("employeeNo", user.getEmployeeNo());
+        loginInfo.put("user_name", user.getUserName());
+        loginInfo.put("positionId", user.getPositionId());
+
+        CommonResDto resDto
+                = new CommonResDto(HttpStatus.OK,
+                "Login Success", loginInfo);
+        return new ResponseEntity<>(resDto, HttpStatus.OK);
     }
 
-//   밑에거는 참고용으로 남겨놔요. 쓸거 쓰시고 지우셔도 될듯
-//    private final UserService userService;
-//    private final JwtTokenProvider jwtTokenProvider;
-//    private final RedisTemplate<String, Object> redisTemplate;
-//    private final Set<String> usedCode = ConcurrentHashMap.newKeySet();
-//
-//
-//    private final Environment env;
-//
-//    @PostMapping("/create")
-//    public ResponseEntity<?> userCreate(@Valid @RequestBody UserSaveReqDto dto,
-//                                        @RequestParam(required = false, defaultValue = "user") String role) {
-//
-//        dto.setRole(role);
-//        User saved = userService.userCreate(dto);
-//
-//        CommonResDto resDto
-//                = new CommonResDto(HttpStatus.CREATED,
-//                "User Created", saved.getName());
-//
-//        return new ResponseEntity<>(resDto, HttpStatus.CREATED);
-//    }
-//
-//    @PostMapping("/doLogin")
-//    public ResponseEntity<?> doLogin(@RequestBody UserLoginReqDto dto) {
-//        User user = userService.login(dto);
-//        String token
-//                = jwtTokenProvider.createToken(user.getEmail(), user.getRole().toString());
-//
-//
-//        String refreshToken
-//                = jwtTokenProvider.createRefreshToken(user.getEmail(), user.getRole().toString());
-//        redisTemplate.opsForValue().set("user:refresh:" + user.getUserId(), refreshToken, 7, TimeUnit.MINUTES);
-//
-//
-//        Map<String, Object> loginInfo = new HashMap<>();
-//        loginInfo.put("token", token);
-//        loginInfo.put("email", user.getEmail());
-//        loginInfo.put("phone", user.getPhone());
-//        loginInfo.put("address", user.getAddress());
-//        loginInfo.put("role", user.getRole().toString());
-//        loginInfo.put("id", user.getUserId());
-//
-//        CommonResDto resDto
-//                = new CommonResDto(HttpStatus.OK,
-//                "Login Success", loginInfo);
-//        return new ResponseEntity<>(resDto, HttpStatus.OK);
-//    }
-//
-//
-//    @PreAuthorize("hasRole('ADMIN')")
-//    @GetMapping("/list")
-//    public ResponseEntity<?> getUserList(Pageable pageable) {
-//        List<UserResDto> dtoList = userService.userList(pageable);
-//        CommonResDto resDto
-//                = new CommonResDto(HttpStatus.OK, "userList 조회 성공", dtoList);
-//
-//        return ResponseEntity.ok().body(resDto);
-//    }
-//
-//    @PreAuthorize("hasAuthority('ROLE_USER')")
-//    @GetMapping("/profile/{id}")
-//    public ResponseEntity<?> getProfile(@PathVariable("id") String  id) {
-//        try {
-//            Long userId = Long.parseLong(id);
-//            User user = userService.findById(userId);
-//            return ResponseEntity.ok().body(user);
-//        } catch (NumberFormatException e) {
-//            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-//                    .body("ID 형식이 잘못되었습니다.");
-//        }
-//    }
-//
-//    @PutMapping("/update/{userId}")
-//    public ResponseEntity<?> updateUser(
-//            @PathVariable Long userId,
-//            @RequestBody UserUpdateRequestDto dto
-//    ) {
-//        User updatedUser = userService.updateUser(userId, dto);
-//
-//        return ResponseEntity.ok().body(new CommonResDto(
-//                HttpStatus.OK,
-//                "회원정보가 수정되었습니다.",
-//                updatedUser
-//        ));
-//    }
-//
-//    @PatchMapping("/address/{userId}")
-//    public ResponseEntity<?> updateAddress(
-//            @PathVariable Long userId,
-//            @RequestBody UserAddressUpdateDto dto
-//    ) {
-//        User updatedUser = userService.updateUserAddress(userId, dto.getAddress());
-//
-//        return ResponseEntity.ok().body(new CommonResDto(
-//                HttpStatus.OK,
-//                "주소가 수정되었습니다.",
-//                updatedUser
-//        ));
-//    }
-//
-//    @DeleteMapping("/delete/{userId}")
-//    public ResponseEntity<?> deleteUser(@PathVariable Long userId) {
-//        userService.deleteUser(userId);
-//        return ResponseEntity.ok(new CommonResDto(
-//                HttpStatus.OK, "회원 탈퇴 완료", Collections.singletonMap("deleted", true)
-//        ));
-//
-//    }
-//
-//    @PutMapping("/restore/{userId}")
-//    public ResponseEntity<?> restoreUser(@PathVariable Long userId) {
-//        userService.restoreUser(userId);
-//        return ResponseEntity.ok(new CommonResDto(
-//                HttpStatus.OK, "회원 복구 완료", null
-//        ));
-//    }
-//
-//
-//    @PostMapping("/token/refresh")
-//    public ResponseEntity<?> refreshToken(@RequestBody TokenRefreshRequestDto requestDto) {
-//        try {
-//            TokenUserInfo userInfo = jwtTokenProvider.validateAndGetTokenUserInfo(requestDto.getRefreshToken());
-//            String savedToken = (String) redisTemplate.opsForValue().get(userInfo.getEmail());
-//
-//            if (!requestDto.getRefreshToken().equals(savedToken)) {
-//                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-//                        .body("Refresh Token mismatch");
-//            }
-//
-//            String newAccessToken = jwtTokenProvider.createToken(userInfo.getEmail(), userInfo.getRole().name());
-//
-//            Map<String, String> tokenMap = new HashMap<>();
-//            tokenMap.put("accessToken", newAccessToken);
-//            return ResponseEntity.ok(tokenMap);
-//
-//        } catch (Exception e) {
-//            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-//                    .body("Invalid Refresh Token: " + e.getMessage());
-//        }
-//    }
-//    @GetMapping("/findByEmail")
-//    public ResponseEntity<?> getUserByEmail(@RequestParam String email) {
-//        try {
-//            Thread.sleep(2000);
-//        } catch (InterruptedException e) {
-//            throw new RuntimeException(e);
-//        }
-//
-//        log.info("getUserByEmail: email: {}", email);
-//        UserResDto dto = userService.findByEmail(email);
-//        CommonResDto resDto
-//                = new CommonResDto(HttpStatus.OK, "이메일로 회원 조회 완료", dto);
-//        return ResponseEntity.ok().body(resDto);
-//    }
-//
-//    @PostMapping("/email-valid")
-//    public ResponseEntity<?> emailVaild(@RequestBody Map<String, String> map) {
-//        String email = map.get("email");
-//        log.info("이메일 인증 요청!: {}", map.get("email"));
-//        String authNum = userService.mailCheck(email);
-//        return ResponseEntity.ok().body(authNum);
-//    }
-//
-//    //인증코드 검증 요청
-//    @PostMapping("/verify")
-//    public ResponseEntity<?> verifyEmail(@RequestBody Map<String, String> map) {
-//        log.info("인증코드검증! map:{}",map);
-//        Map<String, String> result = userService.verifyEmail(map);
-//        return ResponseEntity.ok().body("인증 성공!");
-//
-//    }
-//
-//    //카카오 콜백 요청 처리
-//    @GetMapping("/kakao")
-//    public void kakaoCallback(@RequestParam String code ,
-//                              @RequestParam(required = false) String state, // state 파라미터 추가
-//                              //응답을 평소처럼 주는게 아니라, 직접 커스텀 해서 클라이언트에게 전달
-//                              HttpServletResponse response) throws IOException {
-//        log.info("카카오 콜백 처리 시작! code: {}", code);
-//        //기본 상태
-//        String clientType = "user";
-//
-//
-//        if (state != null && !state.isEmpty()) {
-//            try {
-//                // Base64 디코딩 (프론트에서 btoa로 인코딩했다면)
-//                String decodedState = new String(Base64.getUrlDecoder().decode(state)); // URL-safe Base64 디코더 사용
-//                ObjectMapper mapper = new ObjectMapper();
-//                Map<String, String> stateMap = mapper.readValue(decodedState, Map.class);
-//
-//                String receivedClientType = stateMap.get("clientType");
-//                if ("admin".equals(receivedClientType)) {
-//                    clientType = "admin";
-//                }
-//                // TODO: CSRF 토큰 검증 로직 추가 (stateMap.get("csrfToken")과 서버에 저장된 토큰 비교)
-//
-//                log.info("클라이언트 타입: {}", clientType);
-//
-//            } catch (Exception e) {
-//                log.error("state 파라미터 디코딩 및 파싱 에러: {}", e.getMessage());
-//                // 에러 발생 시 기본값 유지 또는 에러 페이지로 리다이렉트
-//            }
-//        }
-//
-//
-//
-//        //인가 코드로 엑세스토큰받기
-//        String kakaoAccessToken = userService.getKakaoAccessToken(code);
-//        //엑세스 토큰으로 사용자 정보받기
-//        KakaoUserDto dto = userService.getKakaoUserInfo(kakaoAccessToken);
-//        // 회원가입 or 로그인 처리
-//        UserResDto resDto = userService.findOrCreateKakaoUser(dto, clientType);
-//
-//        //JWT 토큰 생성( 우리 사이트 로그인 유지를 위해. 사용자 정보를 위해.)
-//        String token = jwtTokenProvider.createToken(resDto.getEmail(), resDto.getRole().name());
-//        String refreshToken = jwtTokenProvider.createRefreshToken(resDto.getEmail(), resDto.getRole().name());
-//
-//        //redis에 저장
-//        redisTemplate.opsForValue().set("user:refresh:" + resDto.getUserid(), refreshToken, 2, TimeUnit.MINUTES);
-//
-//        String html = "";
-//        //팝업 닫기
-//        if(clientType.equals("user")) {
-//            html = String.format("""
-//                    <!DOCTYPE html>
-//                    <html>
-//                    <head><title>카카오 로그인 완료</title></head>
-//                    <body>
-//                        <script>
-//                            if (window.opener) {
-//                                window.opener.postMessage({
-//                                    type: 'OAUTH_SUCCESS',
-//                                    token: '%s',
-//                                    id: '%s',
-//                                    email: '%s',
-//                                    role: '%s',
-//                                    provider: 'KAKAO'
-//                                }, 'https://say4team.shop');
-//                                window.close();
-//                            } else {
-//                                window.location.href = 'https://say4team.shop';
-//                            }
-//                        </script>
-//                        <p>카카오 로그인 처리 중...</p>
-//                    </body>
-//                    </html>
-//                    """,
-//                    token, resDto.getUserid(), resDto.getEmail(), resDto.getRole().toString());
-//        }else {
-//            html = String.format("""
-//                    <!DOCTYPE html>
-//                    <html>
-//                    <head><title>카카오 로그인 완료</title></head>
-//                    <body>
-//                        <script>
-//                            if (window.opener) {
-//                                window.opener.postMessage({
-//                                    type: 'OAUTH_SUCCESS',
-//                                    token: '%s',
-//                                    id: '%s',
-//                                    email: '%s',
-//                                    role: '%s',
-//                                    provider: 'KAKAO'
-//                                }, 'http://localhost:9090');
-//                                window.close();
-//                            } else {
-//                                window.location.href = 'http://localhost:9090';
-//                            }
-//                        </script>
-//                        <p>카카오 로그인 처리 중...</p>
-//                    </body>
-//                    </html>
-//                    """,
-//                    token, resDto.getUserid(), resDto.getEmail(), resDto.getRole().toString());
-//        }
-//        response.setContentType("text/html;charset=utf-8");
-//        response.getWriter().write(html);
-//    }
-//
-//
-//    @GetMapping("/health-check")
-//    public String healthCheck() {
-//        String msg = "It's Working in User-service!\n";
-//        msg += "token.expiration_time: " + env.getProperty("token.expiration_time");
-//        msg += "token.secret: " + env.getProperty("token.secret");
-//        msg += "aws.accessKey: " + env.getProperty("aws.accessKey");
-//        msg += "aws.secretKey: " + env.getProperty("aws.secretKey");
-//        msg += "message: " + env.getProperty("message");
-//
-//
-//        return msg;
-//    }
-//
-//
+    // 토큰 재발급
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refreshToken(@RequestBody TokenRefreshRequestDto requestDto) {
+        try {
+            TokenUserInfo userInfo = jwtTokenProvider.validateAndGetTokenUserInfo(requestDto.getRefreshToken());
+            String savedToken = (String) redisTemplate.opsForValue().get(userInfo.getEmail());
+
+            if (!requestDto.getRefreshToken().equals(savedToken)) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body("Refresh Token mismatch");
+            }
+
+            String newAccessToken = jwtTokenProvider.createToken(userInfo.getEmail(), userInfo.getRole().name());
+
+            Map<String, String> tokenMap = new HashMap<>();
+            tokenMap.put("accessToken", newAccessToken);
+            return ResponseEntity.ok(tokenMap);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body("Invalid Refresh Token: " + e.getMessage());
+        }
+    }
+
+    // 비밀번호 찾기
+    @PostMapping("/find-password")
+    public ResponseEntity<Void> sendVerificationCode(@Valid @RequestBody FindPwDto dto) {
+        authService.sendPasswordResetCode(dto.getEmail());
+        return ResponseEntity.ok().build();
+    }
+
+    // 인증코드 검증
+    @PostMapping("/verify-code")
+    public ResponseEntity<CommonResDto> verifyCode(@Valid @RequestBody VerifyCodeDto dto) {
+        try {
+            authService.verifyResetCode(dto.getEmail(), dto.getCode());
+            return ResponseEntity.ok(
+                    new CommonResDto(
+                            HttpStatus.OK,
+                            "인증 코드가 일치합니다.",
+                            null
+                    )
+            );
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity
+                    .badRequest()
+                    .body(new CommonResDto(
+                            HttpStatus.BAD_REQUEST,
+                            e.getMessage(),
+                            null
+                    ));
+        }
+    }
+
+    // 비밀번호 재설정
+    @PostMapping("/reset-password")
+    public ResponseEntity<CommonResDto> resetPassword(@Valid @RequestBody ResetPasswordDto dto) {
+        try {
+            authService.resetPassword(dto.getEmail(), dto.getCode(), dto.getNewPassword());
+            return ResponseEntity.ok(
+                    new CommonResDto(
+                            HttpStatus.OK,
+                            "비밀번호 재설정이 완료되었습니다.",
+                            null
+                    )
+            );
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity
+                    .badRequest()
+                    .body(new CommonResDto(
+                            HttpStatus.BAD_REQUEST,
+                            e.getMessage(),
+                            null
+                    ));
+        } catch (Exception e) {
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new CommonResDto(
+                            HttpStatus.INTERNAL_SERVER_ERROR,
+                            "서버 에러가 발생했습니다. 다시 시도해주세요.",
+                            null
+                    ));
+        }
+    }
+
+    // 유요한 이메일인지 검증 요청
+    @PostMapping("/email-valid")
+    public ResponseEntity<?> emailValid(@RequestBody Map<String, String> map) {
+        String email = map.get("email");
+        log.info("이메일 인증 요청! email: {}", email);
+        try {
+            String authNum = authService.mailCheck(email);
+            // 성공: 200 + 인증번호
+            return ResponseEntity.ok(
+                    new CommonResDto(
+                            HttpStatus.OK,
+                            "인증 코드 발송 성공",
+                            authNum
+                    )
+            );
+        } catch (IllegalArgumentException e) {
+            // 중복 이메일 또는 차단 상태
+            return ResponseEntity
+                    .badRequest()
+                    .body(new CommonResDto(
+                            HttpStatus.BAD_REQUEST,
+                            e.getMessage(),
+                            null
+                    ));
+        } catch (RuntimeException e) {
+            // 메일 전송 실패 등
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new CommonResDto(
+                            HttpStatus.INTERNAL_SERVER_ERROR,
+                            "이메일 전송 과정 중 문제 발생!",
+                            null
+                    ));
+        }
+    }
+
+    // 인증코드 검증 요청
+    @PostMapping("/verify")
+    public ResponseEntity<?> verifyEmail(@RequestBody Map<String, String> map) {
+        log.info("인증 코드 검증! map: {}", map);
+        Map<String, String> result = authService.verifyEmail(map);
+        return ResponseEntity.ok().body("인증 성공!");
+    }
 
 }
 
