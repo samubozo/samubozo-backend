@@ -3,7 +3,6 @@ package com.playdata.attendanceservice.attendance.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 
-import com.playdata.attendanceservice.attendance.entity.User;
 import com.playdata.attendanceservice.attendance.entity.UserStatus;
 import com.playdata.attendanceservice.common.auth.Role;
 import jakarta.validation.constraints.NotEmpty;

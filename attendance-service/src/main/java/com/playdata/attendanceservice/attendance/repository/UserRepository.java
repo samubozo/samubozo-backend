@@ -1,7 +1,6 @@
 package com.playdata.attendanceservice.attendance.repository;
 
 
-import com.playdata.attendanceservice.attendance.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
