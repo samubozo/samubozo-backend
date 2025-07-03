@@ -2,20 +2,55 @@ package com.playdata.payrollservice.payroll.controller;
 
 
 import com.playdata.payrollservice.common.dto.CommonResDto;
+import com.playdata.payrollservice.payroll.dto.PayrollRequestDto;
+import com.playdata.payrollservice.payroll.dto.PayrollResponseDto;
+import com.playdata.payrollservice.payroll.service.PayrollService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/payroll")
+@RequestMapping("/api/payroll")
 @RequiredArgsConstructor
 @Slf4j
 @RefreshScope // spring cloud config가 관리하는 파일의 데이터가 변경되면 빈들을 새로고침해주는 어노테이션
 public class PayrollController {
+
+    private final PayrollService payrollService;
+
+    // 1. 급여 정보 등록
+    @PostMapping
+    public ResponseEntity<CommonResDto<PayrollResponseDto>> savePayroll(@RequestBody PayrollRequestDto requestDto) {
+        PayrollResponseDto saved = payrollService.savePayroll(requestDto);
+        return ResponseEntity.ok(
+                new CommonResDto<>(HttpStatus.OK, "급여 정보 등록 성공!", saved)
+        );
+    }
+
+    // 2. 특정 직원 급여 정보 조회
+    @GetMapping("/{userId}")
+    public ResponseEntity<CommonResDto<PayrollResponseDto>> getPayroll(@PathVariable Long userId) {
+        PayrollResponseDto payroll = payrollService.getPayrollByUserId(userId);
+        return ResponseEntity.ok(
+                new CommonResDto<>(HttpStatus.OK, "급여 정보 조회 성공!", payroll)
+        );
+    }
+
+    // 3. 특정 직원 급여 정보 수정
+    @PutMapping("/{userId}")
+    public ResponseEntity<CommonResDto<PayrollResponseDto>> updatePayroll(@PathVariable Long userId,
+                                                            @RequestBody PayrollRequestDto requestDto) {
+        PayrollResponseDto updated = payrollService.updatePayroll(userId, requestDto);
+        return ResponseEntity.ok(
+                new CommonResDto<>(HttpStatus.OK, "급여 정보 수정 성공!", updated)
+        );
+    }
+
+    // 4. 특정 직원 급여 정보 삭제
+
 
     @GetMapping("/hello")
     public ResponseEntity<CommonResDto> hrHello() {
