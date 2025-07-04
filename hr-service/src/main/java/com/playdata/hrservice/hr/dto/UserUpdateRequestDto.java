@@ -9,11 +9,18 @@ import java.time.LocalDate;
 @Setter
 public class UserUpdateRequestDto {
 
-    private String name;
-    private String address;
-    private String phone;
+    private String userName;
     private String email;
-    private String password;
+    private Long departmentId;
+    private String departmentName;
+    private Long positionId;
+    private String positionName;
+    private String address;
+    private String profileImage;
+    private String phone;
     private LocalDate birthDate;
+    private LocalDate hireDate;
+    private LocalDate retireDate;
+    private String activate;
 
 }

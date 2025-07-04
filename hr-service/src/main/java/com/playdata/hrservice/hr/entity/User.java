@@ -1,6 +1,8 @@
 package com.playdata.hrservice.hr.entity;
 
 
+import com.playdata.hrservice.hr.dto.UserFeignResDto;
+import com.playdata.hrservice.hr.dto.UserLoginFeignResDto;
 import com.playdata.hrservice.hr.dto.UserResDto;
 import jakarta.persistence.*;
 import lombok.*;
@@ -62,11 +64,11 @@ public class User {
 
     // === 연관관계 ===
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "department_id", nullable = false)
+    @JoinColumn(nullable = false)
     private Department department;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "position_id", nullable = false)
+    @JoinColumn(nullable = false)
     private Position position;
 
     public UserResDto fromEntity() {
@@ -74,6 +76,7 @@ public class User {
                 .employeeNo(employeeNo)
                 .userName(userName)
                 .email(email)
+                .password(password)
                 .gender(gender)
                 .departmentId(department != null ? department.getDepartmentId() : null)
                 .departmentName(department != null ? department.getName() : null)
@@ -86,6 +89,40 @@ public class User {
                 .hireDate(hireDate)
                 .retireDate(retireDate)
                 .activate(activate)
+                .hrRole(position.getHrRole())
+                .build();
+    }
+
+    public UserLoginFeignResDto toUserLoginFeignResDto() {
+        return UserLoginFeignResDto.builder()
+                .employeeNo(employeeNo)
+                .username(userName)
+                .email(email)
+                .password(password)
+                .activate(activate)
+                .hrRole(position.getHrRole())
+                .build();
+    }
+
+    public UserFeignResDto toUserFeignResDto() {
+        return UserFeignResDto.builder()
+                .employeeNo(employeeNo)
+                .userName(userName)
+                .email(email)
+                .password(password)
+                .gender(gender)
+                .departmentId(department != null ? department.getDepartmentId() : null)
+                .departmentName(department != null ? department.getName() : null)
+                .positionId(position != null ? position.getPositionId() : null)
+                .positionName(position != null ? position.getPositionName() : null)
+                .address(address)
+                .profileImage(profileImage)
+                .phone(phone)
+                .birthDate(birthDate)
+                .hireDate(hireDate)
+                .retireDate(retireDate)
+                .activate(activate)
+                .hrRole(position.getHrRole())
                 .build();
     }
 
