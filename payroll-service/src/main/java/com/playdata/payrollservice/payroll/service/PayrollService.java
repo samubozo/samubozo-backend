@@ -39,16 +39,26 @@ public class PayrollService {
 
 
     // 3. 급여 정보 수정
-    public PayrollResponseDto updatePayroll(Long userId, PayrollRequestDto requestDto) {
-        Payroll payroll = payrollRepository.findByUserId(userId)
+    public PayrollResponseDto updatePayroll(PayrollRequestDto requestDto) {
+        Payroll payroll = payrollRepository.findByUserId(requestDto.getUserId())
                 .orElseThrow(() -> new IllegalArgumentException("수정할 급여 정보가 없습니다."));
 
-        payroll.setBasePayroll(requestDto.getBasePayroll());
-        payroll.setPositionAllowance(requestDto.getPositionAllowance());
-        payroll.setMealAllowance(requestDto.getMealAllowance());
+        if (requestDto.getBasePayroll() != null)
+            payroll.setBasePayroll(requestDto.getBasePayroll());
+        if (requestDto.getPositionAllowance() != null)
+            payroll.setPositionAllowance(requestDto.getPositionAllowance());
+        if (requestDto.getMealAllowance() != null)
+            payroll.setMealAllowance(requestDto.getMealAllowance());
 
         Payroll updated = payrollRepository.save(payroll);
         return toDto(updated);
+    }
+
+
+    public void deletePayroll(Long userId) {
+        Payroll payroll = payrollRepository.findByUserId(userId)
+                .orElseThrow(() -> new IllegalArgumentException("삭제할 급여 정보가 없습니다."));
+        payrollRepository.delete(payroll);
     }
 
 

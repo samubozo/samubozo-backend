@@ -40,16 +40,25 @@ public class PayrollController {
     }
 
     // 3. 특정 직원 급여 정보 수정
-    @PutMapping("/{userId}")
-    public ResponseEntity<CommonResDto<PayrollResponseDto>> updatePayroll(@PathVariable Long userId,
-                                                            @RequestBody PayrollRequestDto requestDto) {
-        PayrollResponseDto updated = payrollService.updatePayroll(userId, requestDto);
+    @PutMapping()
+    public ResponseEntity<CommonResDto<PayrollResponseDto>> updatePayroll(@RequestBody PayrollRequestDto requestDto) {
+        PayrollResponseDto updated = payrollService.updatePayroll(requestDto);
         return ResponseEntity.ok(
                 new CommonResDto<>(HttpStatus.OK, "급여 정보 수정 성공!", updated)
         );
     }
 
     // 4. 특정 직원 급여 정보 삭제
+    @DeleteMapping("/{userId}")
+    public ResponseEntity<CommonResDto<Void>> deletePayroll(@PathVariable Long userId) {
+        payrollService.deletePayroll(userId);
+        return ResponseEntity.ok(
+                new CommonResDto<>(HttpStatus.OK, "급여 정보 삭제 성공!", null)
+        );
+    }
+
+
+
 
 
     @GetMapping("/hello")
