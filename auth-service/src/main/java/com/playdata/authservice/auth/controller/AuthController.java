@@ -1,11 +1,7 @@
 package com.playdata.authservice.auth.controller;
 
 
-import com.playdata.authservice.auth.dto.FindPwDto;
-import com.playdata.authservice.auth.dto.ResetPasswordDto;
-import com.playdata.authservice.auth.dto.UserLoginReqDto;
-import com.playdata.authservice.auth.dto.VerifyCodeDto;
-import com.playdata.authservice.auth.entity.User;
+import com.playdata.authservice.auth.dto.*;
 import com.playdata.authservice.auth.service.AuthService;
 import com.playdata.authservice.common.auth.JwtTokenProvider;
 import com.playdata.authservice.common.auth.TokenRefreshRequestDto;
@@ -13,14 +9,12 @@ import com.playdata.authservice.common.auth.TokenUserInfo;
 import com.playdata.authservice.common.dto.CommonResDto;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.core.env.Environment;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.parameters.P;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -43,20 +37,20 @@ public class AuthController {
     // 로그인
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody UserLoginReqDto dto) {
-        User user = authService.login(dto);
+        UserLoginFeignResDto user = authService.login(dto);
 
         String token
-                = jwtTokenProvider.createToken(user.getEmail(), user.getPositionId().toString());
+                = jwtTokenProvider.createToken(user.getEmail(), user.getHrRole());
         String refreshToken
-                = jwtTokenProvider.createRefreshToken(user.getEmail(), user.getPositionId().toString());
+                = jwtTokenProvider.createRefreshToken(user.getEmail(), user.getHrRole());
 
         redisTemplate.opsForValue().set("user:refresh:" + user.getEmployeeNo(), refreshToken, 7, TimeUnit.MINUTES);
 
         Map<String, Object> loginInfo = new HashMap<>();
         loginInfo.put("token", token);
         loginInfo.put("employeeNo", user.getEmployeeNo());
-        loginInfo.put("user_name", user.getUserName());
-        loginInfo.put("positionId", user.getPositionId());
+        loginInfo.put("user_name", user.getUsername());
+        loginInfo.put("hrRole", user.getHrRole());
 
         CommonResDto resDto
                 = new CommonResDto(HttpStatus.OK,
@@ -76,7 +70,7 @@ public class AuthController {
                         .body("Refresh Token mismatch");
             }
 
-            String newAccessToken = jwtTokenProvider.createToken(userInfo.getEmail(), userInfo.getRole().name());
+            String newAccessToken = jwtTokenProvider.createToken(userInfo.getEmail(), userInfo.getHrRole());
 
             Map<String, String> tokenMap = new HashMap<>();
             tokenMap.put("accessToken", newAccessToken);

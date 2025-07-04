@@ -1,15 +1,11 @@
 package com.playdata.hrservice.hr.controller;
 
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.playdata.hrservice.common.auth.JwtTokenProvider;
-import com.playdata.hrservice.common.auth.TokenRefreshRequestDto;
 import com.playdata.hrservice.common.auth.TokenUserInfo;
 import com.playdata.hrservice.common.dto.CommonResDto;
 import com.playdata.hrservice.hr.dto.*;
-import com.playdata.hrservice.hr.entity.User;
+import com.playdata.hrservice.hr.entity.Position;
 import com.playdata.hrservice.hr.service.UserService;
-import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,15 +13,13 @@ import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.core.env.Environment;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 
 @RestController
 @RequestMapping("/hr")
@@ -35,12 +29,11 @@ import java.util.concurrent.TimeUnit;
 public class HRController {
 
     private final UserService userService;
-    private final JwtTokenProvider jwtTokenProvider;
     private final RedisTemplate<String, Object> redisTemplate;
 
     private final Environment env;
 
-    // 회원가입
+    // 직원 계정 생성(등록)
     @PostMapping("/users/signup")
     public ResponseEntity<?> createUser(@Valid @RequestBody UserSaveReqDto dto) {
         UserResDto saved = userService.createUser(dto);
@@ -49,12 +42,47 @@ public class HRController {
     }
 
     // 프로필
-//    @PostMapping("/user/profile")
-//    public ResponseEntity<?> uploadProfile(@ModelAttribute UserRequestDto dto) {
-//        String newProfile = userService.uploadProfile(dto);
-//        CommonResDto resDto = new CommonResDto(HttpStatus.OK,
-//                "User profile created", newProfile);
+    @PostMapping("/user/profile")
+    public ResponseEntity<?> uploadProfile(@ModelAttribute UserRequestDto dto) throws Exception{
+        String newProfile = userService.uploadProfile(dto);
+        CommonResDto resDto = new CommonResDto(HttpStatus.OK,
+                "User profile created", Map.of("newProfileName", newProfile));
+        return new ResponseEntity<>(resDto, HttpStatus.OK);
+    }
+
+    // feign client 요청을 위한 메서드
+    // 이메일로 유저 정보 얻어오기
+    @GetMapping("/user/{email}")
+    public UserLoginFeignResDto getLoginUser(@PathVariable String email) {
+        return userService.getUserByEmail(email);
+    }
+
+    @GetMapping("/users/{email}")
+    public UserFeignResDto getUser(@PathVariable String email) {
+        return userService.getEmloyeeByEmail(email);
+    }
+
+    @PostMapping("/hr/user/password")
+    ResponseEntity<?> updatePassword(@RequestBody UserPwUpdateDto dto) {
+        userService.updatePassword(dto);
+        return new ResponseEntity<>(HttpStatus.OK);
+    }
+
+//    // 사용자 정보 수정
+//    @PatchMapping("/users/{id}")
+//    public ResponseEntity<?> updateUser(@PathVariable("id") Long employeeNo,
+//                                        @RequestBody UserUpdateRequestDto dto,
+//                                        @AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
+//        String hrRole = tokenUserInfo.getHrRole();
+//        userService.updateUser(employeeNo, dto, hrRole);
+//        return new ResponseEntity<>(HttpStatus.OK);
 //    }
+
+    // 직원 조회
+    @GetMapping("/user/list")
+    public ResponseEntity<?> listUsers(@PageableDefault(size = 5, sort = "employeeNo") Pageable pageable) {
+        return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "Success", userService.listUsers(pageable)), HttpStatus.OK);
+    }
 
 
 //   밑에거는 참고용으로 남겨놔요. 쓸거 쓰시고 지우셔도 될듯

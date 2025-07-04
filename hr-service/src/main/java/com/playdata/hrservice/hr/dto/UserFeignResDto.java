@@ -1,7 +1,5 @@
 package com.playdata.hrservice.hr.dto;
 
-
-
 import lombok.*;
 
 import java.time.LocalDate;
@@ -12,7 +10,7 @@ import java.time.LocalDate;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class UserResDto {
+public class UserFeignResDto {
 
     private Long employeeNo;
     private String userName;
