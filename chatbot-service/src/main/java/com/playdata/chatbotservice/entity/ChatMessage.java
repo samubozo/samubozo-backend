@@ -23,6 +23,9 @@ public class ChatMessage {
     @Column(nullable = false)
     private String userId; // 사용자 식별자
 
+    @Column(nullable = false)
+    private String conversationId; // 추가: 대화 세션 식별자
+
     @Column(nullable = false, columnDefinition = "TEXT")
     private String messageContent; // 메시지 내용
 

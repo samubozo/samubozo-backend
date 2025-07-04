@@ -34,6 +34,8 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
             ,"/auth/email-valid"
             ,"/auth/verify"
             ,"/auth/verify-code"
+            ,"/chatbot/hello"
+            ,"/chatbot/chat"
     );
 
     @Override
@@ -46,6 +48,7 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
             boolean isAllowed
                     = allowUrl.stream()
                     .anyMatch(url -> antPathMatcher.match(url, path));
+            log.info("url: {}", path);
             log.info("isAllowed: {}", isAllowed);
 
             if (isAllowed || path.startsWith("/actuator")) {
