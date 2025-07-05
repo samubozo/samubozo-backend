@@ -48,6 +48,10 @@ public class WorkStatus {
     @Column(name = "return_time")
     private LocalTime returnTime;
 
+    @OneToOne
+    @JoinColumn(name = "attendance_id")
+    private Attendance attendance;
+
     public WorkStatus(Long userId, LocalDate date, WorkStatusType type, String reason) {
         this.userId = userId;
         this.date = date;
@@ -77,6 +81,10 @@ public class WorkStatus {
         status.outTime = outTime;
         status.returnTime = returnTime;
         return status;
+    }
+
+    public void setAttendance(Attendance attendance) {
+        this.attendance = attendance;
     }
 
 
