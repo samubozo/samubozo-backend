@@ -2,9 +2,11 @@ package com.playdata.hrservice.hr.dto;
 
 
 
+import com.playdata.hrservice.common.auth.Role;
 import lombok.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Getter
 @Setter

@@ -154,7 +154,7 @@ public class AuthService {
         String authNum;
         //이메일 전송만을 담당하는 객체를 이용해서 이메일 로직 작성.
         try {
-            authNum = mailSenderService.joinMail(email);
+             authNum = mailSenderService.joinMail(email);
         } catch (MessagingException e) {
             throw new RuntimeException("이메일 전송 과정 중 문제 발생!");
         }
@@ -221,6 +221,7 @@ public class AuthService {
     }
 
 }
+
 
 
 
