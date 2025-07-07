@@ -2,8 +2,7 @@ package com.playdata.authservice.auth.service;
 
 import com.playdata.authservice.auth.dto.*;
 
-import com.playdata.authservice.auth.entity.User;
-import com.playdata.authservice.auth.repository.UserRepository;
+import com.playdata.authservice.client.HrServiceClient;
 import jakarta.mail.MessagingException;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.constraints.NotBlank;
@@ -11,7 +10,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.*;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -26,10 +24,11 @@ import java.util.Map;
 public class AuthService {
 
     //필요한 객체 생성하여 주입
-    private final UserRepository userRepository;
     private final PasswordEncoder encoder;
     private final RedisTemplate<String, Object>  redisTemplate;
     private final MailSenderService mailSenderService;
+
+    private final HrServiceClient hrServiceClient;
 
     private static final String CODE_CHARS =
             "0123456789" + "ABCDEFGHIJKLMNOPQRSTUVWXYZ" + "abcdefghijklmnopqrstuvwxyz";
@@ -43,27 +42,29 @@ public class AuthService {
     private static final Duration RESET_CODE_TTL = Duration.ofMinutes(5);
 
     // 로그인 인증
-    public User login(UserLoginReqDto dto) {
-        User user = userRepository.findByEmail(dto.getEmail()).orElseThrow(
-                () -> new EntityNotFoundException("User not found!")
-        );
+    public UserLoginFeignResDto login(UserLoginReqDto dto) {
 
-        if (!"Y".equals(user.getActivate())) {
+        UserLoginFeignResDto userLoginFeignResDto = hrServiceClient.getLoginUser(dto.getEmail());
+
+        log.info("userLoginFeignResDto: {}", userLoginFeignResDto);
+        if (!"Y".equals(userLoginFeignResDto.getActivate())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "정지된 계정입니다.");
         }
 
-        if (!encoder.matches(dto.getPassword(), user.getPassword())) {
+        if (!encoder.matches(dto.getPassword(), userLoginFeignResDto.getPassword())) {
             throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
         }
 
-        return user;
+        return userLoginFeignResDto;
     }
 
     // 비밀번호 찾기(인증코드 발송)
     public void sendPasswordResetCode(@NotBlank(message = "이메일을 입력해 주세요.") String email) {
         // 1. 회원 존재 확인
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new EntityNotFoundException("해당 이메일의 사용자를 찾을 수 없습니다."));
+        UserLoginFeignResDto userLoginFeignResDto = hrServiceClient.getLoginUser(email);
+        if (userLoginFeignResDto == null) {
+            throw new EntityNotFoundException("해당 이메일의 사용자를 찾을 수 없습니다.");
+        }
 
         // 2. 인증 코드 생성
         String code = makeAlphanumericCode(9);
@@ -75,7 +76,7 @@ public class AuthService {
 
         // 4. 비밀번호 재설정 메일 발송
         try {
-            mailSenderService.sendPasswordResetMail(email, user.getUserName(), code);
+            mailSenderService.sendPasswordResetMail(email, userLoginFeignResDto.getUsername(), code);
         } catch (MessagingException e) {
             log.error("비밀번호 재설정 메일 전송 실패", e);
             throw new ResponseStatusException(
@@ -99,8 +100,10 @@ public class AuthService {
     // 비밀번호 재설정 인증코드 검증
     public void verifyResetCode(@NotBlank String email, @NotBlank String code) {
         // 1. 사용자 재확인 (옵션)
-        userRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("해당 유저를 찾을 수 없습니다."));
+        UserLoginFeignResDto userLoginFeignResDto = hrServiceClient.getLoginUser(email);
+        if (userLoginFeignResDto == null) {
+            throw new EntityNotFoundException("해당 이메일의 사용자를 찾을 수 없습니다.");
+        }
 
         // 2. Redis에서 코드 조회
         String key = RESET_KEY_PREFIX + email;
@@ -118,13 +121,18 @@ public class AuthService {
         verifyResetCode(email, code);
 
         // 사용자 조회
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("해당 유저를 찾을 수 없습니다."));
+        UserLoginFeignResDto userLoginFeignResDto = hrServiceClient.getLoginUser(email);
+        if (userLoginFeignResDto == null) {
+            throw new EntityNotFoundException("해당 이메일의 사용자를 찾을 수 없습니다.");
+        }
 
         // 비밀번호 해시 후 저장
         String encoded = encoder.encode(newPassword);
-        user.setPassword(encoded);
-        userRepository.save(user);
+        UserPwUpdateDto userPwUpdateDto = UserPwUpdateDto.builder()
+                .employeeNo(userLoginFeignResDto.getEmployeeNo())
+                .newPw(encoded)
+                .build();
+        hrServiceClient.setPassword(userPwUpdateDto);
 
         // 사용한 코드 삭제
         redisTemplate.delete(RESET_KEY_PREFIX + email);
@@ -138,9 +146,11 @@ public class AuthService {
             throw new IllegalArgumentException("잘못된 요청 횟수가 과다하여 임시 차단 중입니다. 잠시 후에 시도해주세요.");
         }
 
-        userRepository.findByEmail(email).ifPresent(user -> {
+        UserLoginFeignResDto userLoginFeignResDto = hrServiceClient.getLoginUser(email);
+        if (userLoginFeignResDto != null) {
             throw new IllegalArgumentException("이미 존재하는 이메일 입니다.");
-        });
+        }
+
         String authNum;
         //이메일 전송만을 담당하는 객체를 이용해서 이메일 로직 작성.
         try {

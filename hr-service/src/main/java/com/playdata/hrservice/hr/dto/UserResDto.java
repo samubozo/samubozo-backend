@@ -2,11 +2,9 @@ package com.playdata.hrservice.hr.dto;
 
 
 
-import com.playdata.hrservice.common.auth.Role;
 import lombok.*;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 @Getter
 @Setter
@@ -19,6 +17,7 @@ public class UserResDto {
     private Long employeeNo;
     private String userName;
     private String email;
+    private String password;
     private String gender;
     private Long departmentId;
     private String departmentName;
@@ -31,5 +30,6 @@ public class UserResDto {
     private LocalDate hireDate;
     private LocalDate retireDate;
     private String activate;
+    private String hrRole;
 
 }
