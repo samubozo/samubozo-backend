@@ -79,7 +79,7 @@ public class ChatbotService {
         return aiResponseMono.flatMap(botResponseContent -> {
             ChatResponse botResponse = new ChatResponse(botResponseContent, effectiveConversationId);
             // 챗봇 응답 저장
-            saveChatMessage(request.getUserId(), effectiveConversationId, botResponseContent, SenderType.BOT);
+            saveChatMessage(request.getEmployeeNo(), effectiveConversationId, botResponseContent, SenderType.BOT);
             return Mono.just(botResponse);
         });
     }

@@ -7,7 +7,7 @@ import com.playdata.chatbotservice.service.ChatbotService;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import com.playdata.authservice.common.auth.TokenUserInfo; // TokenUserInfo 경로 확인 필요
+import com.playdata.chatbotservice.common.auth.TokenUserInfo;
 
 import java.util.List;
 import com.playdata.chatbotservice.config.BadWordsConfig;
