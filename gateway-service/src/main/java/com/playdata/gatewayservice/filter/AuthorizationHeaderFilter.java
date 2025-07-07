@@ -37,6 +37,7 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
             ,"/auth/email-valid"
             ,"/auth/verify"
             ,"/auth/verify-code"
+            ,"/auth/refresh"
     );
 
     @Override
@@ -78,6 +79,7 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
                     .mutate()
                     .header("X-User-Email", claims.getSubject())
                     .header("X-User-Role", claims.get("role", String.class))
+                    .header("X-User-Employee-No", claims.get("employeeNo", Long.class).toString())
                     .build();
             return chain.filter(exchange.mutate().request(request).build());
         };
