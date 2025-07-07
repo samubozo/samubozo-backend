@@ -29,7 +29,8 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
 
     //여기에 권한 없이 접근해야할 URL을 명시해주세요.
     private final List<String> allowUrl = Arrays.asList(
-            "/hr/user/feign/**"
+            "/hr/users/signup"
+            ,"/hr/user/feign/**"
             ,"/hr/positions"
             ,"/hr/departments"
             ,"/auth/login"

@@ -27,11 +27,33 @@ import java.util.List;
 public class AttendanceController {
 
     private final AttendanceService attendanceService;
-    private final VacationServiceClient vacationServiceClient; // 변경
+    private final VacationService vacationService;
+
+    /**
+     * 휴가를 신청하는 API 엔드포인트입니다.
+     *
+     * @param userId 신청자 ID (요청 헤더에서 추출)
+     * @param requestDto 휴가 신청 정보
+     * @return 휴가 신청 성공 또는 실패에 대한 응답
+     */
+    @PostMapping("/vacations")
+    public ResponseEntity<CommonResDto<?>> requestVacation(
+            @RequestHeader("X-USER-ID") Long userId,
+            @RequestBody VacationRequestDto requestDto) {
+        try {
+            vacationService.requestVacation(userId, requestDto);
+            return buildSuccessResponse(null, "휴가 신청이 성공적으로 접수되었습니다.");
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            return buildErrorResponse(HttpStatus.BAD_REQUEST, e.getMessage());
+        } catch (Exception e) {
+            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "휴가 신청 중 오류가 발생했습니다.");
+        }
+    }
 
     /**
      * 사용자의 출근을 기록하는 API 엔드포인트입니다.
      *
+     * @param userId 출근을 기록할 사용자의 ID (URL 경로에서 추출)
      * @param request HttpServletRequest 객체 (클라이언트 IP 주소 획득용)
      * @return 출근 기록 성공 또는 실패에 대한 응답 (CommonResDto)
      */
