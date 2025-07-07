@@ -99,7 +99,7 @@ public class ChatbotService {
         StringBuilder conversationContext = new StringBuilder();
         for (ChatMessage message : chatHistory) {
             String prefix = message.getSenderType() == SenderType.USER ? "사용자: " : "챗봇: ";
-            conversationContext.append(prefix).append(message.getMessage()).append("\n");
+            conversationContext.append(prefix).append(message.getMessageContent()).append("\n");
         }
 
         // 시스템 지시, 대화 기록, 현재 사용자 메시지를 모두 결합

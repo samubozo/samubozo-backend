@@ -6,6 +6,8 @@ import com.playdata.chatbotservice.entity.ChatMessage;
 import com.playdata.chatbotservice.service.ChatbotService;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import com.playdata.authservice.common.auth.TokenUserInfo; // TokenUserInfo 경로 확인 필요
 
 import java.util.List;
 import com.playdata.chatbotservice.config.BadWordsConfig;
@@ -31,8 +33,9 @@ public class ChatbotController {
     }
 
     @PostMapping("/chat")
-    public Mono<ChatResponse> chatWithBot(@RequestBody ChatRequest request) {
+    public Mono<ChatResponse> chatWithBot(@RequestBody ChatRequest request, @AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
         String userMessage = request.getMessage();
+        String userId = tokenUserInfo.getEmail(); // 토큰에서 userId 추출
 
         // 1. 욕설 필터링 (블랙리스트)
         for (String badWord : BadWordsConfig.BAD_WORDS) {
@@ -58,11 +61,14 @@ public class ChatbotController {
             return Mono.just(new ChatResponse("저는 회사 규정 및 복지에 대한 질문에만 답변할 수 있습니다. 다른 질문은 도와드릴 수 없습니다.", conversationId));
         }
 
+        // ChatRequest에 userId 설정
+        request.setUserId(userId);
         return chatbotService.getChatResponse(request);
     }
 
-    @GetMapping("/history/{userId}")
-    public List<ChatMessage> getChatHistory(@PathVariable String userId) {
+    @GetMapping("/history") // 경로 변경
+    public List<ChatMessage> getChatHistory(@AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
+        String userId = tokenUserInfo.getEmail(); // 토큰에서 userId 추출
         return chatbotService.getChatHistory(userId);
     }
 }

@@ -37,8 +37,6 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
             ,"/auth/email-valid"
             ,"/auth/verify"
             ,"/auth/verify-code"
-            ,"/chatbot/hello"
-            ,"/chatbot/chat"
     );
 
     @Override
