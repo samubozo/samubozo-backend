@@ -76,7 +76,7 @@ public class AuthService {
 
         // 4. 비밀번호 재설정 메일 발송
         try {
-            mailSenderService.sendPasswordResetMail(email, userLoginFeignResDto.getUsername(), code);
+            mailSenderService.sendPasswordResetMail(email, userLoginFeignResDto.getUserName(), code);
         } catch (MessagingException e) {
             log.error("비밀번호 재설정 메일 전송 실패", e);
             throw new ResponseStatusException(
