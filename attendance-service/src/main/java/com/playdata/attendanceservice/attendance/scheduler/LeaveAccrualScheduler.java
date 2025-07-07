@@ -3,8 +3,8 @@ package com.playdata.attendanceservice.attendance.scheduler;
 import com.playdata.attendanceservice.attendance.dto.MonthlyWorkDaysResponse;
 import com.playdata.attendanceservice.attendance.entity.WorkStatusType;
 import com.playdata.attendanceservice.attendance.repository.AttendanceRepository;
-import com.playdata.attendanceservice.attendance.service.VacationService;
 import com.playdata.attendanceservice.client.HrServiceClient;
+import com.playdata.attendanceservice.client.VacationServiceClient; // 추가
 import com.playdata.attendanceservice.client.dto.UserDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,8 +24,8 @@ import java.util.List;
 public class LeaveAccrualScheduler {
 
     private final AttendanceRepository attendanceRepository;
-    private final VacationService vacationService;
     private final HrServiceClient hrServiceClient; // HR 서비스와 통신하기 위한 Feign 클라이언트
+    private final VacationServiceClient vacationServiceClient; // 추가
 
     /**
      * 매일 새벽 1시에 실행되어, 입사 1주년이 된 사용자에게 15일의 연차를 부여합니다.
@@ -45,7 +45,7 @@ public class LeaveAccrualScheduler {
             // 2. 대상자들에게 15일의 연차를 부여합니다.
             users.forEach(user -> {
                 log.info("사용자 ID: {}. 1주년 연차(15일) 부여 대상입니다.", user.getUserId());
-                vacationService.grantAnnualLeave(Long.valueOf(user.getUserId()), 15);
+                vacationServiceClient.grantAnnualLeave(Long.valueOf(user.getUserId()), 15); // 변경
             });
 
             log.info("입사 1주년 연차 부여 스케줄을 성공적으로 완료했습니다.", today);
@@ -82,7 +82,7 @@ public class LeaveAccrualScheduler {
                 .filter(data -> data.getWorkDayCount() >= 15) // 월 15일 이상 근무 시
                 .forEach(data -> {
                     log.info("사용자 ID: {}, 근무일수: {}. 연차 부여 대상입니다.", data.getUserId(), data.getWorkDayCount());
-                    vacationService.grantMonthlyLeave(data.getUserId());
+                    vacationServiceClient.grantMonthlyLeave(data.getUserId()); // 변경
                 });
 
         log.info("연차 부여 스케줄을 성공적으로 완료했습니다.");

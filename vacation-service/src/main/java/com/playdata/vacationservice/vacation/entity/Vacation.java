@@ -1,12 +1,12 @@
-package com.playdata.attendanceservice.attendance.entity;
+package com.playdata.vacationservice.vacation.entity;
 
-import com.playdata.attendanceservice.common.domain.BaseEntity;
+import com.playdata.vacationservice.common.domain.BaseEntity; // 경로 변경
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter; // 추가
+// import lombok.Setter; // 제거
 
 import java.time.LocalDate;
 
@@ -18,7 +18,7 @@ public class Vacation extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Setter(AccessLevel.PACKAGE) // 추가
+    // @Setter(AccessLevel.PACKAGE) // 제거
     private Long id;
 
     @Column(name = "user_id", nullable = false)
@@ -50,6 +50,4 @@ public class Vacation extends BaseEntity {
         this.vacationStatus = vacationStatus;
         this.reason = reason;
     }
-
-
 }

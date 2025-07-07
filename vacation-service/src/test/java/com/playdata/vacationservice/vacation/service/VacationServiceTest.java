@@ -1,16 +1,16 @@
-package com.playdata.attendanceservice.attendance.service; // 패키지 변경
+package com.playdata.vacationservice.vacation.service; // 패키지 변경
 
-import com.playdata.attendanceservice.attendance.dto.VacationRequestDto;
-import com.playdata.attendanceservice.attendance.entity.Vacation;
-import com.playdata.attendanceservice.attendance.entity.VacationBalance;
-import com.playdata.attendanceservice.attendance.entity.VacationStatus;
-import com.playdata.attendanceservice.attendance.entity.VacationType;
-import com.playdata.attendanceservice.attendance.repository.VacationBalanceRepository;
-import com.playdata.attendanceservice.attendance.repository.VacationRepository;
-import com.playdata.attendanceservice.client.ApprovalServiceClient;
-import com.playdata.attendanceservice.client.HrServiceClient;
-import com.playdata.attendanceservice.client.dto.ApprovalRequestDto;
-import com.playdata.attendanceservice.client.dto.UserDetailDto;
+import com.playdata.vacationservice.vacation.dto.VacationRequestDto;
+import com.playdata.vacationservice.vacation.entity.Vacation;
+import com.playdata.vacationservice.vacation.entity.VacationBalance;
+import com.playdata.vacationservice.vacation.entity.VacationStatus;
+import com.playdata.vacationservice.vacation.entity.VacationType;
+import com.playdata.vacationservice.vacation.repository.VacationBalanceRepository;
+import com.playdata.vacationservice.vacation.repository.VacationRepository;
+import com.playdata.vacationservice.client.ApprovalServiceClient;
+import com.playdata.vacationservice.client.HrServiceClient;
+import com.playdata.vacationservice.client.dto.ApprovalRequestDto;
+import com.playdata.vacationservice.client.dto.UserDetailDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,7 +18,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.invocation.InvocationOnMock; // 추가
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.stubbing.Answer; // 추가
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -42,7 +44,7 @@ class VacationServiceTest {
     private HrServiceClient hrServiceClient;
 
     @InjectMocks
-    private VacationService vacationService; // FQCN 제거
+    private VacationService vacationService;
 
     private Long userId;
     private VacationRequestDto requestDto;
@@ -68,13 +70,21 @@ class VacationServiceTest {
         when(vacationBalanceRepository.findByUserId(userId)).thenReturn(Optional.of(vacationBalance));
         when(hrServiceClient.getUserDetails(userId)).thenReturn(userDetailDto);
 
-        // Mocking vacationRepository.save to return the same Vacation object with an ID
-        when(vacationRepository.save(any(Vacation.class))).thenAnswer(invocation -> {
-            Vacation vacationToSave = invocation.getArgument(0);
-            // Set ID directly on the object passed to save, as it's now in the same package
-            vacationToSave.setId(1L); // setId 메서드 사용
-            return vacationToSave;
-        });
+        // Use doAnswer to set the ID on the Vacation object passed to save
+        doAnswer(new Answer<Void>() {
+            public Void answer(InvocationOnMock invocation) {
+                Vacation vacation = invocation.getArgument(0);
+                // Use reflection to set the private 'id' field
+                try {
+                    java.lang.reflect.Field idField = Vacation.class.getDeclaredField("id");
+                    idField.setAccessible(true);
+                    idField.set(vacation, 1L); // Set a dummy ID
+                } catch (NoSuchFieldException | IllegalAccessException e) {
+                    throw new RuntimeException("Failed to set ID on Vacation object during test", e);
+                }
+                return null;
+            }
+        }).when(vacationRepository).save(any(Vacation.class));
 
         // When
         vacationService.requestVacation(userId, requestDto);

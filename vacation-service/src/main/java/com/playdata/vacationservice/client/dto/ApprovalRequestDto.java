@@ -1,4 +1,4 @@
-package com.playdata.attendanceservice.client.dto;
+package com.playdata.vacationservice.client.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

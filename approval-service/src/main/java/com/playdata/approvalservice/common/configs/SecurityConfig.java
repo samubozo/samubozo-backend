@@ -1,7 +1,7 @@
 package com.playdata.approvalservice.common.configs;
 
-import com.playdata.authservice.common.auth.JwtAuthFilter;
-import com.playdata.authservice.common.exception.CustomAuthenticationEntryPoint;
+import com.playdata.approvalservice.common.auth.JwtAuthFilter; // 변경
+import com.playdata.approvalservice.common.exception.CustomAuthenticationEntryPoint; // 변경
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

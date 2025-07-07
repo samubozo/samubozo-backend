@@ -1,7 +1,7 @@
-package com.playdata.attendanceservice.client;
+package com.playdata.vacationservice.client;
 
-import com.playdata.attendanceservice.client.dto.UserDetailDto;
-import com.playdata.attendanceservice.client.dto.UserDto;
+import com.playdata.vacationservice.client.dto.UserDetailDto;
+import com.playdata.vacationservice.client.dto.UserDto;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,8 +17,8 @@ import java.util.List;
 public interface HrServiceClient {
 
     /**
-     * 지정된 날짜에 입사 1주년을 맞이하는 모든 사용자의 정보를 조회합니다。
-     * HR 서비스의 /api/v1/hr/anniversary 엔드포인트를 호출합니다。
+     * 지정된 날짜에 입사 1주년을 맞이하는 모든 사용자의 정보를 조회합니다.
+     * HR 서비스의 /api/v1/hr/anniversary 엔드포인트를 호출합니다.
      *
      * @param date 조회할 날짜 (YYYY-MM-DD 형식)
      * @return 입사 1주년을 맞이하는 사용자 정보 리스트
@@ -27,8 +27,8 @@ public interface HrServiceClient {
     List<UserDto> getUsersWithFirstAnniversary(@RequestParam("date") LocalDate date);
 
     /**
-     * 특정 사용자의 상세 정보를 조회합니다。
-     * HR 서비스의 /hr/users/{id} 엔드포인트를 호출합니다。
+     * 특정 사용자의 상세 정보를 조회합니다.
+     * HR 서비스의 /hr/users/{id} 엔드포인트를 호출합니다.
      *
      * @param id 조회할 사용자의 ID
      * @return 사용자의 상세 정보 (이름, 부서 등)

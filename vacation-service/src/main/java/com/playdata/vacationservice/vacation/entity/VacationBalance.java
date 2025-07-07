@@ -1,4 +1,4 @@
-package com.playdata.attendanceservice.attendance.entity;
+package com.playdata.vacationservice.vacation.entity;
 
 
 import jakarta.persistence.*;

@@ -1,9 +1,9 @@
 package com.playdata.attendanceservice.attendance.controller;
 
-import com.playdata.attendanceservice.attendance.dto.VacationRequestDto;
+import com.playdata.attendanceservice.client.dto.VacationRequestDto; // 경로 변경
 import com.playdata.attendanceservice.attendance.entity.Attendance;
 import com.playdata.attendanceservice.attendance.service.AttendanceService;
-import com.playdata.attendanceservice.attendance.service.VacationService;
+import com.playdata.attendanceservice.client.VacationServiceClient; // 추가
 import com.playdata.attendanceservice.common.dto.CommonResDto;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +24,7 @@ import java.util.List;
 public class AttendanceController {
 
     private final AttendanceService attendanceService;
-    private final VacationService vacationService;
+    private final VacationServiceClient vacationServiceClient; // 변경
 
     /**
      * 휴가를 신청하는 API 엔드포인트입니다.
@@ -38,7 +38,7 @@ public class AttendanceController {
             @RequestHeader("X-USER-ID") Long userId,
             @RequestBody VacationRequestDto requestDto) {
         try {
-            vacationService.requestVacation(userId, requestDto);
+            vacationServiceClient.requestVacation(userId, requestDto); // 변경
             return buildSuccessResponse(null, "휴가 신청이 성공적으로 접수되었습니다.");
         } catch (IllegalStateException | IllegalArgumentException e) {
             return buildErrorResponse(HttpStatus.BAD_REQUEST, e.getMessage());

@@ -5,6 +5,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter; // 추가
 
 import java.time.LocalDateTime;
 
@@ -25,6 +26,7 @@ public class ApprovalRequest {
     @Column(name = "applicant_id", nullable = false)
     private Long applicantId;
 
+    @Setter // 추가
     @Column(name = "approver_id")
     private Long approverId;
 

@@ -39,7 +39,7 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
             ,"/auth/verify-code"
             ,"/chatbot/hello"
             ,"/chatbot/chat"
-            ,"/attendance/**"
+            ,"/attendance-service/**"
 
     );
 

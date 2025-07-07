@@ -1,6 +1,6 @@
-package com.playdata.attendanceservice.client;
+package com.playdata.vacationservice.client;
 
-import com.playdata.attendanceservice.client.dto.ApprovalRequestDto;
+import com.playdata.vacationservice.client.dto.ApprovalRequestDto; // 경로 변경
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;

@@ -1,7 +1,7 @@
 package com.playdata.approvalservice.common.exception;
 
 
-import com.playdata.authservice.common.dto.CommonErrorDto;
+import com.playdata.approvalservice.common.dto.CommonErrorDto; // 변경
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

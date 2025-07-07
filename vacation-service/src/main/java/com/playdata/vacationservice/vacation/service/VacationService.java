@@ -1,15 +1,15 @@
-package com.playdata.attendanceservice.attendance.service;
+package com.playdata.vacationservice.vacation.service;
 
-import com.playdata.attendanceservice.attendance.dto.VacationRequestDto;
-import com.playdata.attendanceservice.attendance.entity.Vacation;
-import com.playdata.attendanceservice.attendance.entity.VacationBalance;
-import com.playdata.attendanceservice.attendance.entity.VacationStatus;
-import com.playdata.attendanceservice.attendance.repository.VacationBalanceRepository;
-import com.playdata.attendanceservice.attendance.repository.VacationRepository;
-import com.playdata.attendanceservice.client.ApprovalServiceClient;
-import com.playdata.attendanceservice.client.HrServiceClient; // 추가
-import com.playdata.attendanceservice.client.dto.ApprovalRequestDto;
-import com.playdata.attendanceservice.client.dto.UserDetailDto; // 추가
+import com.playdata.vacationservice.vacation.dto.VacationRequestDto;
+import com.playdata.vacationservice.vacation.entity.Vacation;
+import com.playdata.vacationservice.vacation.entity.VacationBalance;
+import com.playdata.vacationservice.vacation.entity.VacationStatus;
+import com.playdata.vacationservice.vacation.repository.VacationBalanceRepository;
+import com.playdata.vacationservice.vacation.repository.VacationRepository;
+import com.playdata.vacationservice.client.ApprovalServiceClient;
+import com.playdata.vacationservice.client.HrServiceClient;
+import com.playdata.vacationservice.client.dto.ApprovalRequestDto;
+import com.playdata.vacationservice.client.dto.UserDetailDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,7 +29,7 @@ public class VacationService {
     private final VacationBalanceRepository vacationBalanceRepository;
     private final VacationRepository vacationRepository;
     private final ApprovalServiceClient approvalServiceClient;
-    private final HrServiceClient hrServiceClient; // 추가
+    private final HrServiceClient hrServiceClient;
 
     /**
      * 사용자로부터 휴가 신청을 받아 처리합니다.

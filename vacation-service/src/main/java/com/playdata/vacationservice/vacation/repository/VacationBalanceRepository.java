@@ -1,6 +1,6 @@
-package com.playdata.attendanceservice.attendance.repository;
+package com.playdata.vacationservice.vacation.repository;
 
-import com.playdata.attendanceservice.attendance.entity.VacationBalance;
+import com.playdata.vacationservice.vacation.entity.VacationBalance; // 경로 변경
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

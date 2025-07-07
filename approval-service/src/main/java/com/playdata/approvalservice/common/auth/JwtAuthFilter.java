@@ -2,8 +2,8 @@ package com.playdata.approvalservice.common.auth;
 
 
 
-import com.playdata.authservice.common.auth.Role;
-import com.playdata.authservice.common.auth.TokenUserInfo;
+import com.playdata.approvalservice.common.auth.Role; // 변경
+import com.playdata.approvalservice.common.auth.TokenUserInfo; // 변경
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
