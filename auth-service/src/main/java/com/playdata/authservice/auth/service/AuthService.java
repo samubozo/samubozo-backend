@@ -76,7 +76,7 @@ public class AuthService {
 
         // 4. 비밀번호 재설정 메일 발송
         try {
-            mailSenderService.sendPasswordResetMail(email, userLoginFeignResDto.getUsername(), code);
+            mailSenderService.sendPasswordResetMail(email, userLoginFeignResDto.getUserName(), code);
         } catch (MessagingException e) {
             log.error("비밀번호 재설정 메일 전송 실패", e);
             throw new ResponseStatusException(
@@ -154,7 +154,7 @@ public class AuthService {
         String authNum;
         //이메일 전송만을 담당하는 객체를 이용해서 이메일 로직 작성.
         try {
-             authNum = mailSenderService.joinMail(email);
+            authNum = mailSenderService.joinMail(email);
         } catch (MessagingException e) {
             throw new RuntimeException("이메일 전송 과정 중 문제 발생!");
         }
@@ -221,7 +221,6 @@ public class AuthService {
     }
 
 }
-
 
 
 
