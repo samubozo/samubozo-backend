@@ -77,17 +77,17 @@ public class HRController {
         return new ResponseEntity<>(HttpStatus.OK);
     }
 
-//    // 사용자 정보 수정
-//    @PatchMapping("/users/{id}")
-//    public ResponseEntity<?> updateUser(@PathVariable("id") Long employeeNo,
-//                                        @RequestBody UserUpdateRequestDto dto,
-//                                        @AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
-//        String hrRole = tokenUserInfo.getHrRole();
-//        userService.updateUser(employeeNo, dto, hrRole);
-//        return new ResponseEntity<>(HttpStatus.OK);
-//    }
+    // 사용자 정보 수정
+    @PatchMapping("/users/{id}")
+    public ResponseEntity<?> updateUser(@PathVariable("id") Long employeeNo,
+                                        @RequestBody UserUpdateRequestDto dto,
+                                        @AuthenticationPrincipal TokenUserInfo tokenUserInfo) throws Exception {
+        String hrRole = tokenUserInfo.getHrRole();
+        userService.updateUser(employeeNo, dto, hrRole);
+        return new ResponseEntity<>(HttpStatus.OK);
+    }
 
-    // 직원 조회
+    // 직원 리스트 조회
     @GetMapping("/user/list")
     public ResponseEntity<?> listUsers(@PageableDefault(size = 5, sort = "employeeNo") Pageable pageable) {
         return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "Success", userService.listUsers(pageable)), HttpStatus.OK);
@@ -107,6 +107,12 @@ public class HRController {
         List<PositionResDto> positions = positionService.getAllPositions();
         CommonResDto resDto = new CommonResDto(HttpStatus.OK, "Positions retrieved successfully", positions);
         return new ResponseEntity<>(resDto, HttpStatus.OK);
+    }
+
+    // 직원 상세 조회
+    @GetMapping("/user/{id}")
+    public ResponseEntity<?> getUserDetail(@PathVariable("id") Long employeeNo) {
+        return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "Success", userService.getUserByEmployeeNo(employeeNo)), HttpStatus.OK);
     }
 
 
