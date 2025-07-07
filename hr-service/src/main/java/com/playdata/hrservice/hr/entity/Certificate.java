@@ -41,4 +41,7 @@ public class Certificate {
     @Column(name = "approve_date")
     private LocalDate approveDate;
 
+    @Column(name = "file_path", length = 255)
+    private String filePath;
+
 }
