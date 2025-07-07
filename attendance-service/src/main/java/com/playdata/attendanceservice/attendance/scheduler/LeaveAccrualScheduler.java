@@ -4,24 +4,56 @@ import com.playdata.attendanceservice.attendance.dto.MonthlyWorkDaysResponse;
 import com.playdata.attendanceservice.attendance.entity.WorkStatusType;
 import com.playdata.attendanceservice.attendance.repository.AttendanceRepository;
 import com.playdata.attendanceservice.attendance.service.VacationService;
+import com.playdata.attendanceservice.client.HrServiceClient;
+import com.playdata.attendanceservice.client.dto.UserDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
 
 /**
  * 정기적으로 연차를 부여하는 스케줄러 클래스입니다.
  */
-@Slf4j // 로그 사용을 위한 Lombok 어노테이션
+@Slf4j // 로그 사용을 위한 Lombok 어но테이션
 @Component // Spring의 컴포넌트로 등록
 @RequiredArgsConstructor // final 필드에 대한 생성자를 자동으로 생성
 public class LeaveAccrualScheduler {
 
     private final AttendanceRepository attendanceRepository;
     private final VacationService vacationService;
+    private final HrServiceClient hrServiceClient; // HR 서비스와 통신하기 위한 Feign 클라이언트
+
+    /**
+     * 매일 새벽 1시에 실행되어, 입사 1주년이 된 사용자에게 15일의 연차를 부여합니다.
+     * cron = "초 분 시 일 월 요일"
+     * 예: "0 0 1 * * ?" -> 매일 새벽 1시 0분 0초에 실행
+     */
+    @Scheduled(cron = "0 0 1 * * ?")
+    public void grantFirstYearAnnualLeave() {
+        LocalDate today = LocalDate.now();
+        log.info("{} 기준, 입사 1주년 연차 부여 스케줄을 시작합니다.", today);
+
+        try {
+            // 1. HR 서비스에서 오늘이 입사 1주년인 사용자 목록을 조회합니다.
+            List<UserDto> users = hrServiceClient.getUsersWithFirstAnniversary(today);
+            log.info("총 {}명의 입사 1주년 대상자가 조회되었습니다.", users.size());
+
+            // 2. 대상자들에게 15일의 연차를 부여합니다.
+            users.forEach(user -> {
+                log.info("사용자 ID: {}. 1주년 연차(15일) 부여 대상입니다.", user.getUserId());
+                vacationService.grantAnnualLeave(Long.valueOf(user.getUserId()), 15);
+            });
+
+            log.info("입사 1주년 연차 부여 스케줄을 성공적으로 완료했습니다.", today);
+
+        } catch (Exception e) {
+            log.error("입사 1주년 연차 부여 스케줄 실행 중 오류가 발생했습니다.", e);
+        }
+    }
 
     /**
      * 매월 1일 새벽 2시에 실행되어, 지난달 근무일수를 기준으로 연차를 부여합니다.
