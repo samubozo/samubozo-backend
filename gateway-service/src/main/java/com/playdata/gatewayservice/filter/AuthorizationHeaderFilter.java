@@ -37,17 +37,13 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
             ,"/auth/email-valid"
             ,"/auth/verify"
             ,"/auth/verify-code"
-            ,"/chatbot/hello"
-            ,"/chatbot/chat"
-            ,"/attendance-service/**"
-
+            ,"/auth/refresh"
     );
 
     @Override
     public GatewayFilter apply(Object config) {
         return (exchange, chain) -> {
             String path = exchange.getRequest().getURI().getPath();
-            log.info("path: {}", path);
             AntPathMatcher antPathMatcher = new AntPathMatcher();
 
 
@@ -83,6 +79,7 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
                     .mutate()
                     .header("X-User-Email", claims.getSubject())
                     .header("X-User-Role", claims.get("role", String.class))
+                    .header("X-User-Employee-No", claims.get("employeeNo", Long.class).toString())
                     .build();
             return chain.filter(exchange.mutate().request(request).build());
         };

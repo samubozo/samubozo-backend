@@ -1,4 +1,4 @@
-package com.playdata.authservice.common.auth;
+package com.playdata.chatbotservice.common.auth;
 
 import lombok.*;
 
