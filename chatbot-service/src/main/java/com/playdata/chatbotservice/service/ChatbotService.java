@@ -11,8 +11,8 @@ import com.playdata.chatbotservice.entity.ChatMessage.SenderType;
 import com.playdata.chatbotservice.repository.ChatMessageRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -25,20 +25,18 @@ public class ChatbotService {
     @Value("${ai.api.key}")
     private String aiApiKey;
 
-    // aiApiUrl 필드는 WebClientConfig에서 사용하므로 여기서는 필요 없음 (혹은 단순히 정보용으로 유지)
-    // @Value("${ai.api.url}")
-    // private String aiApiUrl;
+    @Value("${ai.api.url}")
+    private String aiApiUrl;
 
-    private final WebClient webClient; // @Bean으로 등록한 WebClient를 주입받음
+    private final RestTemplate restTemplate; // RestTemplate 주입
     private final ChatMessageRepository chatMessageRepository;
 
-    // WebClientConfig에서 정의한 WebClient 빈을 주입받도록 생성자 수정
-    public ChatbotService(WebClient webClient, ChatMessageRepository chatMessageRepository) {
-        this.webClient = webClient; // 이미 baseUrl이 설정된 WebClient가 주입됨
+    public ChatbotService(ChatMessageRepository chatMessageRepository) {
+        this.restTemplate = new RestTemplate(); // RestTemplate 인스턴스 생성
         this.chatMessageRepository = chatMessageRepository;
     }
 
-    public Mono<ChatResponse> getChatResponse(ChatRequest request) {
+    public ChatResponse getChatResponse(ChatRequest request) {
         String initialConversationId = request.getConversationId();
         final String effectiveConversationId;
 
@@ -55,33 +53,29 @@ public class ChatbotService {
         // Gemini API 요청 본문 생성
         GeminiRequest geminiRequest = createGeminiRequestBody(request.getEmployeeNo(), effectiveConversationId, request.getMessage());
 
-        // Gemini API 호출
-        Mono<String> aiResponseMono = webClient.post()
-                .uri(uriBuilder -> uriBuilder
-                        .path("") // baseUrl에 이미 전체 URL이 있으므로 path는 비워둠
-                        .queryParam("key", aiApiKey) // API 키를 쿼리 파라미터로 추가
-                        .build()
-                )
-                .bodyValue(geminiRequest)
-                .retrieve()
-                .bodyToMono(GeminiResponse.class)
-                .map(this::extractGeminiResponseContent) // 응답에서 텍스트 내용 추출
-                .onErrorResume(e -> {
-                    System.err.println("AI API 호출 실패: " + e.getMessage());
-                    if (e instanceof org.springframework.web.reactive.function.client.WebClientResponseException) {
-                        org.springframework.web.reactive.function.client.WebClientResponseException wcRe = (org.springframework.web.reactive.function.client.WebClientResponseException) e;
-                        System.err.println("AI API 응답 상태 코드: " + wcRe.getStatusCode());
-                        System.err.println("AI API 응답 본문: " + wcRe.getResponseBodyAsString());
-                    }
-                    return Mono.just("챗봇이 휴가라서 지금 답변이 어려워요. 잠시후에 연락해주세요");
-                });
+        String botResponseContent;
+        try {
+            // Gemini API 호출 (동기식)
+            GeminiResponse geminiResponse = restTemplate.postForObject(
+                    aiApiUrl + "?key=" + aiApiKey,
+                    geminiRequest,
+                    GeminiResponse.class
+            );
+            botResponseContent = extractGeminiResponseContent(geminiResponse);
+        } catch (HttpClientErrorException e) {
+            System.err.println("AI API 호출 실패: " + e.getMessage());
+            System.err.println("AI API 응답 상태 코드: " + e.getStatusCode());
+            System.err.println("AI API 응답 본문: " + e.getResponseBodyAsString());
+            botResponseContent = "챗봇이 휴가라서 지금 답변이 어려워요. 잠시후에 연락해주세요";
+        } catch (Exception e) {
+            System.err.println("AI API 호출 중 예상치 못한 오류 발생: " + e.getMessage());
+            botResponseContent = "챗봇이 휴가라서 지금 답변이 어려워요. 잠시후에 연락해주세요";
+        }
 
-        return aiResponseMono.flatMap(botResponseContent -> {
-            ChatResponse botResponse = new ChatResponse(botResponseContent, effectiveConversationId);
-            // 챗봇 응답 저장
-            saveChatMessage(request.getEmployeeNo(), effectiveConversationId, botResponseContent, SenderType.BOT);
-            return Mono.just(botResponse);
-        });
+        ChatResponse botResponse = new ChatResponse(botResponseContent, effectiveConversationId);
+        // 챗봇 응답 저장
+        saveChatMessage(request.getEmployeeNo(), effectiveConversationId, botResponseContent, SenderType.BOT);
+        return botResponse;
     }
 
     // Gemini API 요청 본문을 생성하는 메서드

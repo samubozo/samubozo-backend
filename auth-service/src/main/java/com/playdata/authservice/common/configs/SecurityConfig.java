@@ -36,8 +36,11 @@ public class SecurityConfig {
             auth
                     .requestMatchers("/actuator/**",
                             "/auth/login",
+                            "/auth/refresh",
                             "/auth/email-valid",
                             "/auth/verify",
+                            "/auth/find-password",
+                            "/auth/reset-password",
                             "/auth/verify-code").permitAll()
                     .anyRequest().authenticated();
         });
