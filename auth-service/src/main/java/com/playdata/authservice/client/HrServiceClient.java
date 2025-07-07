@@ -11,8 +11,8 @@ import org.springframework.web.bind.annotation.*;
 @FeignClient(name = "hr-service")
 public interface HrServiceClient {
 
-    @GetMapping("/hr/user/{email}")
-    UserLoginFeignResDto getUser(@PathVariable String email);
+    @GetMapping("/hr/user/feign/{email}")
+    UserLoginFeignResDto getLoginUser(@PathVariable String email);
 
     @PostMapping("/hr/user/password")
     ResponseEntity<?> setPassword(@PathVariable UserPwUpdateDto dto);

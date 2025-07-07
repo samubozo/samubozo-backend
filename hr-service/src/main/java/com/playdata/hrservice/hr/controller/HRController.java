@@ -5,6 +5,8 @@ import com.playdata.hrservice.common.auth.TokenUserInfo;
 import com.playdata.hrservice.common.dto.CommonResDto;
 import com.playdata.hrservice.hr.dto.*;
 import com.playdata.hrservice.hr.entity.Position;
+import com.playdata.hrservice.hr.service.DepartmentService;
+import com.playdata.hrservice.hr.service.PositionService;
 import com.playdata.hrservice.hr.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +31,8 @@ import java.util.*;
 public class HRController {
 
     private final UserService userService;
+    private final DepartmentService departmentService;
+    private final PositionService positionService;
     private final RedisTemplate<String, Object> redisTemplate;
 
     private final Environment env;
@@ -52,14 +56,19 @@ public class HRController {
 
     // feign client 요청을 위한 메서드
     // 이메일로 유저 정보 얻어오기
-    @GetMapping("/user/{email}")
+    // 로그인 용으로 간략 정보 얻을 때 쓰기
+    @GetMapping("/user/feign/{email}")
     public UserLoginFeignResDto getLoginUser(@PathVariable String email) {
         return userService.getUserByEmail(email);
     }
 
-    @GetMapping("/users/{email}")
-    public UserFeignResDto getUser(@PathVariable String email) {
-        return userService.getEmloyeeByEmail(email);
+    // 인증되어 권한있는 사람이 요청할 수 있는 상세 정보 조회 API
+    @GetMapping("/users/detail")
+    public ResponseEntity<CommonResDto> getMyUserInfo(@AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
+        String email = tokenUserInfo.getEmail();
+        UserFeignResDto user = userService.getEmloyeeByEmail(email);
+        CommonResDto resDto = new CommonResDto(HttpStatus.OK, "User info retrieved successfully", user);
+        return new ResponseEntity<>(resDto, HttpStatus.OK);
     }
 
     @PostMapping("/hr/user/password")
@@ -82,6 +91,22 @@ public class HRController {
     @GetMapping("/user/list")
     public ResponseEntity<?> listUsers(@PageableDefault(size = 5, sort = "employeeNo") Pageable pageable) {
         return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "Success", userService.listUsers(pageable)), HttpStatus.OK);
+    }
+
+    // 부서 정보 조회 API
+    @GetMapping("/departments")
+    public ResponseEntity<?> getAllDepartments() {
+        List<DepartmentResDto> departments = departmentService.getAllDepartments();
+        CommonResDto resDto = new CommonResDto(HttpStatus.OK, "Departments retrieved successfully", departments);
+        return new ResponseEntity<>(resDto, HttpStatus.OK);
+    }
+
+    // 직책 정보 조회 API
+    @GetMapping("/positions")
+    public ResponseEntity<?> getAllPositions() {
+        List<PositionResDto> positions = positionService.getAllPositions();
+        CommonResDto resDto = new CommonResDto(HttpStatus.OK, "Positions retrieved successfully", positions);
+        return new ResponseEntity<>(resDto, HttpStatus.OK);
     }
 
 
