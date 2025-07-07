@@ -62,11 +62,25 @@ public class JwtTokenProvider {
                 .parseClaimsJws(token)
                 .getBody();
 
-        System.out.println("claims = " + claims);
+        return TokenUserInfo.builder()
+                .email(claims.getSubject())
+                .hrRole(claims.get("role", String.class))
+                .employeeNo(claims.get("employeeNo", Long.class))
+                .build();
+    }
+
+    public TokenUserInfo validateRefreshTokenAndGetTokenUserInfo(String token)
+            throws Exception {
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(secretKeyRt)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
 
         return TokenUserInfo.builder()
                 .email(claims.getSubject())
                 .hrRole(claims.get("role", String.class))
+                .employeeNo(claims.get("employeeNo", Long.class))
                 .build();
     }
 }

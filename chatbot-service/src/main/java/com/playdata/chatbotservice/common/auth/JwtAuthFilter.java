@@ -1,6 +1,4 @@
-package com.playdata.hrservice.common.auth;
-
-
+package com.playdata.chatbotservice.common.auth;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -29,7 +27,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         String userEmail = request.getHeader("X-User-Email");
         String userRole = request.getHeader("X-User-Role");
-        String employeeNoStr = request.getHeader("X-User-Employee-No"); // employeeNo 헤더 추가
+        String employeeNoStr = request.getHeader("X-User-Employee-No");
         Long employeeNo = null;
         if (employeeNoStr != null) {
             try {
@@ -41,12 +39,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         log.info("userEmail:{} userRole:{} employeeNo:{}", userEmail, userRole, employeeNo);
 
-        if (userEmail != null && userRole != null && employeeNo != null) { // employeeNo도 null이 아닌지 확인
+        if (userEmail != null && userRole != null && employeeNo != null) {
             List<SimpleGrantedAuthority> authorityList = new ArrayList<>();
             authorityList.add(new SimpleGrantedAuthority("ROLE_" + userRole));
 
             Authentication auth = new UsernamePasswordAuthenticationToken(
-                    new TokenUserInfo(userEmail, userRole, employeeNo), // employeeNo 추가
+                    new TokenUserInfo(userEmail, userRole, employeeNo),
                     "",
                     authorityList
             );
@@ -58,14 +56,3 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     }
 }
-
-
-
-
-
-
-
-
-
-
-
