@@ -40,9 +40,9 @@ public class AuthController {
         UserLoginFeignResDto user = authService.login(dto);
 
         String token
-                = jwtTokenProvider.createToken(user.getEmail(), user.getHrRole());
+                = jwtTokenProvider.createToken(user.getEmail(), user.getHrRole(), user.getEmployeeNo());
         String refreshToken
-                = jwtTokenProvider.createRefreshToken(user.getEmail(), user.getHrRole());
+                = jwtTokenProvider.createRefreshToken(user.getEmail(), user.getHrRole(),user.getEmployeeNo());
 
         redisTemplate.opsForValue().set("user:refresh:" + user.getEmployeeNo(), refreshToken, 7, TimeUnit.MINUTES);
 
@@ -67,7 +67,7 @@ public class AuthController {
                         .body("Refresh Token mismatch");
             }
 
-            String newAccessToken = jwtTokenProvider.createToken(userInfo.getEmail(), userInfo.getHrRole());
+            String newAccessToken = jwtTokenProvider.createToken(userInfo.getEmail(), userInfo.getHrRole(), userInfo.getEmployeeNo());
 
             Map<String, String> tokenMap = new HashMap<>();
             tokenMap.put("accessToken", newAccessToken);

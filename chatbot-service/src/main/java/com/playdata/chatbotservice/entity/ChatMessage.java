@@ -21,7 +21,7 @@ public class ChatMessage {
     private Long id;
 
     @Column(nullable = false)
-    private String userId; // 사용자 식별자
+    private Long employeeNo; // 사용자 식별자 (employeeNo로 변경)
 
     @Column(nullable = false)
     private String conversationId; // 추가: 대화 세션 식별자

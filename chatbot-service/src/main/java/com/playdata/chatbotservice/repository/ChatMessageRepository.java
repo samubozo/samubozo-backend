@@ -8,8 +8,8 @@ import java.util.List;
 
 @Repository
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
-    List<ChatMessage> findByUserIdOrderByTimestampAsc(String userId);
+    List<ChatMessage> findByEmployeeNoOrderByTimestampAsc(Long employeeNo);
 
-    // 추가: userId와 conversationId로 메시지 조회
-    List<ChatMessage> findByUserIdAndConversationIdOrderByTimestampAsc(String userId, String conversationId);
+    // 추가: employeeNo와 conversationId로 메시지 조회
+    List<ChatMessage> findByEmployeeNoAndConversationIdOrderByTimestampAsc(Long employeeNo, String conversationId);
 }
