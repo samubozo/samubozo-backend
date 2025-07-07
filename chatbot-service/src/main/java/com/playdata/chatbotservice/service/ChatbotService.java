@@ -53,7 +53,7 @@ public class ChatbotService {
         saveChatMessage(request.getUserId(), effectiveConversationId, request.getMessage(), SenderType.USER);
 
         // Gemini API 요청 본문 생성
-        GeminiRequest geminiRequest = createGeminiRequestBody(request.getMessage());
+        GeminiRequest geminiRequest = createGeminiRequestBody(request.getUserId(), effectiveConversationId, request.getMessage());
 
         // Gemini API 호출
         Mono<String> aiResponseMono = webClient.post()
@@ -85,17 +85,26 @@ public class ChatbotService {
     }
 
     // Gemini API 요청 본문을 생성하는 메서드
-    private GeminiRequest createGeminiRequestBody(String userMessage) {
+    private GeminiRequest createGeminiRequestBody(String userId, String conversationId, String userMessage) {
         // 챗봇의 역할과 답변 범위 제한 (프롬프트 엔지니어링)
         String systemInstruction =
                 "당신은 회사의 AI 업무 도우미 챗봇입니다. 사용자의 질문이 회사 업무, 직무 수행, 사내 정책, 업무 도구, 조직문화, 커뮤니케이션, 일정/회의, 성과 향상 등과 관련 있다고 판단되면 간결하고 핵심적으로 답변합니다.\n" +
                         "응답은 3~5줄 이내로 요점을 중심으로 구성하며, 불필요한 설명은 피합니다.\n" +
                         "단, 명백히 개인적인 질문(예: 요리, 연예인, 스포츠, 게임 등)은 다음과 같이 응답합니다: '저는 업무 관련 질문에 답변할 수 있습니다.'\n" +
-                        "경계가 모호한 경우에는 업무와 연결 가능한 방향으로 간단히 유도해도 좋습니다.\n\n" +
-                        "사용자 질문: ";
+                        "경계가 모호한 경우에는 업무와 연결 가능한 방향으로 간단히 유도해도 좋습니다.\n\n";
 
-        // 시스템 지시와 사용자 메시지를 결합
-        String fullMessage = systemInstruction + userMessage;
+        // 이전 대화 기록 조회
+        List<ChatMessage> chatHistory = chatMessageRepository.findByUserIdAndConversationIdOrderByTimestampAsc(userId, conversationId);
+
+        StringBuilder conversationContext = new StringBuilder();
+        for (ChatMessage message : chatHistory) {
+            String prefix = message.getSenderType() == SenderType.USER ? "사용자: " : "챗봇: ";
+            conversationContext.append(prefix).append(message.getMessage()).append("\n");
+        }
+
+        // 시스템 지시, 대화 기록, 현재 사용자 메시지를 모두 결합
+        String fullMessage = systemInstruction + "--- 이전 대화 ---\n" + conversationContext.toString() + "--- 현재 질문 ---\n" + "사용자: " + userMessage;
+
 
         Part part = new Part(fullMessage);
         Content content = new Content(Collections.singletonList(part));

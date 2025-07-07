@@ -56,10 +56,12 @@ public class UserService {
         }
         String finalEncodedPassword = encoder.encode(dto.getPassword());
 
-        String departmentName = dto.getDepartmentName();
-        Department foundDept = departmentRepository.findByName(departmentName);
-        String positionName = dto.getPositionName();
-        Position foundPos = positionRepository.findByPositionName(positionName);
+        Long departmentId = dto.getDepartmentId();
+        Department foundDept = departmentRepository.findById(departmentId)
+                .orElseThrow(() -> new EntityNotFoundException("Department not found with ID: " + departmentId));
+        Long positionId = dto.getPositionId();
+        Position foundPos = positionRepository.findById(positionId)
+                .orElseThrow(() -> new EntityNotFoundException("Position not found with ID: " + positionId));
 
         // User Entity 생성 및 저장
         User newUser = User.builder()

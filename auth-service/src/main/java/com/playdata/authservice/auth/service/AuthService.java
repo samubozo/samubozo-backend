@@ -44,7 +44,7 @@ public class AuthService {
     // 로그인 인증
     public UserLoginFeignResDto login(UserLoginReqDto dto) {
 
-        UserLoginFeignResDto userLoginFeignResDto = hrServiceClient.getUser(dto.getEmail());
+        UserLoginFeignResDto userLoginFeignResDto = hrServiceClient.getLoginUser(dto.getEmail());
 
         log.info("userLoginFeignResDto: {}", userLoginFeignResDto);
         if (!"Y".equals(userLoginFeignResDto.getActivate())) {
@@ -61,7 +61,7 @@ public class AuthService {
     // 비밀번호 찾기(인증코드 발송)
     public void sendPasswordResetCode(@NotBlank(message = "이메일을 입력해 주세요.") String email) {
         // 1. 회원 존재 확인
-        UserLoginFeignResDto userLoginFeignResDto = hrServiceClient.getUser(email);
+        UserLoginFeignResDto userLoginFeignResDto = hrServiceClient.getLoginUser(email);
         if (userLoginFeignResDto == null) {
             throw new EntityNotFoundException("해당 이메일의 사용자를 찾을 수 없습니다.");
         }
@@ -100,7 +100,7 @@ public class AuthService {
     // 비밀번호 재설정 인증코드 검증
     public void verifyResetCode(@NotBlank String email, @NotBlank String code) {
         // 1. 사용자 재확인 (옵션)
-        UserLoginFeignResDto userLoginFeignResDto = hrServiceClient.getUser(email);
+        UserLoginFeignResDto userLoginFeignResDto = hrServiceClient.getLoginUser(email);
         if (userLoginFeignResDto == null) {
             throw new EntityNotFoundException("해당 이메일의 사용자를 찾을 수 없습니다.");
         }
@@ -121,7 +121,7 @@ public class AuthService {
         verifyResetCode(email, code);
 
         // 사용자 조회
-        UserLoginFeignResDto userLoginFeignResDto = hrServiceClient.getUser(email);
+        UserLoginFeignResDto userLoginFeignResDto = hrServiceClient.getLoginUser(email);
         if (userLoginFeignResDto == null) {
             throw new EntityNotFoundException("해당 이메일의 사용자를 찾을 수 없습니다.");
         }
@@ -146,7 +146,7 @@ public class AuthService {
             throw new IllegalArgumentException("잘못된 요청 횟수가 과다하여 임시 차단 중입니다. 잠시 후에 시도해주세요.");
         }
 
-        UserLoginFeignResDto userLoginFeignResDto = hrServiceClient.getUser(email);
+        UserLoginFeignResDto userLoginFeignResDto = hrServiceClient.getLoginUser(email);
         if (userLoginFeignResDto != null) {
             throw new IllegalArgumentException("이미 존재하는 이메일 입니다.");
         }

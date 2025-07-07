@@ -48,9 +48,6 @@ public class AuthController {
 
         Map<String, Object> loginInfo = new HashMap<>();
         loginInfo.put("token", token);
-        loginInfo.put("employeeNo", user.getEmployeeNo());
-        loginInfo.put("user_name", user.getUsername());
-        loginInfo.put("hrRole", user.getHrRole());
 
         CommonResDto resDto
                 = new CommonResDto(HttpStatus.OK,
