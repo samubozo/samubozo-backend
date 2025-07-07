@@ -30,6 +30,9 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
     //여기에 권한 없이 접근해야할 URL을 명시해주세요.
     private final List<String> allowUrl = Arrays.asList(
             "/hr/users/signup"
+            ,"/hr/user/feign/**"
+            ,"/hr/positions"
+            ,"/hr/departments"
             ,"/auth/login"
             ,"/auth/email-valid"
             ,"/auth/verify"
@@ -46,6 +49,7 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
             boolean isAllowed
                     = allowUrl.stream()
                     .anyMatch(url -> antPathMatcher.match(url, path));
+            log.info("url: {}", path);
             log.info("isAllowed: {}", isAllowed);
 
             if (isAllowed || path.startsWith("/actuator")) {

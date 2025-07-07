@@ -84,6 +84,20 @@ services:
         condition: service_healthy
     restart: always
 
+  chatbot-service:
+    image: 940791490007.dkr.ecr.ap-northeast-2.amazonaws.com/chatbot-service:latest
+    container_name: chatbot-service
+    networks:
+      - msa-network
+    ports:
+      - "8080:8080" # 챗봇 서비스의 포트 (임의로 8080 설정)
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      config-service:
+        condition: service_healthy
+    restart: always
+
   redis:
     image: redis:latest
     ports:

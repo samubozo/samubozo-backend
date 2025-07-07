@@ -40,9 +40,9 @@ public class UserSaveReqDto {
 
     private String gender;
 
-    private String departmentName;
+    private Long departmentId;
 
-    private String positionName;
+    private Long positionId;
 
     public User toEntity(PasswordEncoder encoder, Department department, Position position) {
         return User.builder()

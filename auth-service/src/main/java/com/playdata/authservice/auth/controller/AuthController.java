@@ -40,17 +40,14 @@ public class AuthController {
         UserLoginFeignResDto user = authService.login(dto);
 
         String token
-                = jwtTokenProvider.createToken(user.getEmail(), user.getHrRole());
+                = jwtTokenProvider.createToken(user.getEmail(), user.getHrRole(), user.getEmployeeNo());
         String refreshToken
-                = jwtTokenProvider.createRefreshToken(user.getEmail(), user.getHrRole());
+                = jwtTokenProvider.createRefreshToken(user.getEmail(), user.getHrRole(),user.getEmployeeNo());
 
         redisTemplate.opsForValue().set("user:refresh:" + user.getEmployeeNo(), refreshToken, 7, TimeUnit.MINUTES);
 
         Map<String, Object> loginInfo = new HashMap<>();
         loginInfo.put("token", token);
-        loginInfo.put("employeeNo", user.getEmployeeNo());
-        loginInfo.put("user_name", user.getUsername());
-        loginInfo.put("hrRole", user.getHrRole());
 
         CommonResDto resDto
                 = new CommonResDto(HttpStatus.OK,
@@ -63,14 +60,14 @@ public class AuthController {
     public ResponseEntity<?> refreshToken(@RequestBody TokenRefreshRequestDto requestDto) {
         try {
             TokenUserInfo userInfo = jwtTokenProvider.validateAndGetTokenUserInfo(requestDto.getRefreshToken());
-            String savedToken = (String) redisTemplate.opsForValue().get(userInfo.getEmail());
+            String savedToken = (String) redisTemplate.opsForValue().get("user:refresh:" + userInfo.getEmployeeNo());
 
             if (!requestDto.getRefreshToken().equals(savedToken)) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body("Refresh Token mismatch");
             }
 
-            String newAccessToken = jwtTokenProvider.createToken(userInfo.getEmail(), userInfo.getHrRole());
+            String newAccessToken = jwtTokenProvider.createToken(userInfo.getEmail(), userInfo.getHrRole(), userInfo.getEmployeeNo());
 
             Map<String, String> tokenMap = new HashMap<>();
             tokenMap.put("accessToken", newAccessToken);

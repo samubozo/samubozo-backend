@@ -26,9 +26,10 @@ public class JwtTokenProvider {
     private int expirationRt;
 
 
-    public String createToken(String email, String hrRole){
+    public String createToken(String email, String hrRole, Long employeeNo){
         Claims claims = Jwts.claims().setSubject(email);
         claims.put("role", hrRole);
+        claims.put("employeeNo", employeeNo);
         Date now = new Date();
 
         return Jwts.builder()
@@ -39,9 +40,10 @@ public class JwtTokenProvider {
                 .compact();
     }
 
-    public String createRefreshToken(String email, String hrRole){
+    public String createRefreshToken(String email, String hrRole, Long employeeNo){
         Claims claims = Jwts.claims().setSubject(email);
         claims.put("role", hrRole);
+        claims.put("employeeNo", employeeNo);
         Date now = new Date();
 
         return Jwts.builder()

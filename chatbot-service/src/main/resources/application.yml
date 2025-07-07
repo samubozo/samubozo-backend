@@ -3,4 +3,4 @@ server:
 
 spring:
   application:
-    name: hr-service
+    name: chatbot-service
