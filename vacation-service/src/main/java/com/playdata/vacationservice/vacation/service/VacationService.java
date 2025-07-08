@@ -1,11 +1,9 @@
 package com.playdata.vacationservice.vacation.service;
 
 import com.playdata.vacationservice.client.HrServiceClient;
-import com.playdata.vacationservice.common.dto.CommonResDto;
+import com.playdata.vacationservice.common.auth.TokenUserInfo;
 import com.playdata.vacationservice.vacation.dto.VacationRequestDto;
-import com.playdata.vacationservice.vacation.entity.Vacation;
-import com.playdata.vacationservice.vacation.entity.VacationBalance;
-import com.playdata.vacationservice.vacation.entity.VacationStatus;
+import com.playdata.vacationservice.vacation.entity.*;
 import com.playdata.vacationservice.vacation.repository.VacationBalanceRepository;
 import com.playdata.vacationservice.vacation.repository.VacationRepository;
 import com.playdata.vacationservice.client.ApprovalServiceClient;
@@ -14,15 +12,15 @@ import com.playdata.vacationservice.client.dto.UserDetailDto;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.LinkedHashMap;
+import java.time.LocalDate; // LocalDate 임포트 추가
 
 /**
  * 연차/휴가 관련 비즈니스 로직을 처리하는 서비스 클래스입니다.
+ * 단일 책임 원칙(SRP)을 고려하여 메서드를 분리했습니다.
  */
 @Slf4j
 @Service
@@ -37,85 +35,34 @@ public class VacationService {
 
     /**
      * 사용자로부터 휴가 신청을 받아 처리합니다.
+     * 이 메서드는 전체 휴가 신청 프로세스를 오케스트레이션합니다.
      *
-     * @param userId 휴가를 신청하는 사용자의 ID
+     * @param userInfo   휴가를 신청하는 사용자의 인증 정보
      * @param requestDto 휴가 신청 정보
      */
     @Transactional
-    public void requestVacation(Long userId, VacationRequestDto requestDto) {
-        // 1. 사용자의 연차 정보를 조회합니다.
-        VacationBalance vacationBalance = vacationBalanceRepository.findByUserId(userId)
-                .orElseThrow(() -> new IllegalArgumentException("해당 사용자의 연차 정보를 찾을 수 없습니다: " + userId));
-
-        // 2. 신청한 휴가 종류에 따라 차감할 일수를 계산합니다.
+    public void requestVacation(TokenUserInfo userInfo, VacationRequestDto requestDto) {
+        Long employeeNo = userInfo.getEmployeeNo();
         BigDecimal deductionDays = requestDto.getVacationType().getDeductionDays();
+        LocalDate startDate = requestDto.getStartDate();
+        LocalDate endDate = requestDto.getEndDate();
+        String reason = requestDto.getReason();
+        String vacationTypeDescription = requestDto.getVacationType().getDescription();
 
-        // 3. 남은 연차가 충분한지 확인합니다.
-        if (vacationBalance.getRemainingDays().compareTo(deductionDays) < 0) {
-            throw new IllegalStateException("남은 연차가 부족합니다.");
-        }
+        // 1. 연차 잔액 확인 및 차감
+        deductVacationBalance(employeeNo, deductionDays);
 
-        // 4. 휴가 신청 내역을 생성하고 저장합니다. (상태: PENDING_APPROVAL)
-        Vacation vacation = Vacation.builder()
-                .userId(userId)
-                .vacationType(requestDto.getVacationType())
-                .vacationStatus(VacationStatus.PENDING_APPROVAL)
-                .startDate(requestDto.getStartDate())
-                .endDate(requestDto.getEndDate())
-                .reason(requestDto.getReason())
-                .build();
-        vacationRepository.save(vacation);
-        log.info("휴가 신청이 데이터베이스에 저장되었습니다. (ID: {})", vacation.getId());
+        // 2. 휴가 신청 내역 저장
+        Vacation savedVacation = saveVacationRequest(employeeNo, requestDto);
 
-        // 5. HR 서비스에서 사용자 상세 정보를 조회합니다.
-        UserDetailDto userDetails;
-        try {
-            // Feign Client를 통해 HR 서비스에서 사용자 정보를 직접 UserDetailDto로 받아옵니다.
-            // 이전 코드에서는 ResponseEntity<CommonResDto>를 받아 복잡하게 변환했지만,
-            // 이제는 HrServiceClient에서 직접 UserDetailDto를 반환하므로 코드가 간결해집니다.
-            userDetails = hrServiceClient.getMyUserInfo();
-            if (userDetails == null) {
-                throw new IllegalStateException("HR 서비스로부터 사용자 정보를 가져오는데 실패했습니다. (응답 null)");
-            }
-        } catch (FeignException e) {
-            log.error("HR 서비스 통신 오류: {}", e.getMessage());
-            throw new IllegalStateException("HR 서비스 통신 중 오류가 발생했습니다. 다시 시도해주세요.");
-        }
-        String userName = userDetails.getName();
-        String userDepartment = userDetails.getDepartment();
+        // 3. HR 서비스에서 사용자 상세 정보 조회
+        UserDetailDto userDetails = fetchUserDetailsFromHrService();
 
-        // 6. 결재 서비스에 결재 생성을 요청합니다.
-        String title = String.format("[휴가신청] %s - %s (%s ~ %s)", userName, userDepartment, requestDto.getStartDate(), requestDto.getEndDate());
-        String content = String.format("신청자: %s (%s)<br>휴가 종류: %s<br>기간: %s ~ %s<br>사유: %s",
-                userName,
-                userDepartment,
-                requestDto.getVacationType().getDescription(),
-                requestDto.getStartDate(),
-                requestDto.getEndDate(),
-                requestDto.getReason());
+        // 4. 결재 서비스에 결재 요청
+        requestApproval(employeeNo, savedVacation.getId(), userDetails, vacationTypeDescription, startDate, endDate, reason);
 
-        ApprovalRequestDto approvalRequest = ApprovalRequestDto.builder()
-                .approvalType("VACATION")
-                .userId(userId)
-                .title(title)
-                .content(content)
-                .referenceId(vacation.getId())
-                .build();
-
-        try {
-            approvalServiceClient.createApproval(approvalRequest);
-            log.info("결재 서비스에 휴가(ID: {})에 대한 결재 생성을 요청했습니다.", vacation.getId());
-        } catch (FeignException e) {
-            log.error("결재 서비스 통신 오류: {}", e.getMessage());
-            throw new IllegalStateException("결재 서비스 통신 중 오류가 발생했습니다. 다시 시도해주세요.");
-        }
-
-        // 7. 사용한 만큼 연차를 차감합니다.
-        vacationBalance.useDays(deductionDays);
-        vacationBalanceRepository.save(vacationBalance);
-        log.info("사용자(ID: {})의 연차를 {}일 차감했습니다. 남은 연차: {}", userId, deductionDays, vacationBalance.getRemainingDays());
+        log.info("사용자(ID: {})의 휴가 신청 프로세스가 완료되었습니다. 신청 ID: {}", employeeNo, savedVacation.getId());
     }
-
 
     /**
      * 특정 사용자에게 지정된 일수만큼의 연차를 부여합니다.
@@ -127,7 +74,6 @@ public class VacationService {
     @Transactional
     public void grantAnnualLeave(Long userId, int days) {
         BigDecimal amount = new BigDecimal(days);
-        // 사용자 ID로 연차 정보를 조회하거나, 없으면 새로 생성합니다.
         VacationBalance vacationBalance = vacationBalanceRepository.findByUserId(userId)
                 .orElse(VacationBalance.builder()
                         .userId(userId)
@@ -135,10 +81,7 @@ public class VacationService {
                         .usedDays(BigDecimal.ZERO)
                         .build());
 
-        // 지정된 일수만큼 연차를 부여합니다.
         vacationBalance.grantDays(amount);
-
-        // 변경된 연차 정보를 저장합니다.
         vacationBalanceRepository.save(vacationBalance);
 
         log.info("사용자 ID: {} 에게 연차 {}일이 부여되었습니다. 총 부여된 연차: {}", userId, days, vacationBalance.getTotalGranted());
@@ -152,7 +95,6 @@ public class VacationService {
      */
     @Transactional
     public void grantMonthlyLeave(Long userId) {
-        // 사용자 ID로 연차 정보를 조회하거나, 없으면 새로 생성합니다.
         VacationBalance vacationBalance = vacationBalanceRepository.findByUserId(userId)
                 .orElse(VacationBalance.builder()
                         .userId(userId)
@@ -160,12 +102,109 @@ public class VacationService {
                         .usedDays(java.math.BigDecimal.ZERO)
                         .build());
 
-        // 연차를 1일 부여합니다.
         vacationBalance.grantDays(java.math.BigDecimal.ONE);
-
-        // 변경된 연차 정보를 저장합니다.
         vacationBalanceRepository.save(vacationBalance);
 
         log.info("사용자 ID: {} 에게 연차 1일이 부여되었습니다. 총 부여된 연차: {}", userId, vacationBalance.getTotalGranted());
+    }
+
+    // --- Private Helper Methods for SRP ---
+
+    /**
+     * 연차 잔액을 확인하고 차감합니다.
+     * @param employeeNo 사용자 사번
+     * @param deductionDays 차감할 일수
+     */
+    private void deductVacationBalance(Long employeeNo, BigDecimal deductionDays) {
+        VacationBalance vacationBalance = vacationBalanceRepository.findByUserId(employeeNo)
+                .orElseThrow(() -> new IllegalArgumentException("해당 사용자의 연차 정보를 찾을 수 없습니다: " + employeeNo));
+
+        if (vacationBalance.getRemainingDays().compareTo(deductionDays) < 0) {
+            throw new IllegalStateException("남은 연차가 부족합니다.");
+        }
+        vacationBalance.useDays(deductionDays);
+        vacationBalanceRepository.save(vacationBalance);
+        log.info("사용자(ID: {})의 연차를 {}일 차감했습니다. 남은 연차: {}", employeeNo, deductionDays, vacationBalance.getRemainingDays());
+    }
+
+    /**
+     * 휴가 신청 내역을 데이터베이스에 저장합니다.
+     * @param employeeNo 사용자 사번
+     * @param requestDto 휴가 신청 DTO
+     * @return 저장된 휴가 엔티티
+     */
+    private Vacation saveVacationRequest(Long employeeNo, VacationRequestDto requestDto) {
+        Vacation vacation = Vacation.builder()
+                .userId(employeeNo)
+                .vacationType(requestDto.getVacationType())
+                .vacationStatus(VacationStatus.PENDING_APPROVAL)
+                .startDate(requestDto.getStartDate())
+                .endDate(requestDto.getEndDate())
+                .reason(requestDto.getReason())
+                .build();
+        return vacationRepository.save(vacation);
+    }
+
+    /**
+     * HR 서비스에서 사용자 상세 정보를 조회합니다.
+     * @return 사용자 상세 정보 DTO
+     */
+    private UserDetailDto fetchUserDetailsFromHrService() {
+        UserDetailDto userDetails;
+        try {
+            userDetails = hrServiceClient.getMyUserInfo();
+            if (userDetails == null) {
+                throw new IllegalStateException("HR 서비스로부터 사용자 정보를 가져오는데 실패했습니다. (응답 null)");
+            }
+        } catch (FeignException e) {
+            log.error("HR 서비스 통신 오류: {}", e.getMessage());
+            throw new IllegalStateException("HR 서비스 통신 중 오류가 발생했습니다. 다시 시도해주세요.");
+        }
+        return userDetails;
+    }
+
+    /**
+     * 결재 서비스에 결재 생성을 요청합니다.
+     * @param employeeNo 사용자 사번
+     * @param vacationId 휴가 신청 ID
+     * @param userDetails 사용자 상세 정보
+     * @param vacationTypeDescription 휴가 종류 설명
+     * @param startDate 휴가 시작일
+     * @param endDate 휴가 종료일
+     * @param reason 휴가 사유
+     */
+    private void requestApproval(Long employeeNo, Long vacationId, UserDetailDto userDetails,
+                                 String vacationTypeDescription, LocalDate startDate, LocalDate endDate, String reason) {
+        String userName = userDetails.getName();
+        String userDepartment = userDetails.getDepartment();
+
+        String title = String.format("[휴가신청] %s - %s (%s ~ %s)", userName, userDepartment, startDate, endDate);
+        String content = String.format("신청자: %s (%s)<br>휴가 종류: %s<br>기간: %s ~ %s<br>사유: %s",
+                userName,
+                userDepartment,
+                vacationTypeDescription,
+                startDate,
+                endDate,
+                reason);
+
+        ApprovalRequestDto approvalRequest = ApprovalRequestDto.builder()
+                .requestType(RequestType.valueOf("VACATION")) // 현재 String "VACATION"을 보내고 있습니다.
+                // approval-service의 ApprovalRequestCreateDto는 RequestType Enum을 기대합니다.
+                // Jackson이 자동으로 String을 Enum으로 변환해주지만,
+                // 더 명확하고 타입 안전한 설계를 위해 RequestType Enum을 공유하거나
+                // RequestType.VACATION.name()과 같이 명시적으로 Enum 이름을 사용하는 것을 고려할 수 있습니다.
+                .applicantId(employeeNo)
+                .title(title)
+                .content(content)
+                .referenceId(vacationId)
+                .build();
+
+        try {
+            approvalServiceClient.createApproval(approvalRequest);
+            log.info("결재 서비스에 휴가(ID: {})에 대한 결재 생성을 요청했습니다.", vacationId);
+        } catch (FeignException e) {
+            log.error("결재 서비스 통신 오류: {}", e.getMessage());
+            throw new IllegalStateException("결재 서비스 통신 중 오류가 발생했습니다. 다시 시도해주세요.");
+        }
     }
 }

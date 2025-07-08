@@ -37,7 +37,6 @@ public class AttendanceController {
      */
     @PostMapping("/vacations")
     public ResponseEntity<CommonResDto<?>> requestVacation(
-            @AuthenticationPrincipal TokenUserInfo userInfo,
             @RequestBody VacationRequestDto requestDto) {
         try {
             vacationServiceClient.requestVacation(requestDto); // 변경

@@ -1,4 +1,4 @@
-package com.playdata.vacationservice.common.configs;
+package com.playdata.attendanceservice.common.configs;
 
 import feign.RequestInterceptor;
 import feign.RequestInterceptor;

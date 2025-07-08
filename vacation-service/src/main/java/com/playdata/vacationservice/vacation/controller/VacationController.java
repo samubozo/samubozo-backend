@@ -30,7 +30,7 @@ public class VacationController {
     public ResponseEntity<Void> requestVacation(
             @AuthenticationPrincipal TokenUserInfo userInfo,
             @RequestBody VacationRequestDto requestDto) {
-        vacationService.requestVacation(userInfo.getEmployeeNo(), requestDto);
+        vacationService.requestVacation(userInfo , requestDto);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 

@@ -3,9 +3,11 @@ package com.playdata.approvalservice.approval.controller;
 import com.playdata.approvalservice.approval.dto.ApprovalRequestCreateDto;
 import com.playdata.approvalservice.approval.dto.ApprovalRequestResponseDto;
 import com.playdata.approvalservice.approval.service.ApprovalService;
+import com.playdata.approvalservice.common.auth.TokenUserInfo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -25,8 +27,11 @@ public class ApprovalController {
      * @return 생성된 결재 요청의 응답 DTO와 HTTP 201 Created 상태
      */
     @PostMapping
-    public ResponseEntity<ApprovalRequestResponseDto> createApprovalRequest(@RequestBody ApprovalRequestCreateDto createDto) {
-        ApprovalRequestResponseDto responseDto = approvalService.createApprovalRequest(createDto);
+    public ResponseEntity<ApprovalRequestResponseDto> createApprovalRequest(
+            @AuthenticationPrincipal TokenUserInfo userInfo,
+            @RequestBody ApprovalRequestCreateDto createDto) {
+        // 서비스 메서드 호출 시 userInfo도 함께 전달
+        ApprovalRequestResponseDto responseDto = approvalService.createApprovalRequest(userInfo, createDto);
         return buildCreatedResponse(responseDto);
     }
 

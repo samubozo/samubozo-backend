@@ -5,6 +5,7 @@ import com.playdata.approvalservice.approval.dto.ApprovalRequestResponseDto;
 import com.playdata.approvalservice.approval.entity.ApprovalRequest;
 import com.playdata.approvalservice.approval.entity.ApprovalStatus;
 import com.playdata.approvalservice.approval.repository.ApprovalRepository;
+import com.playdata.approvalservice.common.auth.TokenUserInfo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -23,11 +24,17 @@ public class ApprovalService {
     /**
      * 새로운 승인 요청을 생성합니다.
      *
+     * @param userInfo
      * @param createDto 승인 요청 생성에 필요한 데이터를 담은 DTO
      * @return 생성된 승인 요청의 응답 DTO
      */
     @Transactional
-    public ApprovalRequestResponseDto createApprovalRequest(ApprovalRequestCreateDto createDto) {
+    public ApprovalRequestResponseDto createApprovalRequest(TokenUserInfo userInfo, ApprovalRequestCreateDto createDto) {
+
+        // 보안 검증: 요청을 보낸 사용자의 employeeNo와 신청자 ID가 일치하는지 확인
+        if (!userInfo.getEmployeeNo().equals(createDto.getApplicantId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Authenticated user ID does not match the applicant ID in the request.");
+        }
         // ApprovalRequest 엔티티를 빌더 패턴을 사용하여 생성합니다.
         // 초기 상태는 PENDING으로 설정하고, 요청 시간은 현재 시간으로 설정합니다.
         ApprovalRequest approvalRequest = ApprovalRequest.builder()
