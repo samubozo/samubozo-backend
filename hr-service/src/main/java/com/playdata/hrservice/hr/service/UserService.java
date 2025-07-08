@@ -21,7 +21,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -170,6 +172,30 @@ public class UserService {
                 .build());
     }
 
+    // 사용자 검색
+    public Page<UserResDto> searchUsers(String userName, String departmentName, Pageable pageable) {
+        Page<User> users;
+        if (StringUtils.hasText(userName) && StringUtils.hasText(departmentName)) {
+            users = userRepository.findByUserNameContainingAndDepartmentNameContaining(userName, departmentName, pageable);
+        } else if (StringUtils.hasText(userName)) {
+            users = userRepository.findByUserNameContaining(userName, pageable);
+        } else if (StringUtils.hasText(departmentName)) {
+            users = userRepository.findByDepartmentNameContaining(departmentName, pageable);
+        } else {
+            users = userRepository.findAll(pageable); // 검색 조건이 없으면 전체 조회
+        }
+
+        return users.map(user -> UserResDto.builder()
+                .employeeNo(user.getEmployeeNo())
+                .userName(user.getUserName())
+                .positionName(user.getPosition().getPositionName())
+                .departmentName(user.getDepartment().getName())
+                .hireDate(user.getHireDate())
+                .phone(user.getPhone())
+                .email(user.getEmail())
+                .activate(user.getActivate())
+                .build());
+    }
 
 //    public User updateUser(Long userId, UserUpdateRequestDto dto) {
 //        User user = userRepository.findById(userId).orElseThrow(
