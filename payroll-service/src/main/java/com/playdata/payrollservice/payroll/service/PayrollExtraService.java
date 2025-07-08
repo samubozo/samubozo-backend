@@ -1,6 +1,7 @@
 package com.playdata.payrollservice.payroll.service;
 
 import com.playdata.payrollservice.payroll.dto.PayrollExtraDetailDto;
+import com.playdata.payrollservice.payroll.dto.PayrollExtraRequestDto;
 import com.playdata.payrollservice.payroll.entity.PayrollExtra;
 import com.playdata.payrollservice.payroll.repository.PayrollExtraRepository;
 import com.playdata.payrollservice.payroll.repository.PayrollRepository;
@@ -43,6 +44,25 @@ public class PayrollExtraService {
                 extra.getDescription(),
                 extra.getDateGiven()
         );
+    }
+
+    // 수당 수정
+    public PayrollExtra updateExtra(Long id, PayrollExtraRequestDto requestDto) {
+        // DB에서 기존 데이터 가져옴
+        PayrollExtra existing = getExtraById(id); // 없으면 예외 발생
+
+        // 기존 데이터에 새 값 덮어씌우기
+        existing.setAmount(requestDto.getAmount());
+        existing.setDescription(requestDto.getDescription());
+        existing.setDateGiven(requestDto.getDateGiven());
+
+        return payrollExtraRepository.save(existing); // 다시 저장
+    }
+
+    // 수당 삭제
+    public void deleteExtra(Long id) {
+        PayrollExtra existing = getExtraById(id);
+        payrollExtraRepository.delete(existing);
     }
 
 }

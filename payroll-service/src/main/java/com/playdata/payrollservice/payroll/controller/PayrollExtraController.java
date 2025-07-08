@@ -29,16 +29,32 @@ public class PayrollExtraController {
     }
 
     // 수당 조회하기
-    @GetMapping("/{userId}")
-    public ResponseEntity<PayrollExtra> getExtraById(@PathVariable("userId") Long userId) {
-        return ResponseEntity.ok(payrollExtraService.getExtraById(userId));
+    @GetMapping("/{extraId}")
+    public ResponseEntity<PayrollExtra> getExtraById(@PathVariable Long extraId) {
+        return ResponseEntity.ok(payrollExtraService.getExtraById(extraId));
     }
 
+
     // 사용자 정보 포함된 수당 조회
-    @GetMapping("/{userId}/detail")
-    public ResponseEntity<PayrollExtraDetailDto> getExtraDetail(@PathVariable("userId") Long userId) {
-        PayrollExtraDetailDto dto = payrollExtraService.getExtraWithUser(userId);
+    @GetMapping("/{extraId}/detail")
+    public ResponseEntity<PayrollExtraDetailDto> getExtraDetail(@PathVariable Long extraId) {
+        PayrollExtraDetailDto dto = payrollExtraService.getExtraWithUser(extraId);
         return ResponseEntity.ok(dto);
     }
+
+    // 수당 수정하기
+    @PutMapping("/{extraId}")
+    public ResponseEntity<PayrollExtra> updateExtra(@PathVariable Long extraId, @RequestBody PayrollExtraRequestDto dto) {
+        PayrollExtra updated = payrollExtraService.updateExtra(extraId, dto);
+        return ResponseEntity.ok(updated);
+    }
+
+    // 수당 삭제하기
+    @DeleteMapping("/{extraId}")
+    public ResponseEntity<Void> deleteExtra(@PathVariable Long extraId) {
+        payrollExtraService.deleteExtra(extraId);
+        return ResponseEntity.noContent().build();
+    }
+
 
 }
