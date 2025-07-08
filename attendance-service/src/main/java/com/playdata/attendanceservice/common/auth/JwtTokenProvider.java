@@ -26,9 +26,10 @@ public class JwtTokenProvider {
     private int expirationRt;
 
 
-    public String createToken(String email, String role){
+    public String createToken(String email, String hrRole, Long employeeNo){
         Claims claims = Jwts.claims().setSubject(email);
-        claims.put("role", role);
+        claims.put("role", hrRole);
+        claims.put("employeeNo", employeeNo);
         Date now = new Date();
 
         return Jwts.builder()
@@ -39,9 +40,10 @@ public class JwtTokenProvider {
                 .compact();
     }
 
-    public String createRefreshToken(String email, String role){
+    public String createRefreshToken(String email, String hrRole, Long employeeNo){
         Claims claims = Jwts.claims().setSubject(email);
-        claims.put("role", role);
+        claims.put("role", hrRole);
+        claims.put("employeeNo", employeeNo);
         Date now = new Date();
 
         return Jwts.builder()
@@ -60,14 +62,31 @@ public class JwtTokenProvider {
                 .parseClaimsJws(token)
                 .getBody();
 
-        System.out.println("claims = " + claims);
+        return TokenUserInfo.builder()
+                .email(claims.getSubject())
+                .hrRole(claims.get("role", String.class))
+                .employeeNo(claims.get("employeeNo", Long.class))
+                .build();
+    }
+
+    public TokenUserInfo validateRefreshTokenAndGetTokenUserInfo(String token)
+            throws Exception {
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(secretKeyRt)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
 
         return TokenUserInfo.builder()
                 .email(claims.getSubject())
-                .role(Role.valueOf(claims.get("role", String.class)))
+                .hrRole(claims.get("role", String.class))
+                .employeeNo(claims.get("employeeNo", Long.class))
                 .build();
     }
 }
+
+
+
 
 
 

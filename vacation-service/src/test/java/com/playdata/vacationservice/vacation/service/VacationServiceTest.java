@@ -3,12 +3,10 @@ package com.playdata.vacationservice.vacation.service; // 패키지 변경
 import com.playdata.vacationservice.vacation.dto.VacationRequestDto;
 import com.playdata.vacationservice.vacation.entity.Vacation;
 import com.playdata.vacationservice.vacation.entity.VacationBalance;
-import com.playdata.vacationservice.vacation.entity.VacationStatus;
 import com.playdata.vacationservice.vacation.entity.VacationType;
 import com.playdata.vacationservice.vacation.repository.VacationBalanceRepository;
 import com.playdata.vacationservice.vacation.repository.VacationRepository;
 import com.playdata.vacationservice.client.ApprovalServiceClient;
-import com.playdata.vacationservice.client.HrServiceClient;
 import com.playdata.vacationservice.client.dto.ApprovalRequestDto;
 import com.playdata.vacationservice.client.dto.UserDetailDto;
 import org.junit.jupiter.api.BeforeEach;

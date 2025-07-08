@@ -74,10 +74,6 @@ public class AttendanceService {
             //    Builder 패턴을 사용하여 Attendance 객체를 생성합니다.
             //    Lombok의 @Builder 어노테이션 덕분에 Attendance.builder().필드(값).build() 형태로
             //    객체를 쉽게 생성할 수 있습니다.
-            // 1. Attendance 엔티티 객체 생성
-            //    Builder 패턴을 사용하여 Attendance 객체를 생성합니다.
-            //    Lombok의 @Builder 어노테이션 덕분에 Attendance.builder().필드(값).build() 형태로
-            //    객체를 쉽게 생성할 수 있습니다.
             Attendance attendance = Attendance.builder()
                     .userId(userId) // 출근하는 사용자의 ID 설정
                     .attendanceDate(LocalDate.now()) // 현재 날짜를 출근 날짜로 설정 (예: 2025-07-04)

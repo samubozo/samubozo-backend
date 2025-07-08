@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 /**
  * 결재 서비스와 통신하기 위한 Feign 클라이언트 인터페이스입니다.
  */
-@FeignClient(name = "approval-service")
+@FeignClient(name = "approval-service") // configuration 속성 추가
 public interface ApprovalServiceClient {
 
     /**

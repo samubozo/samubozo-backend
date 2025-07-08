@@ -1,10 +1,12 @@
 package com.playdata.vacationservice.vacation.controller;
 
+import com.playdata.vacationservice.common.auth.TokenUserInfo;
 import com.playdata.vacationservice.vacation.dto.VacationRequestDto;
 import com.playdata.vacationservice.vacation.service.VacationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -20,15 +22,15 @@ public class VacationController {
     /**
      * 새로운 휴가 신청을 등록합니다.
      *
-     * @param userId 휴가를 신청하는 사용자의 ID (현재는 PathVariable로 받지만, 실제로는 인증 정보에서 추출하는 것이 일반적입니다.)
+     * @param userInfo   인증된 사용자 정보
      * @param requestDto 휴가 신청에 필요한 정보를 담은 DTO
      * @return 성공 시 HTTP 201 Created 응답
      */
-    @PostMapping("/{userId}")
+    @PostMapping("/requestVacation")
     public ResponseEntity<Void> requestVacation(
-            @PathVariable Long userId,
+            @AuthenticationPrincipal TokenUserInfo userInfo,
             @RequestBody VacationRequestDto requestDto) {
-        vacationService.requestVacation(userId, requestDto);
+        vacationService.requestVacation(userInfo.getEmployeeNo(), requestDto);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 

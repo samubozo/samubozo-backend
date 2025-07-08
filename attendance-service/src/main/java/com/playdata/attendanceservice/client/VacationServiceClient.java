@@ -3,29 +3,22 @@ package com.playdata.attendanceservice.client;
 import com.playdata.attendanceservice.client.dto.VacationRequestDto;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-
-import org.springframework.web.bind.annotation.PutMapping; // 추가
-import org.springframework.web.bind.annotation.RequestParam; // 추가
+import org.springframework.web.bind.annotation.*;
 
 /**
  * Vacation 서비스와 통신하기 위한 Feign 클라이언트 인터페이스입니다.
  */
-@FeignClient(name = "vacation-service")
+@FeignClient(name = "vacation-service") // configuration 속성 추가
 public interface VacationServiceClient {
 
     /**
      * Vacation 서비스에 휴가 신청을 요청합니다.
      *
-     * @param userId 휴가를 신청하는 사용자의 ID
      * @param requestDto 휴가 신청 정보
      * @return 휴가 신청 결과
      */
-    @PostMapping("/api/v1/vacations/{userId}")
+    @PostMapping("/api/v1/vacations/requestVacation")
     ResponseEntity<Void> requestVacation(
-            @PathVariable("userId") Long userId,
             @RequestBody VacationRequestDto requestDto);
 
     /**

@@ -2,7 +2,7 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/samubozo?useSSL=false&serverTimezone=UTC
     username: spring
-    password: spring
+    password: gukshin
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:

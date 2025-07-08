@@ -4,6 +4,7 @@ import com.playdata.attendanceservice.client.dto.VacationRequestDto; // 경로 �
 import com.playdata.attendanceservice.attendance.entity.Attendance;
 import com.playdata.attendanceservice.attendance.service.AttendanceService;
 import com.playdata.attendanceservice.client.VacationServiceClient; // 추가
+import com.playdata.attendanceservice.common.auth.TokenUserInfo;
 import com.playdata.attendanceservice.common.dto.CommonResDto;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 
@@ -29,16 +31,16 @@ public class AttendanceController {
     /**
      * 휴가를 신청하는 API 엔드포인트입니다.
      *
-     * @param userId 신청자 ID (요청 헤더에서 추출)
+     * @param userInfo 신청자 ID (요청 헤더에서 추출)
      * @param requestDto 휴가 신청 정보
      * @return 휴가 신청 성공 또는 실패에 대한 응답
      */
     @PostMapping("/vacations")
     public ResponseEntity<CommonResDto<?>> requestVacation(
-            @RequestHeader("X-USER-ID") Long userId,
+            @AuthenticationPrincipal TokenUserInfo userInfo,
             @RequestBody VacationRequestDto requestDto) {
         try {
-            vacationServiceClient.requestVacation(userId, requestDto); // 변경
+            vacationServiceClient.requestVacation(requestDto); // 변경
             return buildSuccessResponse(null, "휴가 신청이 성공적으로 접수되었습니다.");
         } catch (IllegalStateException | IllegalArgumentException e) {
             return buildErrorResponse(HttpStatus.BAD_REQUEST, e.getMessage());

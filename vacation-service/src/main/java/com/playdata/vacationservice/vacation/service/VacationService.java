@@ -1,5 +1,7 @@
 package com.playdata.vacationservice.vacation.service;
 
+import com.playdata.vacationservice.client.HrServiceClient;
+import com.playdata.vacationservice.common.dto.CommonResDto;
 import com.playdata.vacationservice.vacation.dto.VacationRequestDto;
 import com.playdata.vacationservice.vacation.entity.Vacation;
 import com.playdata.vacationservice.vacation.entity.VacationBalance;
@@ -7,15 +9,17 @@ import com.playdata.vacationservice.vacation.entity.VacationStatus;
 import com.playdata.vacationservice.vacation.repository.VacationBalanceRepository;
 import com.playdata.vacationservice.vacation.repository.VacationRepository;
 import com.playdata.vacationservice.client.ApprovalServiceClient;
-import com.playdata.vacationservice.client.HrServiceClient;
 import com.playdata.vacationservice.client.dto.ApprovalRequestDto;
 import com.playdata.vacationservice.client.dto.UserDetailDto;
+import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 
 /**
  * 연차/휴가 관련 비즈니스 로직을 처리하는 서비스 클래스입니다.
@@ -64,7 +68,19 @@ public class VacationService {
         log.info("휴가 신청이 데이터베이스에 저장되었습니다. (ID: {})", vacation.getId());
 
         // 5. HR 서비스에서 사용자 상세 정보를 조회합니다.
-        UserDetailDto userDetails = hrServiceClient.getUserDetails(userId); // 사용자 정보 조회
+        UserDetailDto userDetails;
+        try {
+            // Feign Client를 통해 HR 서비스에서 사용자 정보를 직접 UserDetailDto로 받아옵니다.
+            // 이전 코드에서는 ResponseEntity<CommonResDto>를 받아 복잡하게 변환했지만,
+            // 이제는 HrServiceClient에서 직접 UserDetailDto를 반환하므로 코드가 간결해집니다.
+            userDetails = hrServiceClient.getMyUserInfo();
+            if (userDetails == null) {
+                throw new IllegalStateException("HR 서비스로부터 사용자 정보를 가져오는데 실패했습니다. (응답 null)");
+            }
+        } catch (FeignException e) {
+            log.error("HR 서비스 통신 오류: {}", e.getMessage());
+            throw new IllegalStateException("HR 서비스 통신 중 오류가 발생했습니다. 다시 시도해주세요.");
+        }
         String userName = userDetails.getName();
         String userDepartment = userDetails.getDepartment();
 
@@ -86,8 +102,13 @@ public class VacationService {
                 .referenceId(vacation.getId())
                 .build();
 
-        approvalServiceClient.createApproval(approvalRequest);
-        log.info("결재 서비스에 휴가(ID: {})에 대한 결재 생성을 요청했습니다.", vacation.getId());
+        try {
+            approvalServiceClient.createApproval(approvalRequest);
+            log.info("결재 서비스에 휴가(ID: {})에 대한 결재 생성을 요청했습니다.", vacation.getId());
+        } catch (FeignException e) {
+            log.error("결재 서비스 통신 오류: {}", e.getMessage());
+            throw new IllegalStateException("결재 서비스 통신 중 오류가 발생했습니다. 다시 시도해주세요.");
+        }
 
         // 7. 사용한 만큼 연차를 차감합니다.
         vacationBalance.useDays(deductionDays);
