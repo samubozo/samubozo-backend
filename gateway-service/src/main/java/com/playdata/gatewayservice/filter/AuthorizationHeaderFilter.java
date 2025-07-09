@@ -59,16 +59,24 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
                 return chain.filter(exchange);
             }
 
+            String token = null;
             String authorizationHeader = exchange.getRequest().getHeaders().getFirst("Authorization");
 
-            if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
-                if (path.startsWith("/ordering-service/orders/") || path.startsWith("/ordering-service/cart/") ) {
-                    return onError(exchange, "NO_LOGIN", HttpStatus.UNAUTHORIZED);
+            // SSE 구독 요청의 경우 쿼리 파라미터에서 토큰 추출
+            if (path.equals("/notifications/subscribe")) { // <-- 이 부분을 수정합니다.
+                String queryToken = exchange.getRequest().getQueryParams().getFirst("token"); // "token" 파라미터 이름은 프론트엔드와 일치해야 합니다.
+                if (queryToken != null && !queryToken.isEmpty()) {
+                    token = queryToken;
+                    log.info("SSE token from query parameter: {}", token);
                 }
-                return onError(exchange, "Authorization header is missing or invalid", HttpStatus.UNAUTHORIZED);
+            } else if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
+                token = authorizationHeader.replace("Bearer ", "");
+                log.info("Bearer token from Authorization header: {}", token);
             }
 
-            String token = authorizationHeader.replace("Bearer ", "");
+            if (token == null) {
+                return onError(exchange, "Authorization token is missing or invalid", HttpStatus.UNAUTHORIZED);
+            }
 
             Claims claims = validateJwt(token);
             if (claims == null) {

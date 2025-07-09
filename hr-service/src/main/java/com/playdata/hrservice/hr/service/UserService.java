@@ -1,5 +1,6 @@
 package com.playdata.hrservice.hr.service;
 
+import com.playdata.hrservice.common.auth.TokenUserInfo;
 import com.playdata.hrservice.common.configs.AwsS3Config;
 import com.playdata.hrservice.hr.dto.*;
 import com.playdata.hrservice.hr.entity.*;
@@ -13,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,7 +23,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -34,7 +38,8 @@ public class UserService {
     private final PositionRepository positionRepository;
     private final PasswordEncoder encoder;
     private final AwsS3Config awsS3Config;
-
+    private final RedisTemplate<String, Object>  redisTemplate;
+    private final MailSenderService mailSenderService;
 
     // 회원가입
     @Transactional
@@ -133,8 +138,13 @@ public class UserService {
     }
 
     // 직원 리스트 조회
-    public Page<UserResDto> listUsers(Pageable pageable) {
+    public Page<UserResDto> listUsers(Pageable pageable, String hrRole) {
         Page<User> users = userRepository.findAll(pageable);
+
+        if (hrRole.equals("N")) {
+            throw new BadRequestException("수정 권한이 없습니다.");
+        }
+
         return users.map(user -> UserResDto.builder()
                 .employeeNo(user.getEmployeeNo())
                 .userName(user.getUserName())

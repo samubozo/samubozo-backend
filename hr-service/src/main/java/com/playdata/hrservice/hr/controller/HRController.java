@@ -99,10 +99,22 @@ public class HRController {
     }
 
     // 직원 리스트 조회
+    // 직원 조회 (기존 listUsers)
     @GetMapping("/user/list")
-    public ResponseEntity<?> listUsers(@PageableDefault(size = 5, sort = "employeeNo") Pageable pageable) {
+    public ResponseEntity<?> listUsers(@PageableDefault(size = 10, sort = "employeeNo")Pageable pageable,
+                                       @AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
+        String hrRole = tokenUserInfo.getHrRole();
         return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "Success",
-                userService.listUsers(pageable)), HttpStatus.OK);
+                userService.listUsers(pageable, hrRole)), HttpStatus.OK);
+    }
+
+    // 사용자 검색 엔드포인트 수정
+    @GetMapping("/users/search")
+    public ResponseEntity<?> searchUsers(
+            @RequestParam(required = false) String userName,
+            @RequestParam(required = false) String departmentName,
+            @PageableDefault(size = 10, sort = "employeeNo") Pageable pageable) {
+        return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "Success", userService.searchUsers(userName, departmentName, pageable)), HttpStatus.OK);
     }
 
     // 부서 정보 조회 API
