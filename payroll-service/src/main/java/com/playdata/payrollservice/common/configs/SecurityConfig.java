@@ -35,7 +35,9 @@ public class SecurityConfig {
         //여기에 권한 없이 접근해야할 URL을 명시해주세요. "/actuator/**" 는 건드시면 안됩니다.
         http.authorizeHttpRequests(auth -> {
             auth
-                    .requestMatchers("/actuator/**", "/payroll/hello").permitAll()
+                    .requestMatchers("/actuator/**", "/payroll/hello",
+                                "/api/payroll", "api/payroll/**",
+                                "/api/payroll/extras","/api/payroll/extras/**").permitAll()
                     .anyRequest().authenticated();
         });
 

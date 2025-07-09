@@ -1,9 +1,10 @@
 package com.playdata.hrservice.hr.service;
 
-import com.playdata.hrservice.common.auth.TokenUserInfo;
 import com.playdata.hrservice.common.configs.AwsS3Config;
 import com.playdata.hrservice.hr.dto.*;
-import com.playdata.hrservice.hr.entity.*;
+import com.playdata.hrservice.hr.entity.Department;
+import com.playdata.hrservice.hr.entity.Position;
+import com.playdata.hrservice.hr.entity.User;
 import com.playdata.hrservice.hr.repository.DepartmentRepository;
 import com.playdata.hrservice.hr.repository.PositionRepository;
 import com.playdata.hrservice.hr.repository.UserRepository;
@@ -14,7 +15,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,8 +38,6 @@ public class UserService {
     private final PositionRepository positionRepository;
     private final PasswordEncoder encoder;
     private final AwsS3Config awsS3Config;
-    private final RedisTemplate<String, Object>  redisTemplate;
-    private final MailSenderService mailSenderService;
 
     // 회원가입
     @Transactional
@@ -110,8 +108,8 @@ public class UserService {
 
     // 사용자 정보 수정
     @Transactional
-    public void updateUser(Long id, UserUpdateRequestDto dto, String hrRole) throws Exception {
-        User user = userRepository.findByEmployeeNo(id).orElseThrow(
+    public void updateUser(Long employeeNo, UserUpdateRequestDto dto, String hrRole) throws Exception {
+        User user = userRepository.findByEmployeeNo(employeeNo).orElseThrow(
                 () -> new EntityNotFoundException("User not found!")
         );
         if (hrRole.equals("N")) {
@@ -135,26 +133,6 @@ public class UserService {
         user.setRetireDate(dto.getRetireDate());
 
         userRepository.save(user);
-    }
-
-    // 직원 리스트 조회
-    public Page<UserResDto> listUsers(Pageable pageable, String hrRole) {
-        Page<User> users = userRepository.findAll(pageable);
-
-        if (hrRole.equals("N")) {
-            throw new BadRequestException("수정 권한이 없습니다.");
-        }
-
-        return users.map(user -> UserResDto.builder()
-                .employeeNo(user.getEmployeeNo())
-                .userName(user.getUserName())
-                .positionName(user.getPosition().getPositionName())
-                .departmentName(user.getDepartment().getName())
-                .hireDate(user.getHireDate())
-                .phone(user.getPhone())
-                .email(user.getEmail())
-                .activate(user.getActivate())
-                .build());
     }
 
     // 직원 상세 조회
@@ -198,6 +176,63 @@ public class UserService {
         );
         user.setPassword(dto.getNewPw());
         userRepository.save(user);
+    }
+
+    // 직원 조회
+    public Page<UserResDto> listUsers(Pageable pageable, String hrRole) {
+        Page<User> users = userRepository.findAll(pageable);
+        if (hrRole.equals("N")) {
+            throw new BadRequestException("수정 권한이 없습니다.");
+        }
+
+        return users.map(user -> UserResDto.builder()
+                .employeeNo(user.getEmployeeNo())
+                .userName(user.getUserName())
+                .positionName(user.getPosition().getPositionName())
+                .department(new DepartmentResDto(user.getDepartment())) // DepartmentResDto 객체로 변경
+                .hireDate(user.getHireDate())
+                .phone(user.getPhone())
+                .email(user.getEmail())
+                .activate(user.getActivate())
+                .build());
+    }
+
+    // 사용자 검색 (조건에 따라 페이징 또는 전체 리스트 반환)
+    public Object searchUsers(String userName, String departmentName, Pageable pageable) {
+        if (StringUtils.hasText(userName) || StringUtils.hasText(departmentName)) {
+            // 검색 조건이 있을 경우, 페이징 없이 전체 리스트 반환
+            List<User> users;
+            if (StringUtils.hasText(userName) && StringUtils.hasText(departmentName)) {
+                users = userRepository.findByUserNameContainingAndDepartmentDepartmentNameContaining(userName, departmentName);
+            } else if (StringUtils.hasText(userName)) {
+                users = userRepository.findByUserNameContaining(userName);
+            } else { // departmentName만 있을 경우
+                users = userRepository.findByDepartmentDepartmentNameContaining(departmentName);
+            }
+            return users.stream().map(user -> UserResDto.builder()
+                    .employeeNo(user.getEmployeeNo())
+                    .userName(user.getUserName())
+                    .positionName(user.getPosition().getPositionName())
+                    .department(new DepartmentResDto(user.getDepartment())) // DepartmentResDto 객체로 변경
+                    .hireDate(user.getHireDate())
+                    .phone(user.getPhone())
+                    .email(user.getEmail())
+                    .activate(user.getActivate())
+                    .build()).collect(Collectors.toList());
+        } else {
+            // 검색 조건이 없을 경우, 페이징 적용
+            Page<User> users = userRepository.findAll(pageable);
+            return users.map(user -> UserResDto.builder()
+                    .employeeNo(user.getEmployeeNo())
+                    .userName(user.getUserName())
+                    .positionName(user.getPosition().getPositionName())
+                    .department(new DepartmentResDto(user.getDepartment())) // DepartmentResDto 객체로 변경
+                    .hireDate(user.getHireDate())
+                    .phone(user.getPhone())
+                    .email(user.getEmail())
+                    .activate(user.getActivate())
+                    .build());
+        }
     }
 
     // 퇴사 처리

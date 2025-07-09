@@ -4,7 +4,6 @@ package com.playdata.hrservice.hr.controller;
 import com.playdata.hrservice.common.auth.TokenUserInfo;
 import com.playdata.hrservice.common.dto.CommonResDto;
 import com.playdata.hrservice.hr.dto.*;
-import com.playdata.hrservice.hr.entity.Position;
 import com.playdata.hrservice.hr.service.DepartmentService;
 import com.playdata.hrservice.hr.service.PositionService;
 import com.playdata.hrservice.hr.service.UserService;
@@ -18,11 +17,11 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.*;
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/hr")
