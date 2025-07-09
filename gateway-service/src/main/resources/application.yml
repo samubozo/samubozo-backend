@@ -114,3 +114,13 @@ spring:
             - RemoveRequestHeader=Cookie
             - RewritePath=/chatbot-service/(?<segment>.*), /$\{segment}
             - AuthorizationHeaderFilter
+
+        #증명서 서비스
+        - id: certificate-service
+          uri: lb://CERTIFICATE-SERVICE
+          predicates:
+            - Path=/certificate-service/**
+          filters:
+            - RemoveRequestHeader=Cookie
+            - RewritePath=/chatbot-service/(?<segment>.*), /$\{segment}
+            - AuthorizationHeaderFilter
