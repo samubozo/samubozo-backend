@@ -93,13 +93,21 @@ public class HRController {
         return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "Success", userService.listUsers(pageable)), HttpStatus.OK);
     }
 
-    // 사용자 검색 엔드포인트 수정
+    // 사용자 검색 엔드포인트 수정 (조건에 따라 페이징 또는 전체 리스트 반환)
     @GetMapping("/users/search")
     public ResponseEntity<?> searchUsers(
             @RequestParam(required = false) String userName,
             @RequestParam(required = false) String departmentName,
-            @PageableDefault(size = 10, sort = "employeeNo") Pageable pageable) {
-        return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "Success", userService.searchUsers(userName, departmentName, pageable)), HttpStatus.OK);
+            @PageableDefault(size = 10, sort = "employeeNo") Pageable pageable) { // Pageable은 검색 조건 없을 때만 사용
+        Object result;
+        if (userName != null || departmentName != null) {
+            // 검색 조건이 있을 경우, 페이징 없이 전체 리스트 반환
+            result = userService.searchUsers(userName, departmentName, null); // Pageable을 null로 전달
+        } else {
+            // 검색 조건이 없을 경우, 페이징 적용
+            result = userService.searchUsers(null, null, pageable);
+        }
+        return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "Success", result), HttpStatus.OK);
     }
 
     // 부서 정보 조회 API
