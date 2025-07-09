@@ -1,5 +1,6 @@
 package com.playdata.certificateservice.dto;
 
+
 import com.playdata.certificateservice.entity.Status;
 import com.playdata.certificateservice.entity.Type;
 import lombok.*;

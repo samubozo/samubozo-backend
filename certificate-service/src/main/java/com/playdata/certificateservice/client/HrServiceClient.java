@@ -1,7 +1,6 @@
 package com.playdata.certificateservice.client;
 
 
-
 import com.playdata.certificateservice.dto.UserFeignResDto;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
