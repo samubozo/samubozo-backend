@@ -142,6 +142,15 @@ public class NotificationService {
         return count;
     }
 
+    @Transactional
+    public void deleteNotificationsByMessageId(Long messageId) {
+        List<Notification> notifications = notificationRepository.findByMessageId(messageId);
+        if (!notifications.isEmpty()) {
+            notificationRepository.deleteAll(notifications);
+            log.info("Deleted {} notifications related to messageId: {}", notifications.size(), messageId);
+        }
+    }
+
     private NotificationResponse convertToDto(Notification notification) {
         return NotificationResponse.builder()
                 .notificationId(notification.getNotificationId())

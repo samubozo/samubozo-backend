@@ -4,11 +4,14 @@ import com.playdata.messageservice.dto.MessageRequest;
 import com.playdata.messageservice.dto.MessageResponse;
 import com.playdata.messageservice.service.MessageService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import com.playdata.messageservice.common.auth.TokenUserInfo; // TokenUserInfo 경로 확인
+import com.playdata.messageservice.common.auth.TokenUserInfo;
 
 import java.util.List;
 
@@ -35,21 +38,34 @@ public class MessageController {
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
-    // 받은 쪽지함 조회
+    // 받은 쪽지함 검색/필터/페이징
     @GetMapping("/received")
-    public ResponseEntity<List<MessageResponse>> getReceivedMessages(
-            @AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
+    public ResponseEntity<Page<MessageResponse>> getReceivedMessages(
+            @AuthenticationPrincipal TokenUserInfo tokenUserInfo,
+            @RequestParam(required = false, defaultValue = "0") int page,
+            @RequestParam(required = false, defaultValue = "10") int size,
+            @RequestParam(required = false, defaultValue = "all") String period,
+            @RequestParam(required = false) String searchType,
+            @RequestParam(required = false) String searchValue,
+            @RequestParam(required = false) Boolean unreadOnly,
+            @PageableDefault(sort = "sentAt", direction = org.springframework.data.domain.Sort.Direction.DESC) Pageable pageable) {
         Long receiverId = tokenUserInfo.getEmployeeNo();
-        List<MessageResponse> messages = messageService.getReceivedMessages(receiverId);
+        Page<MessageResponse> messages = messageService.getReceivedMessages(receiverId, searchType, searchValue, period, unreadOnly, pageable);
         return ResponseEntity.ok(messages);
     }
 
-    // 보낸 쪽지함 조회
+    // 보낸 쪽지함 검색/필터/페이징
     @GetMapping("/sent")
-    public ResponseEntity<List<MessageResponse>> getSentMessages(
-            @AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
+    public ResponseEntity<Page<MessageResponse>> getSentMessages(
+            @AuthenticationPrincipal TokenUserInfo tokenUserInfo,
+            @RequestParam(required = false, defaultValue = "0") int page,
+            @RequestParam(required = false, defaultValue = "10") int size,
+            @RequestParam(required = false, defaultValue = "all") String period,
+            @RequestParam(required = false) String searchType,
+            @RequestParam(required = false) String searchValue,
+            @PageableDefault(sort = "sentAt", direction = org.springframework.data.domain.Sort.Direction.DESC) Pageable pageable) {
         Long senderId = tokenUserInfo.getEmployeeNo();
-        List<MessageResponse> messages = messageService.getSentMessages(senderId);
+        Page<MessageResponse> messages = messageService.getSentMessages(senderId, searchType, searchValue, period, pageable);
         return ResponseEntity.ok(messages);
     }
 
@@ -82,15 +98,15 @@ public class MessageController {
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
-    // 쪽지 수정 (삭제 후 재등록 방식)
-    @PutMapping(value = "/{messageId}", consumes = {MediaType.APPLICATION_JSON_VALUE, MediaType.MULTIPART_FORM_DATA_VALUE})
-    public ResponseEntity<MessageResponse> modifyMessage(
+    
+
+    // 쪽지 발신 취소 (읽지 않은 쪽지만 삭제 가능)
+    @DeleteMapping("/{messageId}/recall")
+    public ResponseEntity<Void> recallMessage(
             @AuthenticationPrincipal TokenUserInfo tokenUserInfo,
-            @PathVariable Long messageId,
-            @RequestPart("request") MessageRequest request,
-            @RequestPart(value = "attachment", required = false) MultipartFile attachment) {
-        Long senderId = tokenUserInfo.getEmployeeNo(); // 수정 요청자 (보낸 사람)
-        MessageResponse response = messageService.modifyMessage(messageId, senderId, request, attachment);
-        return new ResponseEntity<>(response, HttpStatus.OK);
+            @PathVariable Long messageId) {
+        Long senderEmployeeNo = tokenUserInfo.getEmployeeNo();
+        messageService.recallMessage(messageId, senderEmployeeNo);
+        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 }

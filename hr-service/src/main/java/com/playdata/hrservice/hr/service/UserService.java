@@ -150,6 +150,21 @@ public class UserService {
         return null;
     }
 
+    // Feign client용: employeeNo로 사용자 정보 조회
+    public UserFeignResDto getEmloyeeByEmployeeNo(Long employeeNo) {
+        User user = userRepository.findByEmployeeNo(employeeNo)
+                .orElseThrow(() -> new EntityNotFoundException("User not found with employeeNo: " + employeeNo));
+        return user.toUserFeignResDto();
+    }
+
+    // Feign client용: userName으로 사용자 정보 조회
+    public List<UserFeignResDto> getEmloyeeByUserName(String userName) {
+        List<User> users = userRepository.findByUserNameContaining(userName);
+        return users.stream()
+                .map(User::toUserFeignResDto)
+                .collect(Collectors.toList());
+    }
+
     // 모든 서비스를 위한 Feign
     public UserFeignResDto getEmloyeeByEmail(String email) {
         User user = userRepository.findByEmail(email).orElse(null);

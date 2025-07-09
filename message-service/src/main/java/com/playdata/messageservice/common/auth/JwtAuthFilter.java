@@ -25,15 +25,30 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
 
-        String userEmail = request.getHeader("X-User-Email");
-        String userRole = request.getHeader("X-User-Role");
-        String employeeNoStr = request.getHeader("X-User-Employee-No");
+        String requestURI = request.getRequestURI();
+        String userEmail = null;
+        String userRole = null;
+        String employeeNoStr = null;
+
+        // SSE 구독 요청의 경우, 쿼리 파라미터에서 인증 정보 추출
+        if (requestURI.contains("/notifications/subscribe")) {
+            log.info("SSE connection detected. Reading auth info from query parameters.");
+            userEmail = request.getParameter("userEmail");
+            userRole = request.getParameter("userRole");
+            employeeNoStr = request.getParameter("employeeNo");
+        } else {
+            // 그 외 모든 요청은 기존 방식대로 헤더에서 인증 정보 추출
+            userEmail = request.getHeader("X-User-Email");
+            userRole = request.getHeader("X-User-Role");
+            employeeNoStr = request.getHeader("X-User-Employee-No");
+        }
+
         Long employeeNo = null;
         if (employeeNoStr != null) {
             try {
                 employeeNo = Long.parseLong(employeeNoStr);
             } catch (NumberFormatException e) {
-                log.warn("Invalid X-User-Employee-No header: {}", employeeNoStr);
+                log.warn("Invalid employee number format: {}", employeeNoStr);
             }
         }
 
@@ -50,6 +65,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             );
 
             SecurityContextHolder.getContext().setAuthentication(auth);
+
+            log.info("SecurityContext Authentication: {}", SecurityContextHolder.getContext().getAuthentication());
+            if (SecurityContextHolder.getContext().getAuthentication() != null) {
+                log.info("Authentication Principal: {}", SecurityContextHolder.getContext().getAuthentication().getPrincipal());
+                log.info("Authentication Authorities: {}", SecurityContextHolder.getContext().getAuthentication().getAuthorities());
+                log.info("Authentication isAuthenticated: {}", SecurityContextHolder.getContext().getAuthentication().isAuthenticated());
+            }
 
         }
         filterChain.doFilter(request, response);
