@@ -12,9 +12,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.data.domain.Page; // Page import 추가
-import org.springframework.data.domain.PageRequest; // PageRequest import 추가
-import org.springframework.data.domain.Pageable; // Pageable import 추가
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -24,7 +24,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
-@Transactional // 테스트 후 롤백하여 데이터베이스 상태를 유지
+@Transactional
 class HrServiceApplicationTests {
 
     @Autowired
@@ -46,7 +46,6 @@ class HrServiceApplicationTests {
 
     @BeforeEach
     void setUp() {
-        // 테스트 데이터 초기화
         userRepository.deleteAll();
         departmentRepository.deleteAll();
         positionRepository.deleteAll();
@@ -116,45 +115,42 @@ class HrServiceApplicationTests {
 
     @Test
     void searchUsersByDepartmentName() {
-        Pageable pageable = PageRequest.of(0, 10); // 첫 페이지, 10개
-        // 경영지원 부서 사용자 검색
-        Page<UserResDto> users = userService.searchUsers(null, "경영지원", pageable);
-        assertThat(users.getTotalElements()).isEqualTo(2); // 홍길동, 이영희
-        assertThat(users.getContent()).extracting(UserResDto::getUserName).containsExactlyInAnyOrder("홍길동", "이영희");
+        // 검색 조건이 있을 경우 (부서명), 페이징 없이 List 반환
+        List<UserResDto> users = (List<UserResDto>) userService.searchUsers(null, "경영지원", null);
+        assertThat(users).hasSize(2);
+        assertThat(users).extracting(UserResDto::getUserName).containsExactlyInAnyOrder("홍길동", "이영희");
     }
 
     @Test
     void searchUsersByUserName() {
-        Pageable pageable = PageRequest.of(0, 10);
-        // 이름으로 사용자 검색
-        Page<UserResDto> users = userService.searchUsers("홍길동", null, pageable);
-        assertThat(users.getTotalElements()).isEqualTo(1);
-        assertThat(users.getContent().get(0).getUserName()).isEqualTo("홍길동");
+        // 검색 조건이 있을 경우 (이름), 페이징 없이 List 반환
+        List<UserResDto> users = (List<UserResDto>) userService.searchUsers("홍길동", null, null);
+        assertThat(users).hasSize(1);
+        assertThat(users.get(0).getUserName()).isEqualTo("홍길동");
     }
 
     @Test
     void searchUsersByUserNameAndDepartmentName() {
-        Pageable pageable = PageRequest.of(0, 10);
-        // 이름과 부서명으로 사용자 검색
-        Page<UserResDto> users = userService.searchUsers("이영희", "경영지원", pageable);
-        assertThat(users.getTotalElements()).isEqualTo(1);
-        assertThat(users.getContent().get(0).getUserName()).isEqualTo("이영희");
-        assertThat(users.getContent().get(0).getDepartmentName()).isEqualTo("경영지원");
+        // 검색 조건이 있을 경우 (이름과 부서명), 페이징 없이 List 반환
+        List<UserResDto> users = (List<UserResDto>) userService.searchUsers("이영희", "경영지원", null);
+        assertThat(users).hasSize(1);
+        assertThat(users.get(0).getUserName()).isEqualTo("이영희");
+        assertThat(users.get(0).getDepartmentName()).isEqualTo("경영지원");
     }
 
     @Test
     void searchUsersNoCriteria() {
+        // 검색 조건이 없을 경우, 페이징 적용하여 Page 반환
         Pageable pageable = PageRequest.of(0, 10);
-        // 검색 조건 없이 전체 사용자 검색
-        Page<UserResDto> users = userService.searchUsers(null, null, pageable);
+        Page<UserResDto> users = (Page<UserResDto>) userService.searchUsers(null, null, pageable);
         assertThat(users.getTotalElements()).isEqualTo(3);
+        assertThat(users.getContent()).hasSize(3);
     }
 
     @Test
     void searchUsersNotFound() {
-        Pageable pageable = PageRequest.of(0, 10);
-        // 존재하지 않는 부서명으로 검색
-        Page<UserResDto> users = userService.searchUsers(null, "없는부서", pageable);
+        // 검색 조건이 있을 경우 (존재하지 않는 부서명), 페이징 없이 List 반환
+        List<UserResDto> users = (List<UserResDto>) userService.searchUsers(null, "없는부서", null);
         assertThat(users).isEmpty();
     }
 }
