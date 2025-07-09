@@ -154,6 +154,18 @@ public class HRController {
         return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "Success", userService.getUserByEmployeeNo(employeeNo)), HttpStatus.OK);
     }
 
+
+    // Feign client 요청을 위한 메서드: employeeNo로 유저 정보 얻어오기
+    @GetMapping("/user/feign/employeeNo/{employeeNo}")
+    public UserFeignResDto getUserByEmployeeNo(@PathVariable Long employeeNo) {
+        return userService.getEmloyeeByEmployeeNo(employeeNo);
+    }
+
+    // Feign client 요청을 위한 메서드: userName으로 유저 정보 얻어오기 (리스트 반환)
+    @GetMapping("/user/feign/userName/{userName}")
+    public List<UserFeignResDto> getUserByUserName(@PathVariable String userName) {
+        return userService.getEmloyeeByUserName(userName);
+
     // 직원 퇴사 처리
     @PatchMapping("/users/retire/{id}")
     public ResponseEntity<?> retireUser(@PathVariable("id") Long employeeNo,
@@ -161,6 +173,7 @@ public class HRController {
         String hrRole = tokenUserInfo.getHrRole();
         userService.retireUser(employeeNo, hrRole);
         return new ResponseEntity<>(HttpStatus.OK);
+
     }
 
 }
