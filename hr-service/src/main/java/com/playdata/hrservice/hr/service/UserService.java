@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -166,8 +167,17 @@ public class UserService {
     }
 
     // 모든 서비스를 위한 Feign
-    public UserFeignResDto getEmloyeeByEmail(String email) {
+    public UserFeignResDto getEmployeeByEmail(String email) {
         User user = userRepository.findByEmail(email).orElse(null);
+        if (user != null) {
+            return user.toUserFeignResDto();
+        }
+        return null;
+    }
+
+    // 모든 서비스를 위한 Feign (id로 조회)
+    public UserFeignResDto getEmployeeById(Long employeeNo) {
+        User user = userRepository.findByEmployeeNo(employeeNo).orElse(null);
         if (user != null) {
             return user.toUserFeignResDto();
         }
@@ -238,6 +248,18 @@ public class UserService {
                     .activate(user.getActivate())
                     .build());
         }
+    }
+
+    // 퇴사 처리
+    public void retireUser(Long employeeNo, String hrRole) {
+        if (!"Y".equals(hrRole)) {
+            throw new AccessDeniedException("HR 권한이 필요합니다.");
+        }
+        User user = userRepository.findByEmployeeNo(employeeNo).orElseThrow(
+                () -> new EntityNotFoundException("해당 사번 없음.")
+        );
+        user.setRetireDate(LocalDate.now());
+        userRepository.save(user);
     }
 
 }

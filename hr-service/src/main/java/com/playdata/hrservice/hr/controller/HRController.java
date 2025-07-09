@@ -66,9 +66,19 @@ public class HRController {
     @GetMapping("/users/detail")
     public ResponseEntity<CommonResDto> getMyUserInfo(@AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
         String email = tokenUserInfo.getEmail();
-        UserFeignResDto user = userService.getEmloyeeByEmail(email);
+        UserFeignResDto user = userService.getEmployeeByEmail(email);
         CommonResDto resDto = new CommonResDto(HttpStatus.OK, "User info retrieved successfully", user);
         return new ResponseEntity<>(resDto, HttpStatus.OK);
+    }
+
+    // 인증된 사용자가 employeeNo로 상세정보 요청할 수 있는 API
+    @GetMapping("/users/feign/{employeeNo}")
+    public ResponseEntity<CommonResDto> getUserById(@PathVariable Long employeeNo) {
+        UserFeignResDto user = userService.getEmployeeById(employeeNo);
+        if (user == null) {
+            return new ResponseEntity<>(new CommonResDto(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다.", null), HttpStatus.NOT_FOUND);
+        }
+        return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "User info retrieved successfully", user), HttpStatus.OK);
     }
 
     @PostMapping("/hr/user/password")
@@ -122,6 +132,14 @@ public class HRController {
         return new ResponseEntity<>(resDto, HttpStatus.OK);
     }
 
+    // 부서 추가
+    @PostMapping("/departments")
+    public ResponseEntity<?> createDepartment(@RequestBody DepartmentReqDto dto) {
+        log.info("Create department : {}", dto);
+        departmentService.createDepartment(dto);
+        return ResponseEntity.ok().build();
+    }
+
     // 직책 정보 조회 API
     @GetMapping("/positions")
     public ResponseEntity<?> getAllPositions() {
@@ -136,6 +154,7 @@ public class HRController {
         return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "Success", userService.getUserByEmployeeNo(employeeNo)), HttpStatus.OK);
     }
 
+
     // Feign client 요청을 위한 메서드: employeeNo로 유저 정보 얻어오기
     @GetMapping("/user/feign/employeeNo/{employeeNo}")
     public UserFeignResDto getUserByEmployeeNo(@PathVariable Long employeeNo) {
@@ -146,6 +165,15 @@ public class HRController {
     @GetMapping("/user/feign/userName/{userName}")
     public List<UserFeignResDto> getUserByUserName(@PathVariable String userName) {
         return userService.getEmloyeeByUserName(userName);
+
+    // 직원 퇴사 처리
+    @PatchMapping("/users/retire/{id}")
+    public ResponseEntity<?> retireUser(@PathVariable("id") Long employeeNo,
+                                        @AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
+        String hrRole = tokenUserInfo.getHrRole();
+        userService.retireUser(employeeNo, hrRole);
+        return new ResponseEntity<>(HttpStatus.OK);
+
     }
 
 }
