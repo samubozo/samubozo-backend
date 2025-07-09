@@ -1,6 +1,7 @@
 package com.playdata.hrservice.hr.entity;
 
 
+import com.playdata.hrservice.hr.dto.DepartmentResDto;
 import com.playdata.hrservice.hr.dto.UserFeignResDto;
 import com.playdata.hrservice.hr.dto.UserLoginFeignResDto;
 import com.playdata.hrservice.hr.dto.UserResDto;
@@ -78,8 +79,7 @@ public class User {
                 .email(email)
                 .password(password)
                 .gender(gender)
-                .departmentId(department != null ? department.getDepartmentId() : null)
-                .departmentName(department != null ? department.getName() : null)
+                .department(department != null ? new DepartmentResDto(department) : null)
                 .positionId(position != null ? position.getPositionId() : null)
                 .positionName(position != null ? position.getPositionName() : null)
                 .address(address)
@@ -111,8 +111,7 @@ public class User {
                 .email(email)
                 .password(password)
                 .gender(gender)
-                .departmentId(department != null ? department.getDepartmentId() : null)
-                .departmentName(department != null ? department.getName() : null)
+                .department(department != null ? new DepartmentResDto(department) : null)
                 .positionId(position != null ? position.getPositionId() : null)
                 .positionName(position != null ? position.getPositionName() : null)
                 .address(address)
