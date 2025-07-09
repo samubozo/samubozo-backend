@@ -221,7 +221,7 @@ public class UserService {
                 .employeeNo(user.getEmployeeNo())
                 .userName(user.getUserName())
                 .positionName(user.getPosition().getPositionName())
-                .departmentName(user.getDepartment().getName())
+                .department(new DepartmentResDto(user.getDepartment())) // DepartmentResDto 객체로 변경
                 .hireDate(user.getHireDate())
                 .phone(user.getPhone())
                 .email(user.getEmail())
@@ -229,29 +229,42 @@ public class UserService {
                 .build());
     }
 
-    // 사용자 검색
-    public Page<UserResDto> searchUsers(String userName, String departmentName, Pageable pageable) {
-        Page<User> users;
-        if (StringUtils.hasText(userName) && StringUtils.hasText(departmentName)) {
-            users = userRepository.findByUserNameContainingAndDepartmentNameContaining(userName, departmentName, pageable);
-        } else if (StringUtils.hasText(userName)) {
-            users = userRepository.findByUserNameContaining(userName, pageable);
-        } else if (StringUtils.hasText(departmentName)) {
-            users = userRepository.findByDepartmentNameContaining(departmentName, pageable);
+    // 사용자 검색 (조건에 따라 페이징 또는 전체 리스트 반환)
+    public Object searchUsers(String userName, String departmentName, Pageable pageable) {
+        if (StringUtils.hasText(userName) || StringUtils.hasText(departmentName)) {
+            // 검색 조건이 있을 경우, 페이징 없이 전체 리스트 반환
+            List<User> users;
+            if (StringUtils.hasText(userName) && StringUtils.hasText(departmentName)) {
+                users = userRepository.findByUserNameContainingAndDepartmentDepartmentNameContaining(userName, departmentName);
+            } else if (StringUtils.hasText(userName)) {
+                users = userRepository.findByUserNameContaining(userName);
+            } else { // departmentName만 있을 경우
+                users = userRepository.findByDepartmentDepartmentNameContaining(departmentName);
+            }
+            return users.stream().map(user -> UserResDto.builder()
+                    .employeeNo(user.getEmployeeNo())
+                    .userName(user.getUserName())
+                    .positionName(user.getPosition().getPositionName())
+                    .department(new DepartmentResDto(user.getDepartment())) // DepartmentResDto 객체로 변경
+                    .hireDate(user.getHireDate())
+                    .phone(user.getPhone())
+                    .email(user.getEmail())
+                    .activate(user.getActivate())
+                    .build()).collect(Collectors.toList());
         } else {
-            users = userRepository.findAll(pageable); // 검색 조건이 없으면 전체 조회
+            // 검색 조건이 없을 경우, 페이징 적용
+            Page<User> users = userRepository.findAll(pageable);
+            return users.map(user -> UserResDto.builder()
+                    .employeeNo(user.getEmployeeNo())
+                    .userName(user.getUserName())
+                    .positionName(user.getPosition().getPositionName())
+                    .department(new DepartmentResDto(user.getDepartment())) // DepartmentResDto 객체로 변경
+                    .hireDate(user.getHireDate())
+                    .phone(user.getPhone())
+                    .email(user.getEmail())
+                    .activate(user.getActivate())
+                    .build());
         }
-
-        return users.map(user -> UserResDto.builder()
-                .employeeNo(user.getEmployeeNo())
-                .userName(user.getUserName())
-                .positionName(user.getPosition().getPositionName())
-                .departmentName(user.getDepartment().getName())
-                .hireDate(user.getHireDate())
-                .phone(user.getPhone())
-                .email(user.getEmail())
-                .activate(user.getActivate())
-                .build());
     }
 
 //    public User updateUser(Long userId, UserUpdateRequestDto dto) {

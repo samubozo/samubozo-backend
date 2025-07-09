@@ -19,8 +19,7 @@ public class UserResDto {
     private String email;
     private String password;
     private String gender;
-    private Long departmentId;
-    private String departmentName;
+    private DepartmentResDto department;
     private Long positionId;
     private String positionName;
     private String address;
