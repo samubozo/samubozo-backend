@@ -1,4 +1,4 @@
-package com.playdata.hrservice.hr.entity;
+package com.playdata.certificateservice.entity;
 
 public enum Status {
 

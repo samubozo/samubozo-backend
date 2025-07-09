@@ -7,7 +7,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface MessageRepository extends JpaRepository<Message, Long> {
+public interface MessageRepository extends JpaRepository<Message, Long>, MessageRepositoryCustom {
     // 특정 수신자의 쪽지 목록 조회 (최신순)
     List<Message> findByReceiverIdOrderBySentAtDesc(Long receiverId);
 

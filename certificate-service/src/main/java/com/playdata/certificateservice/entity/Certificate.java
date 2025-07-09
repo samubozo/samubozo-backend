@@ -1,4 +1,4 @@
-package com.playdata.hrservice.hr.entity;
+package com.playdata.certificateservice.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -6,7 +6,9 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDate;
-import java.util.Date;
+
+import static com.playdata.certificateservice.entity.Status.REQUESTED;
+
 
 @Getter
 @Setter
@@ -24,15 +26,18 @@ public class Certificate {
     @Column(name = "certificate_id", nullable = false)
     private Long certificateId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
-    private User user;
+    @Column(name = "employee_no", nullable = false)
+    private Long employeeNo;
 
     @Enumerated(EnumType.STRING)
     private Type type;
 
     @Enumerated(EnumType.STRING)
-    private Status status;
+    @Builder.Default
+    private Status status = REQUESTED;
+
+    @Column(columnDefinition = "TEXT")
+    private String purpose;
 
     @CreatedDate
     @Column(name = "request_date")
@@ -40,8 +45,5 @@ public class Certificate {
 
     @Column(name = "approve_date")
     private LocalDate approveDate;
-
-    @Column(name = "file_path", length = 255)
-    private String filePath;
 
 }
