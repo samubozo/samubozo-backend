@@ -12,11 +12,14 @@ public class UserUpdateRequestDto {
 
     private String userName;
     private String email;
+    private String residentRegNo;
+    private String externalEmail;
     private Long departmentId;
     private String departmentName;
     private Long positionId;
     private String positionName;
     private String address;
+    private String remarks;
     private MultipartFile profileImage;
     private String phone;
     private LocalDate birthDate;

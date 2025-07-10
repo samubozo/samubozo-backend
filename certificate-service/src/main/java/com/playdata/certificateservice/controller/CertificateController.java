@@ -21,7 +21,7 @@ public class CertificateController {
 
     private final CertificateService certificateService;
 
-    // 증명서 신청
+    // 증명서 발급
     @PostMapping("/application")
     public ResponseEntity<?> createCertificate(@RequestBody CertificateReqDto dto) {
         log.info("Create certificate request: {}", dto);
@@ -34,6 +34,22 @@ public class CertificateController {
     public ResponseEntity<?> listCertificates(@PageableDefault(size = 5, sort = "certificateId") Pageable pageable) {
         return new ResponseEntity<>(new CommonResDto(HttpStatus.OK,
                 "Success", certificateService.listCertificates(pageable)), HttpStatus.OK);
+    }
+
+    // 증명서 수정
+    @PutMapping("/certificate/{id}")
+    public ResponseEntity<?> updateCertificate(@PathVariable("id") Long id, CertificateReqDto dto) {
+        certificateService.updateCertificate(id, dto);
+        CommonResDto resDto = new CommonResDto(HttpStatus.OK, "수정 완료되었습니다.", null);
+        return ResponseEntity.ok().body(resDto);
+    }
+
+    // 증명서 삭제
+    @DeleteMapping("/delete/{id}")
+    public ResponseEntity<?> deleteCertificate(@PathVariable("id") Long id) {
+        certificateService.deleteCertificate(id);
+        CommonResDto resDto = new CommonResDto(HttpStatus.OK, "삭제 완료되었습니다.", id);
+        return ResponseEntity.ok().body(resDto);
     }
 
 }

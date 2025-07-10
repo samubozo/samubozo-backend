@@ -117,11 +117,14 @@ public class UserService {
         }
 
         user.setUserName(dto.getUserName());
+        user.setExternalEmail(dto.getExternalEmail());
         user.setAddress(dto.getAddress());
         user.setPhone(dto.getPhone());
+        user.setResidentRegNo(dto.getResidentRegNo());
         user.setHireDate(dto.getHireDate());
         user.setActivate(dto.getActivate());
         user.setBirthDate(dto.getBirthDate());
+        user.setRemarks(dto.getRemarks());
         user.setDepartment(departmentRepository.findByName(dto.getDepartmentName()));
         user.setPosition(positionRepository.findByPositionName(dto.getPositionName()));
         if (user.getProfileImage() != null) {
@@ -152,14 +155,14 @@ public class UserService {
     }
 
     // Feign client용: employeeNo로 사용자 정보 조회
-    public UserFeignResDto getEmloyeeByEmployeeNo(Long employeeNo) {
+    public UserFeignResDto getEmployeeByEmployeeNo(Long employeeNo) {
         User user = userRepository.findByEmployeeNo(employeeNo)
                 .orElseThrow(() -> new EntityNotFoundException("User not found with employeeNo: " + employeeNo));
         return user.toUserFeignResDto();
     }
 
     // Feign client용: userName으로 사용자 정보 조회
-    public List<UserFeignResDto> getEmloyeeByUserName(String userName) {
+    public List<UserFeignResDto> getEmployeeByUserName(String userName) {
         List<User> users = userRepository.findByUserNameContaining(userName);
         return users.stream()
                 .map(User::toUserFeignResDto)
@@ -208,6 +211,7 @@ public class UserService {
                 .hireDate(user.getHireDate())
                 .phone(user.getPhone())
                 .email(user.getEmail())
+                .address(user.getAddress())
                 .activate(user.getActivate())
                 .build());
     }
@@ -232,6 +236,7 @@ public class UserService {
                     .hireDate(user.getHireDate())
                     .phone(user.getPhone())
                     .email(user.getEmail())
+                    .address(user.getAddress())
                     .activate(user.getActivate())
                     .build()).collect(Collectors.toList());
         } else {
@@ -245,6 +250,7 @@ public class UserService {
                     .hireDate(user.getHireDate())
                     .phone(user.getPhone())
                     .email(user.getEmail())
+                    .address(user.getAddress())
                     .activate(user.getActivate())
                     .build());
         }
