@@ -1,6 +1,7 @@
 package com.playdata.payrollservice.payroll.controller;
 
 
+import com.playdata.payrollservice.common.auth.TokenUserInfo;
 import com.playdata.payrollservice.common.dto.CommonResDto;
 import com.playdata.payrollservice.payroll.dto.PayrollRequestDto;
 import com.playdata.payrollservice.payroll.dto.PayrollResponseDto;
@@ -10,6 +11,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -30,6 +33,7 @@ public class PayrollController {
         );
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     // 2. 특정 직원 급여 정보 조회
     @GetMapping("/{userId}")
     public ResponseEntity<CommonResDto<PayrollResponseDto>> getPayroll(@PathVariable Long userId) {
@@ -39,6 +43,7 @@ public class PayrollController {
         );
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     // 3. 특정 직원 급여 정보 수정
     @PutMapping()
     public ResponseEntity<CommonResDto<PayrollResponseDto>> updatePayroll(@RequestBody PayrollRequestDto requestDto) {
@@ -48,6 +53,7 @@ public class PayrollController {
         );
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     // 4. 특정 직원 급여 정보 삭제
     @DeleteMapping("/{userId}")
     public ResponseEntity<CommonResDto<Void>> deletePayroll(@PathVariable Long userId) {
@@ -57,6 +63,22 @@ public class PayrollController {
         );
     }
 
+    @GetMapping("/me")
+    public ResponseEntity<CommonResDto<PayrollResponseDto>> getMyPayroll() {
+        log.info("/api/payroll/me: GET");
+        // 현재 로그인된 사용자 정보 가져오기
+        TokenUserInfo userInfo = (TokenUserInfo) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        log.info("userInfo: {}", userInfo);
+        Long employeeNo = userInfo.getEmployeeNo();
+
+        log.info("employeeNo:{}", employeeNo);
+
+        PayrollResponseDto payroll = payrollService.getPayrollByUserId(employeeNo);
+        log.info("payrollResDto: {}", payroll);
+        return ResponseEntity.ok(
+                new CommonResDto<>(HttpStatus.OK, "나의 급여 정보 조회 성공!", payroll)
+        );
+    }
 
 
 
