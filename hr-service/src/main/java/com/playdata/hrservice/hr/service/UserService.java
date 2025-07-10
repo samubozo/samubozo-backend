@@ -120,6 +120,7 @@ public class UserService {
         user.setExternalEmail(dto.getExternalEmail());
         user.setAddress(dto.getAddress());
         user.setPhone(dto.getPhone());
+        user.setResidentRegNo(dto.getResidentRegNo());
         user.setHireDate(dto.getHireDate());
         user.setActivate(dto.getActivate());
         user.setBirthDate(dto.getBirthDate());
@@ -210,6 +211,7 @@ public class UserService {
                 .hireDate(user.getHireDate())
                 .phone(user.getPhone())
                 .email(user.getEmail())
+                .address(user.getAddress())
                 .activate(user.getActivate())
                 .build());
     }
@@ -234,6 +236,7 @@ public class UserService {
                     .hireDate(user.getHireDate())
                     .phone(user.getPhone())
                     .email(user.getEmail())
+                    .address(user.getAddress())
                     .activate(user.getActivate())
                     .build()).collect(Collectors.toList());
         } else {
@@ -247,6 +250,7 @@ public class UserService {
                     .hireDate(user.getHireDate())
                     .phone(user.getPhone())
                     .email(user.getEmail())
+                    .address(user.getAddress())
                     .activate(user.getActivate())
                     .build());
         }
