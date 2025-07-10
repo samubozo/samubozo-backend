@@ -64,6 +64,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
                 SecurityContextHolder.getContext().setAuthentication(auth);
                 log.info("[VacationService JwtAuthFilter] 인증 성공: {}", userEmail);
+
+                //  컨트롤러에서 @RequestAttribute 로 꺼내 쓸 수 있도록 추가
+                request.setAttribute("userInfo", auth.getPrincipal());
             } catch (Exception e) {
                 log.warn("[VacationService JwtAuthFilter] Header parsing error: {}", e.getMessage());
                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid user info");
