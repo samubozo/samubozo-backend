@@ -5,10 +5,12 @@ import com.playdata.payrollservice.payroll.dto.PayrollResponseDto;
 import com.playdata.payrollservice.payroll.entity.Payroll;
 import com.playdata.payrollservice.payroll.repository.PayrollRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PayrollService {
 
     private final PayrollRepository payrollRepository;
@@ -34,6 +36,7 @@ public class PayrollService {
                 .orElseThrow(() -> new IllegalArgumentException("해당 직원의 급여 정보가 없습니다."));
 //        SalaryResponseDto responseDto = toDto(salary);
 //        return responseDto;
+        log.info("payroll:{}", payroll);
         return toDto(payroll);
     }
 
