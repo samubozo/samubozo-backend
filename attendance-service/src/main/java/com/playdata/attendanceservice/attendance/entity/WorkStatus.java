@@ -1,11 +1,13 @@
 package com.playdata.attendanceservice.attendance.entity;
 
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.springframework.cglib.core.Local;
+import org.hibernate.annotations.UpdateTimestamp;
+
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -39,6 +41,7 @@ public class WorkStatus {
     @Column(name = "check_in_time")
     private LocalTime checkInTime;
 
+
     @Column(name = "check_out_time")
     private LocalTime checkOutTime;
 
@@ -48,9 +51,20 @@ public class WorkStatus {
     @Column(name = "return_time")
     private LocalTime returnTime;
 
+    @JsonIgnore // JSON 직렬화 시 이 필드를 무시하여 순환 참조를 방지합니다.
     @OneToOne
     @JoinColumn(name = "attendance_id")
     private Attendance attendance;
+
+    // 새로운 생성자: Attendance 객체를 직접 받아 필요한 정보를 설정합니다.
+    public WorkStatus(Attendance attendance, WorkStatusType type, String reason) {
+        this.attendance = attendance;
+        this.userId = attendance.getUserId();
+        this.date = attendance.getAttendanceDate();
+        this.statusType = type;
+        this.reason = reason;
+    }
+
 
     public WorkStatus(Long userId, LocalDate date, WorkStatusType type, String reason) {
         this.userId = userId;
@@ -85,6 +99,18 @@ public class WorkStatus {
 
     public void setAttendance(Attendance attendance) {
         this.attendance = attendance;
+    }
+
+    public void setCheckInTime(LocalTime checkInTime) {
+        this.checkInTime = checkInTime;
+    }
+
+    public void setCheckOutTime(LocalTime checkOutTime) {
+        this.checkOutTime = checkOutTime;
+    }
+
+    public void setStatusType(WorkStatusType statusType) {
+        this.statusType = statusType;
     }
 
 

@@ -1,5 +1,6 @@
 package com.playdata.attendanceservice.attendance.controller;
 
+import com.playdata.attendanceservice.attendance.dto.AttendanceResDto;
 import com.playdata.attendanceservice.client.dto.VacationRequestDto; // 경로 변경
 import com.playdata.attendanceservice.attendance.entity.Attendance;
 import com.playdata.attendanceservice.attendance.service.AttendanceService;
@@ -29,39 +30,18 @@ public class AttendanceController {
     private final VacationServiceClient vacationServiceClient; // 변경
 
     /**
-     * 휴가를 신청하는 API 엔드포인트입니다.
-     *
-     * @param userInfo 신청자 ID (요청 헤더에서 추출)
-     * @param requestDto 휴가 신청 정보
-     * @return 휴가 신청 성공 또는 실패에 대한 응답
-     */
-    @PostMapping("/vacations")
-    public ResponseEntity<CommonResDto<?>> requestVacation(
-            @RequestBody VacationRequestDto requestDto) {
-        try {
-            vacationServiceClient.requestVacation(requestDto); // 변경
-            return buildSuccessResponse(null, "휴가 신청이 성공적으로 접수되었습니다.");
-        } catch (IllegalStateException | IllegalArgumentException e) {
-            return buildErrorResponse(HttpStatus.BAD_REQUEST, e.getMessage());
-        } catch (Exception e) {
-            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "휴가 신청 중 오류가 발생했습니다.");
-        }
-    }
-
-    /**
      * 사용자의 출근을 기록하는 API 엔드포인트입니다.
      *
-     * @param userId 출근을 기록할 사용자의 ID (URL 경로에서 추출)
      * @param request HttpServletRequest 객체 (클라이언트 IP 주소 획득용)
      * @return 출근 기록 성공 또는 실패에 대한 응답 (CommonResDto)
      */
-    @PostMapping("/check-in/{userId}")
-    public ResponseEntity<CommonResDto<?>> checkIn(@PathVariable Long userId, HttpServletRequest request) {
+    @PostMapping("/check-in")
+    public ResponseEntity<CommonResDto<?>> checkIn(@AuthenticationPrincipal TokenUserInfo userInfo, HttpServletRequest request) {
         try {
             String ipAddress = request.getRemoteAddr(); // 클라이언트의 IP 주소를 가져옵니다.
 
             // AttendanceService의 recordCheckIn 메소드를 호출하여 출근 기록 비즈니스 로직을 수행합니다.
-            Attendance attendance = attendanceService.recordCheckIn(userId, ipAddress);
+            Attendance attendance = attendanceService.recordCheckIn(userInfo.getEmployeeNo(), ipAddress);
             // 성공 시, CommonResDto를 생성하여 HTTP 200 OK 응답과 함께 반환합니다.
             return buildSuccessResponse(attendance, "출근 기록 성공");
         } catch (IllegalStateException e) {
@@ -78,14 +58,13 @@ public class AttendanceController {
     /**
      * 사용자의 퇴근을 기록하는 API 엔드포인트입니다.
      *
-     * @param userId 퇴근을 기록할 사용자의 ID (URL 경로에서 추출)
      * @return 퇴근 기록 성공 또는 실패에 대한 응답 (CommonResDto)
      */
-    @PostMapping("/check-out/{userId}")
-    public ResponseEntity<CommonResDto<?>> checkOut(@PathVariable Long userId) {
+    @PostMapping("/check-out")
+    public ResponseEntity<CommonResDto<?>> checkOut(@AuthenticationPrincipal TokenUserInfo userInfo) {
         try {
             // AttendanceService의 recordCheckOut 메소드를 호출하여 퇴근 기록 비즈니스 로직을 수행합니다.
-            Attendance attendance = attendanceService.recordCheckOut(userId);
+            Attendance attendance = attendanceService.recordCheckOut(userInfo.getEmployeeNo());
             // 성공 시, CommonResDto를 생성하여 HTTP 200 OK 응답과 함께 반환합니다.
             return buildSuccessResponse(attendance, "퇴근 기록 성공");
         } catch (IllegalArgumentException e) {
@@ -102,25 +81,48 @@ public class AttendanceController {
     /**
      * 특정 사용자의 월별 근태 기록을 조회하는 API 엔드포인트입니다.
      *
-     * @param userId 조회할 사용자의 ID (URL 경로에서 추출)
      * @param year 조회할 연도 (URL 경로에서 추출)
      * @param month 조회할 월 (URL 경로에서 추출)
      * @return 월별 근태 기록 목록 또는 오류에 대한 응답 (CommonResDto)
      */
-    @GetMapping("/monthly/{userId}/{year}/{month}")
+    @GetMapping("/monthly/{year}/{month}")
     public ResponseEntity<CommonResDto<?>> getMonthlyAttendance(
-            @PathVariable Long userId,
+            @AuthenticationPrincipal TokenUserInfo userInfo,
             @PathVariable int year,
             @PathVariable int month) {
         try {
             // AttendanceService의 getMonthlyAttendances 메소드를 호출하여 월별 근태 기록을 조회합니다.
-            List<Attendance> monthlyAttendances = attendanceService.getMonthlyAttendances(userId, year, month);
+            List<Attendance> monthlyAttendances = attendanceService.getMonthlyAttendances(userInfo.getEmployeeNo(), year, month);
             // 성공 시, CommonResDto를 생성하여 HTTP 200 OK 응답과 함께 조회된 데이터를 반환합니다.
             return buildSuccessResponse(monthlyAttendances, "월별 근태 조회 성공");
         } catch (Exception e) {
             // 조회 중 예상치 못한 모든 예외를 처리합니다.
             // 이 경우 HTTP 500 Internal Server Error 상태 코드와 함께 일반적인 오류 메시지를 반환합니다.
             return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "월별 근태 조회 중 오류 발생");
+        }
+    }
+
+    @PutMapping("/go-out")
+    public ResponseEntity<CommonResDto<?>> goOut(@AuthenticationPrincipal TokenUserInfo userInfo) {
+        try {
+            Attendance attendance = attendanceService.recordGoOut(userInfo.getEmployeeNo());
+            return buildSuccessResponse(AttendanceResDto.from(attendance), "외출 기록 성공");
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return buildErrorResponse(HttpStatus.BAD_REQUEST, e.getMessage());
+        } catch (Exception e) {
+            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "외출 기록 중 오류 발생");
+        }
+    }
+
+    @PutMapping("/return")
+    public ResponseEntity<CommonResDto<?>> returnFromGoOut(@AuthenticationPrincipal TokenUserInfo userInfo) {
+        try {
+            Attendance attendance = attendanceService.recordReturn(userInfo.getEmployeeNo());
+            return buildSuccessResponse(AttendanceResDto.from(attendance), "복귀 기록 성공");
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return buildErrorResponse(HttpStatus.BAD_REQUEST, e.getMessage());
+        } catch (Exception e) {
+            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "복귀 기록 중 오류 발생");
         }
     }
 

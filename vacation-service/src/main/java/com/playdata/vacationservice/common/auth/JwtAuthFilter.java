@@ -62,11 +62,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             SecurityContextHolder.getContext().setAuthentication(auth);
             log.info("[VacationService JwtAuthFilter] Authentication successful for user: {}", userEmail);
 
-        } else {
-            log.warn("[VacationService JwtAuthFilter] Authentication failed: Missing or invalid required headers.");
-            // 인증이 필수인 경우, 여기서 401 Unauthorized 응답을 보냅니다.
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Authentication required: Missing or invalid user information.");
-            return; // 다음 필터 체인으로 넘어가지 않고 요청 종료
         }
 
         filterChain.doFilter(request, response);

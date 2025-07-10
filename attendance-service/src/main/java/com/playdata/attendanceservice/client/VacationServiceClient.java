@@ -1,6 +1,7 @@
 package com.playdata.attendanceservice.client;
 
 import com.playdata.attendanceservice.client.dto.VacationRequestDto;
+import com.playdata.attendanceservice.common.configs.FeignClientConfig;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -8,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 /**
  * Vacation 서비스와 통신하기 위한 Feign 클라이언트 인터페이스입니다.
  */
-@FeignClient(name = "vacation-service") // configuration 속성 추가
+@FeignClient(name = "vacation-service", configuration = FeignClientConfig.class) // configuration 속성 추가
 public interface VacationServiceClient {
 
     /**

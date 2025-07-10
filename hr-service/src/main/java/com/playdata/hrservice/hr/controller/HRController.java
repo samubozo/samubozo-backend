@@ -20,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+
 import java.util.List;
 import java.util.Map;
 
@@ -165,6 +166,7 @@ public class HRController {
     @GetMapping("/user/feign/userName/{userName}")
     public List<UserFeignResDto> getUserByUserName(@PathVariable String userName) {
         return userService.getEmloyeeByUserName(userName);
+    }
 
     // 직원 퇴사 처리
     @PatchMapping("/users/retire/{id}")
@@ -177,6 +179,7 @@ public class HRController {
     }
 
 }
+
 
 
 

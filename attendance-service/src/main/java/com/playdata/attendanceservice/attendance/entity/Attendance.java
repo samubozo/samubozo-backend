@@ -58,9 +58,20 @@ public class Attendance {
      * 퇴근 시간
      * 엔티티가 업데이트될 때 자동으로 현재 시간이 기록될 수 있습니다. (초기에는 NULL)
      */
-    @UpdateTimestamp // 엔티티가 업데이트될 때 현재 시간을 자동으로 설정합니다.
-    @Column(name = "check_out_time") // 'check_out_time' 컬럼에 매핑됩니다. NULL을 허용합니다.
+    @Column(name = "check_out_time")
     private LocalDateTime checkOutTime;
+
+    /**
+     * 외출 시간
+     */
+    @Column(name = "go_out_time")
+    private LocalDateTime goOutTime;
+
+    /**
+     * 복귀 시간
+     */
+    @Column(name = "return_time")
+    private LocalDateTime returnTime;
 
     /**
      * 근태 기록 시 사용된 IP 주소
@@ -97,5 +108,13 @@ public class Attendance {
         if (workStatus != null) {
             workStatus.setAttendance(this);
         }
+    }
+
+    public void recordGoOut() {
+        this.goOutTime = LocalDateTime.now();
+    }
+
+    public void recordReturn() {
+        this.returnTime = LocalDateTime.now();
     }
 }
