@@ -17,13 +17,14 @@ public class UserResDto {
     private Long employeeNo;
     private String userName;
     private String email;
+    private String externalEmail;
     private String password;
     private String gender;
-    private Long departmentId;
-    private String departmentName;
+    private DepartmentResDto department;
     private Long positionId;
     private String positionName;
     private String address;
+    private String remarks;
     private String profileImage;
     private String phone;
     private LocalDate birthDate;

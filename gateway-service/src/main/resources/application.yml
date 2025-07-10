@@ -10,7 +10,6 @@ spring:
         cors-configurations:
           "[/**]":
             allowed-origins:
-              - "http://localhost:9090" #사용자 프론트 서버
               - "http://localhost:5173" #사용자 프론트 서버
               - "https://samubozo.co.kr" #AWS 정적 서버
 
@@ -113,4 +112,24 @@ spring:
           filters:
             - RemoveRequestHeader=Cookie
             - RewritePath=/chatbot-service/(?<segment>.*), /$\{segment}
+            - AuthorizationHeaderFilter
+
+        #증명서 서비스
+        - id: certificate-service
+          uri: lb://CERTIFICATE-SERVICE
+          predicates:
+            - Path=/certificate-service/**
+          filters:
+            - RemoveRequestHeader=Cookie
+            - RewritePath=/chatbot-service/(?<segment>.*), /$\{segment}
+            - AuthorizationHeaderFilter
+
+        #메시지 서비스
+        - id: message-service
+          uri: lb://MESSAGE-SERVICE
+          predicates:
+            - Path=/message-service/**
+          filters:
+            - RemoveRequestHeader=Cookie
+            - RewritePath=/message-service/(?<segment>.*), /$\{segment}
             - AuthorizationHeaderFilter

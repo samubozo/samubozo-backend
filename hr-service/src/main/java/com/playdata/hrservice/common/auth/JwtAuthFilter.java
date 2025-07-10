@@ -29,14 +29,24 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         String userEmail = request.getHeader("X-User-Email");
         String userRole = request.getHeader("X-User-Role");
-        log.info("userEmail:{} userRole:{}", userEmail, userRole);
+        String employeeNoStr = request.getHeader("X-User-Employee-No"); // employeeNo 헤더 추가
+        Long employeeNo = null;
+        if (employeeNoStr != null) {
+            try {
+                employeeNo = Long.parseLong(employeeNoStr);
+            } catch (NumberFormatException e) {
+                log.warn("Invalid X-User-Employee-No header: {}", employeeNoStr);
+            }
+        }
 
-        if (userEmail != null && userRole != null) {
+        log.info("userEmail:{} userRole:{} employeeNo:{}", userEmail, userRole, employeeNo);
+
+        if (userEmail != null && userRole != null && employeeNo != null) { // employeeNo도 null이 아닌지 확인
             List<SimpleGrantedAuthority> authorityList = new ArrayList<>();
             authorityList.add(new SimpleGrantedAuthority("ROLE_" + userRole));
 
             Authentication auth = new UsernamePasswordAuthenticationToken(
-                    new TokenUserInfo(userEmail, userRole),
+                    new TokenUserInfo(userEmail, userRole, employeeNo), // employeeNo 추가
                     "",
                     authorityList
             );

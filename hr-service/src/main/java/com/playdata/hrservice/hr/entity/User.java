@@ -1,6 +1,7 @@
 package com.playdata.hrservice.hr.entity;
 
 
+import com.playdata.hrservice.hr.dto.DepartmentResDto;
 import com.playdata.hrservice.hr.dto.UserFeignResDto;
 import com.playdata.hrservice.hr.dto.UserLoginFeignResDto;
 import com.playdata.hrservice.hr.dto.UserResDto;
@@ -34,6 +35,12 @@ public class User {
     @Column(unique = true, nullable = false, length = 100)
     private String email;
 
+    @Column(name = "external_email", length = 100)
+    private String externalEmail;
+
+    @Column(name = "resident_reg_no", length = 100)
+    private String residentRegNo;
+
     @Column(length = 20, nullable = false)
     private String phone;
 
@@ -51,6 +58,9 @@ public class User {
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String address;
+
+    @Column(columnDefinition = "TEXT")
+    private String remarks;
 
     @Column(length = 255)
     private String profileImage;
@@ -76,13 +86,14 @@ public class User {
                 .employeeNo(employeeNo)
                 .userName(userName)
                 .email(email)
+                .externalEmail(externalEmail)
                 .password(password)
                 .gender(gender)
-                .departmentId(department != null ? department.getDepartmentId() : null)
-                .departmentName(department != null ? department.getName() : null)
+                .department(department != null ? new DepartmentResDto(department) : null)
                 .positionId(position != null ? position.getPositionId() : null)
                 .positionName(position != null ? position.getPositionName() : null)
                 .address(address)
+                .remarks(remarks)
                 .profileImage(profileImage)
                 .phone(phone)
                 .birthDate(birthDate)
@@ -109,13 +120,14 @@ public class User {
                 .employeeNo(employeeNo)
                 .userName(userName)
                 .email(email)
+                .externalEmail(externalEmail)
                 .password(password)
                 .gender(gender)
-                .departmentId(department != null ? department.getDepartmentId() : null)
-                .departmentName(department != null ? department.getName() : null)
+                .department(department != null ? new DepartmentResDto(department) : null)
                 .positionId(position != null ? position.getPositionId() : null)
                 .positionName(position != null ? position.getPositionName() : null)
                 .address(address)
+                .remarks(remarks)
                 .profileImage(profileImage)
                 .phone(phone)
                 .birthDate(birthDate)

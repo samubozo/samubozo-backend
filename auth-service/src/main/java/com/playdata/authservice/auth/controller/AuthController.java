@@ -40,14 +40,16 @@ public class AuthController {
         UserLoginFeignResDto user = authService.login(dto);
 
         String token
-                = jwtTokenProvider.createToken(user.getEmail(), user.getHrRole());
+                = jwtTokenProvider.createToken(user.getEmail(), user.getHrRole(), user.getEmployeeNo());
         String refreshToken
-                = jwtTokenProvider.createRefreshToken(user.getEmail(), user.getHrRole());
+                = jwtTokenProvider.createRefreshToken(user.getEmail(), user.getHrRole(),user.getEmployeeNo());
 
-        redisTemplate.opsForValue().set("user:refresh:" + user.getEmployeeNo(), refreshToken, 7, TimeUnit.MINUTES);
+        // redis에 7일간 리프레시 토큰 저장
+        redisTemplate.opsForValue().set("user:refresh:" + user.getEmployeeNo(), refreshToken, 7, TimeUnit.DAYS);
 
         Map<String, Object> loginInfo = new HashMap<>();
         loginInfo.put("token", token);
+        loginInfo.put("refreshToken", refreshToken);
 
         CommonResDto resDto
                 = new CommonResDto(HttpStatus.OK,
@@ -59,21 +61,29 @@ public class AuthController {
     @PostMapping("/refresh")
     public ResponseEntity<?> refreshToken(@RequestBody TokenRefreshRequestDto requestDto) {
         try {
-            TokenUserInfo userInfo = jwtTokenProvider.validateAndGetTokenUserInfo(requestDto.getRefreshToken());
-            String savedToken = (String) redisTemplate.opsForValue().get(userInfo.getEmail());
+            TokenUserInfo userInfo = jwtTokenProvider.validateRefreshTokenAndGetTokenUserInfo(requestDto.getRefreshToken());
+            String savedToken = (String) redisTemplate.opsForValue().get("user:refresh:" + userInfo.getEmployeeNo());
+
+            if (savedToken == null) {
+                log.warn("리프레시 토큰이 Redis에 존재하지 않습니다. employeeNo: {}", userInfo.getEmployeeNo());
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body("Refresh Token not found in storage");
+            }
 
             if (!requestDto.getRefreshToken().equals(savedToken)) {
+                log.warn("요청된 리프레시 토큰과 Redis에 저장된 토큰이 일치하지 않습니다.");
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body("Refresh Token mismatch");
             }
 
-            String newAccessToken = jwtTokenProvider.createToken(userInfo.getEmail(), userInfo.getHrRole());
+            String newAccessToken = jwtTokenProvider.createToken(userInfo.getEmail(), userInfo.getHrRole(), userInfo.getEmployeeNo());
 
             Map<String, String> tokenMap = new HashMap<>();
             tokenMap.put("accessToken", newAccessToken);
             return ResponseEntity.ok(tokenMap);
 
         } catch (Exception e) {
+            log.error("리프레시 토큰 검증 중 예외 발생", e);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body("Invalid Refresh Token: " + e.getMessage());
         }

@@ -24,8 +24,4 @@ public class Department {
     @Column(name = "department_color", nullable = false)
     private String departmentColor;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "parent_id")
-    private Department parent; // 상위 부서 (nullable)
-
 }
