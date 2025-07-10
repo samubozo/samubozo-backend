@@ -26,7 +26,8 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(authorize ->
                         authorize
-                                .anyRequest().authenticated() // 메시지 관련 API는 인증 필요
+                                .requestMatchers("/notifications/subscribe/**").authenticated()
+                                .anyRequest().authenticated()
 
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
