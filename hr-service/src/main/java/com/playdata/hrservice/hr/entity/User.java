@@ -35,8 +35,11 @@ public class User {
     @Column(unique = true, nullable = false, length = 100)
     private String email;
 
-    @Column(name = "external_email")
+    @Column(name = "external_email", length = 100)
     private String externalEmail;
+
+    @Column(name = "resident_reg_no", length = 100)
+    private String residentRegNo;
 
     @Column(length = 20, nullable = false)
     private String phone;
