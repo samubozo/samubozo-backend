@@ -173,7 +173,6 @@ public class HRController {
         return userService.getEmloyeeByUserName(userName);
     }
 
-    }
     // 직원 퇴사 처리
     @PatchMapping("/users/retire/{id}")
     public ResponseEntity<?> retireUser(@PathVariable("id") Long employeeNo,
