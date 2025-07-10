@@ -102,4 +102,25 @@ public class CertificateService {
                 .build());
     }
 
+    // 증명서 수정
+    public void updateCertificate(Long id, CertificateReqDto dto) {
+        Certificate certificate = certificateRepository.findById(id).orElseThrow(
+                () -> new EntityNotFoundException("certificate not found")
+        );
+
+        certificate.setRequestDate(dto.getRequestDate());
+        certificate.setType(Type.valueOf(dto.getType().name()));
+        certificate.setPurpose(dto.getPurpose());
+
+        certificateRepository.save(certificate);
+    }
+
+    // 증명서 삭제
+    public void deleteCertificate(Long id) {
+        Certificate certificate = certificateRepository.findById(id).orElseThrow(
+                () -> new EntityNotFoundException("certificate with id " + id + " not found")
+        );
+        certificateRepository.delete(certificate);
+    }
+
 }
