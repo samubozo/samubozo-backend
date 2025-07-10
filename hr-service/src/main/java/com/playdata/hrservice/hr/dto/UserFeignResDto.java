@@ -15,6 +15,7 @@ public class UserFeignResDto {
     private Long employeeNo;
     private String userName;
     private String email;
+    private String externalEmail;
     private String password;
     private String gender;
     private DepartmentResDto department;
@@ -23,6 +24,7 @@ public class UserFeignResDto {
     private String address;
     private String profileImage;
     private String phone;
+    private String remarks;
     private LocalDate birthDate;
     private LocalDate hireDate;
     private LocalDate retireDate;

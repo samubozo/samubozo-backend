@@ -158,13 +158,14 @@ public class HRController {
     // Feign client 요청을 위한 메서드: employeeNo로 유저 정보 얻어오기
     @GetMapping("/user/feign/employeeNo/{employeeNo}")
     public UserFeignResDto getUserByEmployeeNo(@PathVariable Long employeeNo) {
-        return userService.getEmloyeeByEmployeeNo(employeeNo);
+        return userService.getEmployeeByEmployeeNo(employeeNo);
     }
 
     // Feign client 요청을 위한 메서드: userName으로 유저 정보 얻어오기 (리스트 반환)
     @GetMapping("/user/feign/userName/{userName}")
     public List<UserFeignResDto> getUserByUserName(@PathVariable String userName) {
-        return userService.getEmloyeeByUserName(userName);
+        return userService.getEmployeeByUserName(userName);
+    }
 
     // 직원 퇴사 처리
     @PatchMapping("/users/retire/{id}")
