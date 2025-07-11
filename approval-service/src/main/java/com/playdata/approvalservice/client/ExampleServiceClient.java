@@ -1,4 +1,4 @@
-package com.playdata.attendanceservice.client;
+package com.playdata.approvalservice.client;
 
 
 import org.springframework.cloud.openfeign.FeignClient;

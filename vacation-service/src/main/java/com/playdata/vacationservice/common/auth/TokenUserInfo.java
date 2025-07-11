@@ -11,7 +11,8 @@ import lombok.*;
 public class TokenUserInfo {
 
     private String email;
-    private Role role;
+    private String hrRole;
+    private Long employeeNo;
 
 
 }
