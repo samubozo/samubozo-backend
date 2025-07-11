@@ -35,4 +35,13 @@ public interface HrServiceClient {
      */
     @GetMapping("/hr/users/{id}")
     UserDetailDto getUserDetails(@PathVariable("id") Long id);
+
+    /**
+     * 모든 사용자의 ID를 조회합니다.
+     * HR 서비스의 /api/v1/hr/users/all-ids 엔드포인트를 호출합니다.
+     *
+     * @return 모든 사용자의 ID 리스트
+     */
+    @GetMapping("/api/v1/hr/users/all-ids")
+    List<UserDto> getAllUserIds();
 }
