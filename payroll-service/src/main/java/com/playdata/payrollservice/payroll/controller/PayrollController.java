@@ -24,57 +24,71 @@ public class PayrollController {
 
     private final PayrollService payrollService;
 
-    // 1. 급여 정보 등록
+    // 1. 급여 정보 등록 (HR만 가능)
     @PostMapping
-    public ResponseEntity<CommonResDto<PayrollResponseDto>> savePayroll(@RequestBody PayrollRequestDto requestDto) {
+    public ResponseEntity<?> savePayroll(
+            @RequestBody PayrollRequestDto requestDto,
+            @RequestAttribute("userInfo") TokenUserInfo userInfo
+    ) {
+        if (!userInfo.isHrAdmin()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("HR만 접근 가능");
+        }
+
         PayrollResponseDto saved = payrollService.savePayroll(requestDto);
-        return ResponseEntity.ok(
-                new CommonResDto<>(HttpStatus.OK, "급여 정보 등록 성공!", saved)
-        );
+        return ResponseEntity.ok(new CommonResDto<>(HttpStatus.OK, "급여 정보 등록 성공!", saved));
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
-    // 2. 특정 직원 급여 정보 조회
+    // 2. 특정 직원 급여 정보 조회 (HR만 가능)
     @GetMapping("/{userId}")
-    public ResponseEntity<CommonResDto<PayrollResponseDto>> getPayroll(@PathVariable Long userId) {
+    public ResponseEntity<?> getPayroll(
+            @PathVariable Long userId,
+            @RequestAttribute("userInfo") TokenUserInfo userInfo
+    ) {
+        if (!userInfo.isHrAdmin()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("HR만 접근 가능");
+        }
+
         PayrollResponseDto payroll = payrollService.getPayrollByUserId(userId);
-        return ResponseEntity.ok(
-                new CommonResDto<>(HttpStatus.OK, "급여 정보 조회 성공!", payroll)
-        );
+        return ResponseEntity.ok(new CommonResDto<>(HttpStatus.OK, "급여 정보 조회 성공!", payroll));
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
-    // 3. 특정 직원 급여 정보 수정
-    @PutMapping()
-    public ResponseEntity<CommonResDto<PayrollResponseDto>> updatePayroll(@RequestBody PayrollRequestDto requestDto) {
+    // 3. 급여 정보 수정 (HR만 가능)
+    @PutMapping
+    public ResponseEntity<?> updatePayroll(
+            @RequestBody PayrollRequestDto requestDto,
+            @RequestAttribute("userInfo") TokenUserInfo userInfo
+    ) {
+        if (!userInfo.isHrAdmin()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("HR만 접근 가능");
+        }
+
         PayrollResponseDto updated = payrollService.updatePayroll(requestDto);
-        return ResponseEntity.ok(
-                new CommonResDto<>(HttpStatus.OK, "급여 정보 수정 성공!", updated)
-        );
+        return ResponseEntity.ok(new CommonResDto<>(HttpStatus.OK, "급여 정보 수정 성공!", updated));
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
-    // 4. 특정 직원 급여 정보 삭제
+    // 4. 급여 정보 삭제 (HR만 가능)
     @DeleteMapping("/{userId}")
-    public ResponseEntity<CommonResDto<Void>> deletePayroll(@PathVariable Long userId) {
+    public ResponseEntity<?> deletePayroll(
+            @PathVariable Long userId,
+            @RequestAttribute("userInfo") TokenUserInfo userInfo
+    ) {
+        if (!userInfo.isHrAdmin()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("HR만 접근 가능");
+        }
+
         payrollService.deletePayroll(userId);
-        return ResponseEntity.ok(
-                new CommonResDto<>(HttpStatus.OK, "급여 정보 삭제 성공!", null)
-        );
+        return ResponseEntity.ok(new CommonResDto<>(HttpStatus.OK, "급여 정보 삭제 성공!", null));
     }
 
     @GetMapping("/me")
-    public ResponseEntity<CommonResDto<PayrollResponseDto>> getMyPayroll() {
+    public ResponseEntity<CommonResDto<PayrollResponseDto>> getMyPayroll(
+            @RequestAttribute("userInfo") TokenUserInfo userInfo) {
         log.info("/api/payroll/me: GET");
-        // 현재 로그인된 사용자 정보 가져오기
-        TokenUserInfo userInfo = (TokenUserInfo) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         log.info("userInfo: {}", userInfo);
+
         Long employeeNo = userInfo.getEmployeeNo();
-
-        log.info("employeeNo:{}", employeeNo);
-
         PayrollResponseDto payroll = payrollService.getPayrollByUserId(employeeNo);
-        log.info("payrollResDto: {}", payroll);
+
         return ResponseEntity.ok(
                 new CommonResDto<>(HttpStatus.OK, "나의 급여 정보 조회 성공!", payroll)
         );
@@ -145,7 +159,7 @@ public class PayrollController {
 //    }
 //
 //
-//    @PreAuthorize("hasRole('ADMIN')")
+//    @PreAuthorize("hasRole('HR')")
 //    @GetMapping("/list")
 //    public ResponseEntity<?> getUserList(Pageable pageable) {
 //        List<UserResDto> dtoList = userService.userList(pageable);
