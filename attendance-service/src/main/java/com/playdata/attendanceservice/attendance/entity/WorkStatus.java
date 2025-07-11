@@ -31,6 +31,10 @@ public class WorkStatus {
     private WorkStatusType statusType;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "work_day_type")
+    private WorkDayType workDayType;
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "absence_type")
     private AbsenceType absenceType; // 출장, 연수, 연차, 반차 등
 
@@ -112,5 +116,7 @@ public class WorkStatus {
         this.statusType = statusType;
     }
 
-
+    public void setWorkDayType(WorkDayType workDayType) {
+        this.workDayType = workDayType;
+    }
 }

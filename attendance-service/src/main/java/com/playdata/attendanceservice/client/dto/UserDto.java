@@ -16,7 +16,7 @@ import java.time.LocalDate;
 public class UserDto {
 
     // 사용자 ID
-    private String userId;
+    private Long userId;
 
     // 입사일
     private LocalDate hireDate;

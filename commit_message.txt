@@ -1,16 +1,12 @@
-feat: 근태 및 연차 관리 시스템 구현
+fix(gateway): develop 브랜치 병합 후 발생한 인증 오류 해결
 
-attendance-service 모듈에 근태 및 연차 관리 기능을 구현하고 관련 엔티티 및 서비스를 리팩토링했습니다.
+develop 브랜치와 병합하는 과정에서 발생한 인증 문제를 해결했습니다.
 
-주요 변경 사항:
-- Attendance 엔티티: LocalDateTime, @CreationTimestamp, @UpdateTimestamp, @Builder 패턴 적용 및 userId, attendanceDate 복합 유니크 제약 조건 추가. WorkStatus와의 1:1 관계 설정.
-- WorkStatus 엔티티: Attendance와의 양방향 1:1 관계 설정.
-- AttendanceController: 출근(check-in), 퇴근(check-out), 월별 근태 조회 API 엔드포인트 추가 및 예외 처리 로직 구현.
-- AttendanceService: 출근/퇴근 기록 및 월별 근태 조회 비즈니스 로직 구현. DataIntegrityViolationException을 통한 중복 출근 방지.
-- VacationBalance 엔티티: 연차 잔여 일수 관리를 위한 엔티티 추가.
-- VacationService: 월별 연차 부여 로직 구현.
-- LeaveAccrualScheduler: 매월 1일 지난달 근무일수를 기준으로 연차를 자동으로 부여하는 스케줄러 추가.
-- AttendanceRepository, VacationBalanceRepository: 새로운 리포지토리 인터페이스 추가.
-- 기존 사용자 및 인증 관련 DTO, 서비스, 리포지토리 파일 삭제 (attendance-service에서 해당 기능 분리).
-- gateway-service의 AuthorizationHeaderFilter에 attendance 서비스 경로 허용 추가.
-- 개발 환경 설정을 위한 attendance-dev.yml 파일 추가.
+문제 원인:
+API 게이트웨이(gateway-service)의 AuthorizationHeaderFilter에 /attendance/** 경로가 허용 목록(allowUrl)에 잘못 포함되어 있었습니다. 이로 인해 attendance-service로 향하는 모든 요청이 인증 검사를 거치지 않고 통과되어, 후속 서비스에서 사용자 정보(Email, Role 등)를 받지 못하는 오류가 발생했습니다.
+
+해결 내용:
+AuthorizationHeaderFilter의 allowUrl 리스트에서 /attendance/** 항목을 제거했습니다. 이로써 게이트웨이는 attendance-service로 들어오는 모든 요청에 대해 정상적으로 JWT 토큰을 검증하고, 사용자 정보를 담은 헤더(X-User-Email 등)를 추가하게 됩니다.
+
+기대 효과:
+이번 수정을 통해 attendance-service가 게이트웨이를 통해 안전하게 인증된 요청만을 처리하게 되어 시스템 전반의 보안 및 안정성이 향상되었습니다.

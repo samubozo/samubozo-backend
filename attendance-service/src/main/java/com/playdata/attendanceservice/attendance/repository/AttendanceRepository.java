@@ -36,21 +36,5 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
      * @return 해당 조건에 맞는 Attendance 엔티티 목록
      */
     List<Attendance> findByUserIdAndAttendanceDateBetween(Long userId, LocalDate startDate, LocalDate endDate);
-
-    /**
-     * 특정 연도와 월에 모든 사용자의 근무일수를 계산합니다.
-     * 정상 출근(ON_TIME)과 지각(LATE)만 근무일로 인정합니다.
-     *
-     * @param year 조회할 연도
-     * @param month 조회할 월
-     * @param workStatuses 근무일로 인정할 근무 상태 목록
-     * @return 각 사용자별 근무일수 정보를 담은 DTO 목록
-     */
-    @Query("SELECT new com.playdata.attendanceservice.attendance.dto.MonthlyWorkDaysResponse(a.userId, COUNT(a)) " +
-           "FROM Attendance a " +
-           "WHERE YEAR(a.attendanceDate) = :year AND MONTH(a.attendanceDate) = :month " +
-           "AND a.workStatus.statusType IN :workStatuses " +
-           "GROUP BY a.userId")
-    List<com.playdata.attendanceservice.attendance.dto.MonthlyWorkDaysResponse> countWorkDaysByMonth(@Param("year") int year, @Param("month") int month, @Param("workStatuses") List<WorkStatusType> workStatuses);
 }
 

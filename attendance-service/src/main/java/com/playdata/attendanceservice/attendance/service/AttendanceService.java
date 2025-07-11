@@ -1,6 +1,7 @@
 package com.playdata.attendanceservice.attendance.service;
 
 import com.playdata.attendanceservice.attendance.entity.Attendance;
+import com.playdata.attendanceservice.attendance.entity.WorkDayType;
 import com.playdata.attendanceservice.attendance.entity.WorkStatus;
 import com.playdata.attendanceservice.attendance.entity.WorkStatusType;
 import com.playdata.attendanceservice.attendance.repository.AttendanceRepository;
@@ -11,6 +12,7 @@ import org.springframework.dao.DataIntegrityViolationException; // DataIntegrity
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime; // LocalDateTime 임포트
 import java.time.YearMonth;
@@ -138,8 +140,21 @@ public class AttendanceService {
         if (optionalWorkStatus.isPresent()) {
             WorkStatus workStatus = optionalWorkStatus.get();
             workStatus.setCheckOutTime(now.toLocalTime()); // LocalDateTime -> LocalTime 변환
+
+            // 근무 시간 계산 로직 추가
+            LocalDateTime checkInTime = attendance.getCheckInTime();
+            LocalDateTime checkOutTime = now;
+            Duration workDuration = Duration.between(checkInTime, checkOutTime);
+            long workHours = workDuration.toHours();
+
+            if (workHours >= 8) {
+                workStatus.setWorkDayType(WorkDayType.FULL_DAY);
+            } else if (workHours >= 4) {
+                workStatus.setWorkDayType(WorkDayType.HALF_DAY);
+            }
+
             workStatusRepository.save(workStatus); // 변경된 WorkStatus 저장
-            log.info("WorkStatus updated and saved: ID={}, CheckOutTime={}", workStatus.getId(), workStatus.getCheckOutTime());
+            log.info("WorkStatus updated and saved: ID={}, CheckOutTime={}, WorkDayType={}", workStatus.getId(), workStatus.getCheckOutTime(), workStatus.getWorkDayType());
         } else {
             log.warn("No WorkStatus found for attendance ID: {}", savedAttendance.getId());
         }
