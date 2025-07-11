@@ -50,7 +50,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 log.info("employeeNoStr: '{}'", employeeNoStr); // ✅ 디버깅 로그
                 employeeNo = Long.parseLong(employeeNoStr);
                 log.info("employeeNo 파싱 성공: {}", employeeNo); // ✅ 성공 로그
-                Role roleEnum = Role.valueOf(userRole.toUpperCase()); // 안전하게 변환
+                String roleCode = userRole.toUpperCase(); // "Y" 또는 "N"
+                Role roleEnum = switch (roleCode) {
+                    case "Y" -> Role.HR;
+                    case "N" -> Role.USER;
+                    default -> throw new IllegalArgumentException("Invalid hrRole value: " + userRole);
+                };
 
                 List<SimpleGrantedAuthority> authorityList = List.of(
                         new SimpleGrantedAuthority("ROLE_" + roleEnum.name())
@@ -64,6 +69,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
                 SecurityContextHolder.getContext().setAuthentication(auth);
                 log.info("[VacationService JwtAuthFilter] 인증 성공: {}", userEmail);
+
+                //  컨트롤러에서 @RequestAttribute 로 꺼내 쓸 수 있도록 추가
+                request.setAttribute("userInfo", auth.getPrincipal());
             } catch (Exception e) {
                 log.warn("[VacationService JwtAuthFilter] Header parsing error: {}", e.getMessage());
                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid user info");
