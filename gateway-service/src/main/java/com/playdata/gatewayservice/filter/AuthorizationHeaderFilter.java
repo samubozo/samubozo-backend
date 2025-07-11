@@ -37,7 +37,7 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
             ,"/auth/email-valid"
             ,"/auth/verify"
             ,"/auth/verify-code"
-            ,"/attendance/**"
+            
             ,"/auth/refresh"
     );
 
