@@ -132,7 +132,10 @@ public class UserService {
         user.setBankName(dto.getBankName());
         user.setAccountNumber(dto.getAccountNumber());
         user.setAccountHolder(dto.getAccountHolder());
-        user.setDepartment(departmentRepository.findByName(dto.getDepartmentName()));
+//        user.setDepartment(departmentRepository.findByName(dto.getDepartmentName()));
+        user.setDepartment(departmentRepository.findById(dto.getDepartmentId()).orElseThrow(
+                () -> new EntityNotFoundException("Department not found with ID: " + dto.getDepartmentId())
+        ));
         user.setPosition(positionRepository.findByPositionName(dto.getPositionName()));
         if (user.getProfileImage() != null) {
             uploadProfile(UserRequestDto.builder()
