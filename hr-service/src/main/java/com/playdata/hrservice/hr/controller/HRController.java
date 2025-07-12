@@ -39,8 +39,9 @@ public class HRController {
 
     // 직원 계정 생성(등록)
     @PostMapping("/users/signup")
-    public ResponseEntity<?> createUser(@Valid @RequestBody UserSaveReqDto dto) {
-        UserResDto saved = userService.createUser(dto);
+    public ResponseEntity<?> createUser(@Valid @RequestBody UserSaveReqDto dto, @AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
+        String hrRole = tokenUserInfo.getHrRole();
+        UserResDto saved = userService.createUser(dto, hrRole);
         CommonResDto resDto = new CommonResDto(HttpStatus.CREATED, "User created", saved);
         return new ResponseEntity<>(resDto, HttpStatus.CREATED);
     }
