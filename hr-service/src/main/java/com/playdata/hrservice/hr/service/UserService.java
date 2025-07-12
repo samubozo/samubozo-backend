@@ -129,6 +129,9 @@ public class UserService {
         user.setActivate(dto.getActivate());
         user.setBirthDate(dto.getBirthDate());
         user.setRemarks(dto.getRemarks());
+        user.setBankName(dto.getBankName());
+        user.setAccountNumber(dto.getAccountNumber());
+        user.setAccountHolder(dto.getAccountHolder());
         user.setDepartment(departmentRepository.findByName(dto.getDepartmentName()));
         user.setPosition(positionRepository.findByPositionName(dto.getPositionName()));
         if (user.getProfileImage() != null) {
