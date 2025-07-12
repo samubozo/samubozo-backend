@@ -74,11 +74,11 @@ public class User {
 
     // === 연관관계 ===
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(nullable = false)
+    @JoinColumn(name = "department_id", nullable = false)
     private Department department;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(nullable = false)
+    @JoinColumn(name = "position_id", nullable = false)
     private Position position;
 
     public UserResDto fromEntity() {
@@ -139,7 +139,6 @@ public class User {
     }
 
 }
-
 
 
 

@@ -61,14 +61,8 @@ public class AuthController {
     @PostMapping("/refresh")
     public ResponseEntity<?> refreshToken(@RequestBody TokenRefreshRequestDto requestDto) {
         try {
-            TokenUserInfo userInfo = jwtTokenProvider.validateRefreshTokenAndGetTokenUserInfo(requestDto.getRefreshToken());
-            String savedToken = (String) redisTemplate.opsForValue().get("user:refresh:" + userInfo.getEmployeeNo());
-
-            if (savedToken == null) {
-                log.warn("리프레시 토큰이 Redis에 존재하지 않습니다. employeeNo: {}", userInfo.getEmployeeNo());
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body("Refresh Token not found in storage");
-            }
+            TokenUserInfo userInfo = jwtTokenProvider.validateAndGetTokenUserInfo(requestDto.getRefreshToken());
+            String savedToken = (String) redisTemplate.opsForValue().get(userInfo.getEmail());
 
             if (!requestDto.getRefreshToken().equals(savedToken)) {
                 log.warn("요청된 리프레시 토큰과 Redis에 저장된 토큰이 일치하지 않습니다.");

@@ -159,6 +159,7 @@ public class UserService {
     }
 
     // Feign client용: employeeNo로 사용자 정보 조회
+    @Transactional(readOnly = true)
     public UserFeignResDto getEmployeeByEmployeeNo(Long employeeNo) {
         User user = userRepository.findByEmployeeNo(employeeNo)
                 .orElseThrow(() -> new EntityNotFoundException("User not found with employeeNo: " + employeeNo));

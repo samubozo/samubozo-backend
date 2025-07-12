@@ -1,6 +1,4 @@
 package com.playdata.hrservice.common.auth;
-
-import com.playdata.hrservice.hr.entity.Position;
 import lombok.*;
 
 @Setter

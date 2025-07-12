@@ -15,5 +15,4 @@ public class UserLoginFeignResDto {
     private String password;
     private String activate;
     private String hrRole;
-
 }

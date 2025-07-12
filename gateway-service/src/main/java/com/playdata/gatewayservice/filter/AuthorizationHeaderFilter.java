@@ -29,13 +29,15 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
 
     //여기에 권한 없이 접근해야할 URL을 명시해주세요.
     private final List<String> allowUrl = Arrays.asList(
-            "/hr/user/feign/**"
+            "/hr/users/signup"
+            ,"/hr/user/feign/**"
             ,"/hr/positions"
             ,"/hr/departments"
             ,"/auth/login"
             ,"/auth/email-valid"
             ,"/auth/verify"
             ,"/auth/verify-code"
+            
             ,"/auth/refresh"
     );
 
@@ -43,6 +45,7 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
     public GatewayFilter apply(Object config) {
         return (exchange, chain) -> {
             String path = exchange.getRequest().getURI().getPath();
+            log.info("path: {}", path);
             AntPathMatcher antPathMatcher = new AntPathMatcher();
 
 
@@ -88,6 +91,9 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
                     .header("X-User-Role", claims.get("role", String.class))
                     .header("X-User-Employee-No", claims.get("employeeNo", Long.class).toString())
                     .build();
+            // 클레임 내용 로깅 (추가)
+            log.info("[Gateway AuthFilter] Validated JWT Claims: Subject={}, Role={}, EmployeeNo={}",
+                    claims.getSubject(), claims.get("role", String.class), claims.get("employeeNo", Long.class));
             return chain.filter(exchange.mutate().request(request).build());
         };
     }
