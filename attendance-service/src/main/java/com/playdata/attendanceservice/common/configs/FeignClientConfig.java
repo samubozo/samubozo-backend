@@ -1,17 +1,34 @@
 package com.playdata.attendanceservice.common.configs;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import feign.RequestInterceptor;
-import feign.RequestInterceptor;
+import feign.codec.Encoder;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectFactory;
+import org.springframework.boot.autoconfigure.http.HttpMessageConverters;
+import org.springframework.cloud.openfeign.support.SpringEncoder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Configuration
 @Slf4j
 public class FeignClientConfig {
+
+    @Bean
+    public Encoder feignEncoder() {
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+
+        MappingJackson2HttpMessageConverter jacksonConverter = new MappingJackson2HttpMessageConverter(objectMapper);
+        ObjectFactory<HttpMessageConverters> converters = () -> new HttpMessageConverters(jacksonConverter);
+
+        return new SpringEncoder(converters);
+    }
 
     // Feign 요청을 가로채서 헤더를 추가하는 인터셉터 빈을 정의합니다.
     @Bean

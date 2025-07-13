@@ -135,7 +135,7 @@ class HrServiceApplicationTests {
         List<UserResDto> users = (List<UserResDto>) userService.searchUsers("이영희", "경영지원", null);
         assertThat(users).hasSize(1);
         assertThat(users.get(0).getUserName()).isEqualTo("이영희");
-        assertThat(users.get(0).getDepartmentName()).isEqualTo("경영지원");
+        assertThat(users.get(0).getDepartment().getName()).isEqualTo("경영지원");
     }
 
     @Test

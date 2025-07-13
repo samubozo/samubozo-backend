@@ -175,28 +175,12 @@ public class VacationService {
      */
     private void requestApproval(Long employeeNo, Long vacationId, UserDetailDto userDetails,
                                  String vacationTypeDescription, LocalDate startDate, LocalDate endDate, String reason) {
-        String userName = userDetails.getName();
-        String userDepartment = userDetails.getDepartment();
-
-        String title = String.format("[휴가신청] %s - %s (%s ~ %s)", userName, userDepartment, startDate, endDate);
-        String content = String.format("신청자: %s (%s)<br>휴가 종류: %s<br>기간: %s ~ %s<br>사유: %s",
-                userName,
-                userDepartment,
-                vacationTypeDescription,
-                startDate,
-                endDate,
-                reason);
 
         ApprovalRequestDto approvalRequest = ApprovalRequestDto.builder()
-                .requestType(RequestType.valueOf("VACATION")) // 현재 String "VACATION"을 보내고 있습니다.
-                // approval-service의 ApprovalRequestCreateDto는 RequestType Enum을 기대합니다.
-                // Jackson이 자동으로 String을 Enum으로 변환해주지만,
-                // 더 명확하고 타입 안전한 설계를 위해 RequestType Enum을 공유하거나
-                // RequestType.VACATION.name()과 같이 명시적으로 Enum 이름을 사용하는 것을 고려할 수 있습니다.
+                .requestType(RequestType.VACATION)
                 .applicantId(employeeNo)
-                .title(title)
-                .content(content)
-                .referenceId(vacationId)
+                .reason(reason)
+                .vacationsId(vacationId)
                 .build();
 
         try {

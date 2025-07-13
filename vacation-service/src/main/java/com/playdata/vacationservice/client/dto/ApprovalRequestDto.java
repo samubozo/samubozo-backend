@@ -15,7 +15,7 @@ public class ApprovalRequestDto {
 
     private RequestType requestType; // 결재 종류 (예: "VACATION")
     private Long applicantId;
-    private String title; // 결재 문서 제목 (예: "[휴가신청] 홍길동")
-    private String content; // 결재 내용 (HTML 또는 텍스트)
-    private Long referenceId; // 관련 문서 ID (여기서는 Vacation의 ID)
+    private String reason; // 결재 사유
+    private Long vacationsId; // Optional, for VACATION request type
+    private Long certificatesId; // Optional, for CERTIFICATE request type
 }

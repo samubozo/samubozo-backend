@@ -6,8 +6,12 @@ import com.playdata.attendanceservice.attendance.entity.WorkStatus;
 import com.playdata.attendanceservice.attendance.entity.WorkStatusType;
 import com.playdata.attendanceservice.attendance.repository.AttendanceRepository;
 import com.playdata.attendanceservice.attendance.repository.WorkStatusRepository; // WorkStatusRepository 임포트 추가
+import com.playdata.attendanceservice.client.HrServiceClient; // HrServiceClient 임포트
+import com.playdata.attendanceservice.client.VacationServiceClient; // VacationServiceClient 임포트
+import com.playdata.attendanceservice.client.ApprovalServiceClient; // ApprovalServiceClient 임포트
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value; // Value 임포트
 import org.springframework.dao.DataIntegrityViolationException; // DataIntegrityViolationException 임포트
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,7 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime; // LocalDateTime 임포트
+import java.time.LocalTime; // LocalTime 임포트
 import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 
@@ -31,7 +37,7 @@ import java.util.Optional;
  *                          클래스 내의 'final'로 선언된 필드들을 인자로 받는 생성자를 자동으로 생성해줍니다.
  *                          여기서는 'attendanceRepository' 필드가 final이므로,
  *                          Spring이 이 생성자를 통해 'AttendanceRepository' 빈을 자동으로 주입해줍니다.
- *                          이를 '생성자 주입'이라고 하며, 의존성 주입의 가장 권장되는 방식입니다.
+ *                          이를 '생성자 주입'이라고 하며, 의존성 주입의 가장 권장되는 방식입니다。
  *
  * @Transactional(readOnly = true) 어노테이션:
  *                                 클래스 레벨에 트랜잭션 설정을 적용합니다。
@@ -52,6 +58,15 @@ public class AttendanceService {
     // Spring이 이 필드에 AttendanceRepository의 구현체(프록시 객체)를 자동으로 주입해줍니다.
     private final AttendanceRepository attendanceRepository;
     private final WorkStatusRepository workStatusRepository; // WorkStatusRepository 주입
+    private final HrServiceClient hrServiceClient; // HrServiceClient 주입
+    private final VacationServiceClient vacationServiceClient; // VacationServiceClient 주입
+    private final ApprovalServiceClient approvalServiceClient; // ApprovalServiceClient 주입
+
+    @Value("${standard.checkin.time}")
+    private String standardCheckInTimeStr;
+
+    @Value("${standard.checkout.time}")
+    private String standardCheckOutTimeStr;
 
     /**
      * 사용자의 출근을 기록하는 메소드입니다.
@@ -73,16 +88,54 @@ public class AttendanceService {
      */
     @Transactional
     public Attendance recordCheckIn(Long userId, String ipAddress) {
+        return recordCheckIn(userId, ipAddress, LocalDateTime.now());
+    }
+
+    @Transactional
+    public Attendance recordCheckIn(Long userId, String ipAddress, LocalDateTime checkInDateTime) {
         try {
             Attendance attendance = Attendance.builder()
                     .userId(userId)
-                    .attendanceDate(LocalDate.now())
+                    .attendanceDate(checkInDateTime.toLocalDate()) // checkInDateTime의 날짜 사용
                     .ipAddress(ipAddress)
-                    // checkInTime은 @CreationTimestamp에 의해 자동 설정됩니다.
-                    // checkOutTime은 명시적으로 설정하지 않으므로 초기에는 null이 됩니다.
                     .build();
 
-            WorkStatus workStatus = new WorkStatus(attendance, WorkStatusType.REGULAR, null);
+            attendance.updateCheckInTime(checkInDateTime); // 파라미터로 받은 시간으로 설정
+
+            LocalTime currentCheckInTime = checkInDateTime.toLocalTime();
+            LocalTime standardCheckInTime = LocalTime.parse(standardCheckInTimeStr);
+
+            WorkStatusType initialStatusType = WorkStatusType.REGULAR;
+
+            // 1. HR 서비스에서 승인된 외부 일정(출장, 연수 등)이 있는지 확인
+            String dateString = checkInDateTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE);
+            String externalScheduleType = hrServiceClient.getApprovedExternalScheduleType(userId, dateString);
+            if (externalScheduleType != null) {
+                // 외부 일정 유형에 따라 WorkStatusType 매핑
+                switch (externalScheduleType) {
+                    case "BUSINESS_TRIP":
+                        initialStatusType = WorkStatusType.BUSINESS_TRIP;
+                        break;
+                    case "TRAINING":
+                        initialStatusType = WorkStatusType.TRAINING;
+                        break;
+                    // TODO: 다른 외부 일정 유형에 대한 매핑 추가
+                    default:
+                        initialStatusType = WorkStatusType.OUT_OF_OFFICE; // 기본값
+                        break;
+                }
+            } else {
+                // 2. Approval 서비스에서 승인된 휴가(오전 반차)가 있는지 확인
+                String approvedLeaveType = approvalServiceClient.getApprovedLeaveType(userId, checkInDateTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE));
+                if (approvedLeaveType != null && approvedLeaveType.equals("HALF_DAY_LEAVE_AM")) { // 예시: 오전 반차 유형
+                    initialStatusType = WorkStatusType.HALF_DAY_LEAVE;
+                } else if (currentCheckInTime.isAfter(standardCheckInTime)) {
+                    // 3. 승인된 외부 일정이나 오전 반차가 없고, 기준 시간보다 늦게 출근했으면 지각
+                    initialStatusType = WorkStatusType.LATE;
+                }
+            }
+
+            WorkStatus workStatus = new WorkStatus(attendance, initialStatusType, null);
             attendance.setWorkStatus(workStatus);
 
             // Attendance와 WorkStatus를 함께 저장 (cascade 설정에 따라)
@@ -90,8 +143,7 @@ public class AttendanceService {
             log.info("Attendance saved after check-in: ID={}, CheckInTime={}, CheckOutTime={}", savedAttendance.getId(), savedAttendance.getCheckInTime(), savedAttendance.getCheckOutTime());
 
             // WorkStatus의 checkInTime을 Attendance의 실제 checkInTime으로 업데이트
-            // WorkStatus.java 엔티티의 checkInTime에는 @CreationTimestamp가 없으므로 수동 설정 필요
-            workStatus.setCheckInTime(savedAttendance.getCheckInTime().toLocalTime());
+            workStatus.setCheckInTime(checkInDateTime.toLocalTime()); // 파라미터로 받은 시간으로 설정
             workStatusRepository.save(workStatus); // WorkStatus를 명시적으로 저장
             log.info("WorkStatus after check-in: ID={}, CheckInTime={}", workStatus.getId(), workStatus.getCheckInTime());
 
@@ -117,7 +169,12 @@ public class AttendanceService {
      */
     @Transactional
     public Attendance recordCheckOut(Long userId) {
-        LocalDate today = LocalDate.now();
+        return recordCheckOut(userId, LocalDateTime.now());
+    }
+
+    @Transactional
+    public Attendance recordCheckOut(Long userId, LocalDateTime checkOutDateTime) {
+        LocalDate today = checkOutDateTime.toLocalDate(); // checkOutDateTime의 날짜 사용
         Optional<Attendance> optionalAttendance = attendanceRepository.findByUserIdAndAttendanceDate(userId, today);
 
         Attendance attendance = optionalAttendance
@@ -127,23 +184,43 @@ public class AttendanceService {
             throw new IllegalArgumentException("이미 퇴근 기록이 완료되었습니다. (User ID: " + userId + ")");
         }
 
-        // ★★★ 이 부분이 중요합니다. Attendance 엔티티의 checkOutTime을 현재 시간으로 명시적으로 설정 ★★★
-        LocalDateTime now = LocalDateTime.now();
-        attendance.updateCheckOutTime(now); // Attendance 엔티티에 이 메서드가 있어야 합니다.
+        attendance.updateCheckOutTime(checkOutDateTime); // 파라미터로 받은 시간으로 설정
         log.info("Attendance will be saved with checkOutTime: {}", attendance.getCheckOutTime());
 
-        Attendance savedAttendance = attendanceRepository.save(attendance); // 변경된 Attendance 저장
+        Attendance savedAttendance = attendanceRepository.save(attendance);
         log.info("Attendance saved: ID={}, CheckInTime={}, CheckOutTime={}", savedAttendance.getId(), savedAttendance.getCheckInTime(), savedAttendance.getCheckOutTime());
 
-        // ★★★ WorkStatus의 checkOutTime도 현재 시간으로 명시적으로 설정 ★★★
         Optional<WorkStatus> optionalWorkStatus = workStatusRepository.findByAttendanceId(savedAttendance.getId());
         if (optionalWorkStatus.isPresent()) {
             WorkStatus workStatus = optionalWorkStatus.get();
-            workStatus.setCheckOutTime(now.toLocalTime()); // LocalDateTime -> LocalTime 변환
+            workStatus.setCheckOutTime(checkOutDateTime.toLocalTime()); // 파라미터로 받은 시간으로 설정
+
+            LocalTime currentCheckOutTime = checkOutDateTime.toLocalTime();
+            LocalTime standardCheckOutTime = LocalTime.parse(standardCheckOutTimeStr);
+
+            // 1. Approval 서비스에서 승인된 부재(오후 반차, 조퇴)가 있는지 확인
+            String approvedLeaveType = approvalServiceClient.getApprovedLeaveType(userId, checkOutDateTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE));
+            if (approvedLeaveType != null) {
+                switch (approvedLeaveType) {
+                    case "HALF_DAY_LEAVE_PM":
+                        workStatus.setStatusType(WorkStatusType.HALF_DAY_LEAVE);
+                        break;
+                    case "EARLY_LEAVE":
+                        workStatus.setStatusType(WorkStatusType.EARLY_LEAVE);
+                        break;
+                    // TODO: 다른 휴가 유형에 대한 매핑 추가
+                    default:
+                        // 승인된 휴가 유형이 있지만, 특별히 처리할 WorkStatusType이 없는 경우
+                        break;
+                }
+            } else if (currentCheckOutTime.isBefore(standardCheckOutTime)) {
+                // 2. 승인된 부재가 없고, 기준 시간보다 일찍 퇴근했으면 조퇴
+                workStatus.setStatusType(WorkStatusType.EARLY_LEAVE);
+            }
 
             // 근무 시간 계산 로직 추가
             LocalDateTime checkInTime = attendance.getCheckInTime();
-            LocalDateTime checkOutTime = now;
+            LocalDateTime checkOutTime = checkOutDateTime; // 파라미터로 받은 시간 사용
             Duration workDuration = Duration.between(checkInTime, checkOutTime);
             long workHours = workDuration.toHours();
 
@@ -153,7 +230,7 @@ public class AttendanceService {
                 workStatus.setWorkDayType(WorkDayType.HALF_DAY);
             }
 
-            workStatusRepository.save(workStatus); // 변경된 WorkStatus 저장
+            workStatusRepository.save(workStatus);
             log.info("WorkStatus updated and saved: ID={}, CheckOutTime={}, WorkDayType={}", workStatus.getId(), workStatus.getCheckOutTime(), workStatus.getWorkDayType());
         } else {
             log.warn("No WorkStatus found for attendance ID: {}", savedAttendance.getId());
