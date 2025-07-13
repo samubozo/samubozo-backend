@@ -11,5 +11,6 @@ public class ApprovalRequestCreateDto {
     private Long applicantId;
     private String reason;
     private Long vacationsId; // Optional, for VACATION request type
+    private String vacationType; // Optional, for VACATION request type
     private Long certificatesId; // Optional, for CERTIFICATE request type
 }

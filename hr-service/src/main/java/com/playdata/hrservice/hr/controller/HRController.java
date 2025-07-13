@@ -1,5 +1,4 @@
 package com.playdata.hrservice.hr.controller;
-
 import com.playdata.hrservice.common.auth.TokenUserInfo;
 import com.playdata.hrservice.common.dto.CommonResDto;
 import com.playdata.hrservice.hr.dto.*;
@@ -20,6 +19,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -167,6 +168,26 @@ public class HRController {
     @GetMapping("/user/feign/userName/{userName}")
     public List<UserFeignResDto> getUserByUserName(@PathVariable String userName) {
         return userService.getEmployeeByUserName(userName);
+    }
+
+    // 특정 사용자가 특정 날짜에 승인된 외부 일정(출장, 연수 등)이 있는지 확인합니다.
+    // AttendanceService에서 FeignClient를 통해 호출됩니다.
+    @GetMapping("/schedules/approved")
+    public ResponseEntity<Boolean> hasApprovedExternalSchedule(
+            @RequestParam("userId") Long userId,
+            @RequestParam("date") LocalDate date) {
+        boolean hasSchedule = userService.hasApprovedExternalSchedule(userId, date);
+        return ResponseEntity.ok(hasSchedule);
+    }
+
+    // 특정 사용자가 특정 날짜에 승인된 외부 일정의 종류를 반환합니다.
+    // AttendanceService에서 FeignClient를 통해 호출됩니다.
+    @GetMapping("/schedules/approved-type")
+    public ResponseEntity<String> getApprovedExternalScheduleType(
+            @RequestParam("userId") Long userId,
+            @RequestParam("date") LocalDate date) {
+        String scheduleType = userService.getApprovedExternalScheduleType(userId, date);
+        return ResponseEntity.ok(scheduleType);
     }
 
     // 직원 퇴사 처리

@@ -99,6 +99,15 @@ public class Attendance {
     }
 
     /**
+     * 출근 시간을 업데이트하는 메소드입니다.
+     *
+     * @param checkInTime 업데이트할 출근 시간
+     */
+    public void updateCheckInTime(LocalDateTime checkInTime) {
+        this.checkInTime = checkInTime;
+    }
+
+    /**
      * WorkStatus 엔티티를 설정하는 메소드입니다.
      * 양방향 관계 설정을 위해 WorkStatus 엔티티에도 이 Attendance 엔티티를 설정합니다.
      * @param workStatus 설정할 WorkStatus 엔티티

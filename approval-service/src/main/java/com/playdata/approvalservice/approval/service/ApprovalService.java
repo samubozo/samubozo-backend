@@ -4,6 +4,7 @@ import com.playdata.approvalservice.approval.dto.ApprovalRequestCreateDto;
 import com.playdata.approvalservice.approval.dto.ApprovalRequestResponseDto;
 import com.playdata.approvalservice.approval.entity.ApprovalRequest;
 import com.playdata.approvalservice.approval.entity.ApprovalStatus;
+import com.playdata.approvalservice.approval.entity.RequestType; // RequestType 임포트 추가
 import com.playdata.approvalservice.approval.repository.ApprovalRepository;
 import com.playdata.approvalservice.common.auth.TokenUserInfo;
 import lombok.RequiredArgsConstructor;
@@ -12,7 +13,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate; // LocalDate 임포트 추가
 import java.time.LocalDateTime;
+import java.util.Optional; // Optional 임포트 추가
 
 @Service
 @RequiredArgsConstructor
@@ -42,6 +45,7 @@ public class ApprovalService {
                 .applicantId(createDto.getApplicantId())
                 .reason(createDto.getReason())
                 .vacationsId(createDto.getVacationsId())
+                .vacationType(createDto.getVacationType()) // vacationType 저장
                 .certificatesId(createDto.getCertificatesId())
                 .status(ApprovalStatus.PENDING) // 초기 상태는 PENDING
                 .requestedAt(LocalDateTime.now()) // 요청 시간은 현재 시간
@@ -128,5 +132,42 @@ public class ApprovalService {
 
         // 업데이트된 엔티티를 응답 DTO로 변환하여 반환합니다.
         return ApprovalRequestResponseDto.fromEntity(updatedRequest);
+    }
+
+    /**
+     * 특정 사용자가 특정 날짜에 승인된 휴가(연차, 반차, 조퇴 등)가 있는지 확인합니다.
+     *
+     * @param userId 확인할 사용자의 ID
+     * @param date 확인할 날짜
+     * @return 승인된 휴가가 있으면 true, 없으면 false
+     */
+    public boolean hasApprovedLeave(Long userId, LocalDate date) {
+        LocalDateTime startOfDay = date.atStartOfDay();
+        LocalDateTime endOfDay = date.atTime(23, 59, 59, 999999999); // 해당 날짜의 마지막 시간
+
+        Optional<ApprovalRequest> approvedLeave = approvalRepository.findByApplicantIdAndRequestedAtBetweenAndStatus(
+                userId, startOfDay, endOfDay, ApprovalStatus.APPROVED);
+
+        return approvedLeave.isPresent();
+    }
+
+    /**
+     * 특정 사용자가 특정 날짜에 승인된 휴가의 종류를 조회합니다.
+     *
+     * @param userId 확인할 사용자의 ID
+     * @param date 확인할 날짜
+     * @return 승인된 휴가 종류 (예: "HALF_DAY_LEAVE", "ANNUAL_LEAVE"), 없으면 null
+     */
+    public String getApprovedLeaveType(Long userId, LocalDate date) {
+        LocalDateTime startOfDay = date.atStartOfDay();
+        LocalDateTime endOfDay = date.atTime(23, 59, 59, 999999999); // 해당 날짜의 마지막 시간
+
+        Optional<ApprovalRequest> approvedLeave = approvalRepository.findByApplicantIdAndRequestedAtBetweenAndStatus(
+                userId, startOfDay, endOfDay, ApprovalStatus.APPROVED);
+
+        return approvedLeave
+                .filter(request -> request.getRequestType() == RequestType.VACATION)
+                .map(ApprovalRequest::getVacationType)
+                .orElse(null);
     }
 }

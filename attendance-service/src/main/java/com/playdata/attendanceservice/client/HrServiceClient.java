@@ -3,6 +3,7 @@ package com.playdata.attendanceservice.client;
 import com.playdata.attendanceservice.client.dto.UserDetailDto;
 import com.playdata.attendanceservice.client.dto.UserDto;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -13,7 +14,7 @@ import java.util.List;
 /**
  * HR 서비스와 통신하기 위한 Feign 클라이언트 인터페이스입니다.
  */
-@FeignClient(name = "hr-service")
+@FeignClient(name = "hr-service", configuration = com.playdata.attendanceservice.common.configs.FeignClientConfig.class)
 public interface HrServiceClient {
 
     /**
@@ -24,16 +25,16 @@ public interface HrServiceClient {
      * @return 입사 1주년을 맞이하는 사용자 정보 리스트
      */
     @GetMapping("/api/v1/hr/anniversary")
-    List<UserDto> getUsersWithFirstAnniversary(@RequestParam("date") LocalDate date);
+    List<UserDto> getUsersWithFirstAnniversary(@RequestParam("date") String date);
 
     /**
-     * 특정 사용자의 상세 정보를 조회합니다。
-     * HR 서비스의 /hr/users/{id} 엔드포인트를 호출합니다。
+     * 특정 사용자의 상세 정보를 조회합니다.
+     * HR 서비스의 /hr/users/{id} 엔드포인트를 호출합니다.
      *
      * @param id 조회할 사용자의 ID
      * @return 사용자의 상세 정보 (이름, 부서 등)
      */
-    @GetMapping("/hr/users/{id}")
+    @GetMapping("/user/feign/employeeNo/{id}")
     UserDetailDto getUserDetails(@PathVariable("id") Long id);
 
     /**
@@ -44,4 +45,7 @@ public interface HrServiceClient {
      */
     @GetMapping("/api/v1/hr/users/all-ids")
     List<UserDto> getAllUserIds();
+
+    @GetMapping("/hr/schedules/approved-type")
+    String getApprovedExternalScheduleType(@RequestParam("userId") Long userId, @RequestParam("date") String date);
 }

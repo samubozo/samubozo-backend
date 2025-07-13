@@ -10,3 +10,9 @@ oauth2:
   kakao:
     client-id: ba98e521fbb271a7148646b621c80c92
     redirect-uri: http://localhost:8000/hr-service/user/kakao
+
+standard:
+  checkin:
+    time: "09:00"
+  checkout:
+    time: "18:00"

@@ -10,15 +10,35 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+
 /**
  * 결재 요청 관련 API를 처리하는 컨트롤러입니다.
  */
 @RestController
-@RequestMapping("/api/v1/approvals")
+@RequestMapping("/approvals")
 @RequiredArgsConstructor
 public class ApprovalController {
 
     private final ApprovalService approvalService;
+
+    // 특정 사용자가 특정 날짜에 승인된 휴가의 종류를 조회합니다.
+    @GetMapping("/leaves/approved-type")
+    public ResponseEntity<String> getApprovedLeaveType(
+            @RequestParam("userId") Long userId,
+            @RequestParam("date") String date) {
+        String leaveType = approvalService.getApprovedLeaveType(userId, LocalDate.parse(date));
+        return ResponseEntity.ok(leaveType);
+    }
+
+    // 특정 사용자가 특정 날짜에 승인된 휴가(연차, 반차, 조퇴 등)가 있는지 확인합니다.
+    @GetMapping("/leaves/approved")
+    public ResponseEntity<Boolean> hasApprovedLeave(
+            @RequestParam("userId") Long userId,
+            @RequestParam("date") String date) {
+        boolean hasLeave = approvalService.hasApprovedLeave(userId, LocalDate.parse(date));
+        return ResponseEntity.ok(hasLeave);
+    }
 
     /**
      * 새로운 결재 요청을 생성합니다.
