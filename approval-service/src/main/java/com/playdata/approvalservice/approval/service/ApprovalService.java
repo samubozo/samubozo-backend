@@ -162,20 +162,8 @@ public class ApprovalService {
         LocalDateTime startOfDay = date.atStartOfDay();
         LocalDateTime endOfDay = date.atTime(23, 59, 59, 999999999); // 해당 날짜의 마지막 시간
 
-        // 로그 추가: 조회 조건 확인
-        System.out.println("Searching for approved leave for userId: " + userId + ", date: " + date);
-
         Optional<ApprovalRequest> approvedLeave = approvalRepository.findByApplicantIdAndRequestedAtBetweenAndStatus(
                 userId, startOfDay, endOfDay, ApprovalStatus.APPROVED);
-
-        // 로그 추가: 조회 결과 확인
-        if (approvedLeave.isPresent()) {
-            System.out.println("Found approved leave: " + approvedLeave.get());
-            System.out.println("RequestType: " + approvedLeave.get().getRequestType());
-            System.out.println("VacationType: " + approvedLeave.get().getVacationType());
-        } else {
-            System.out.println("No approved leave found for userId: " + userId + ", date: " + date);
-        }
 
         return approvedLeave
                 .filter(request -> request.getRequestType() == RequestType.VACATION)
