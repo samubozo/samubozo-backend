@@ -65,6 +65,15 @@ public class User {
     @Column(length = 255)
     private String profileImage;
 
+    @Column(name = "bank_name", length = 50)
+    private String bankName;
+
+    @Column(name = "account_number", length = 50)
+    private String accountNumber;
+
+    @Column(name = "account_holder", length = 50)
+    private String accountHolder;
+
     @Column(name = "retire_date")
     private LocalDate retireDate;
 
@@ -89,6 +98,7 @@ public class User {
                 .externalEmail(externalEmail)
                 .password(password)
                 .gender(gender)
+                .residentRegNo(residentRegNo)
                 .department(department != null ? new DepartmentResDto(department) : null)
                 .positionId(position != null ? position.getPositionId() : null)
                 .positionName(position != null ? position.getPositionName() : null)
@@ -99,6 +109,9 @@ public class User {
                 .birthDate(birthDate)
                 .hireDate(hireDate)
                 .retireDate(retireDate)
+                .bankName(bankName)
+                .accountNumber(accountNumber)
+                .accountHolder(accountHolder)
                 .activate(activate)
                 .hrRole(position.getHrRole())
                 .build();
@@ -139,7 +152,6 @@ public class User {
     }
 
 }
-
 
 
 

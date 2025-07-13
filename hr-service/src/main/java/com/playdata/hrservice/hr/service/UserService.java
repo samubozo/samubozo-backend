@@ -41,7 +41,11 @@ public class UserService {
 
     // 회원가입
     @Transactional
-    public UserResDto createUser(UserSaveReqDto dto) {
+    public UserResDto createUser(UserSaveReqDto dto, String hrRole) {
+        if (hrRole.equals("N")) {
+            throw new BadRequestException("계정 생성 권한이 없습니다.");
+        }
+
         // 이메일 중복 확인 (신규 가입)
         if (userRepository.findByEmail(dto.getEmail()).isPresent()) {
             throw new IllegalArgumentException("이미 존재하는 이메일 입니다!");
@@ -125,7 +129,13 @@ public class UserService {
         user.setActivate(dto.getActivate());
         user.setBirthDate(dto.getBirthDate());
         user.setRemarks(dto.getRemarks());
-        user.setDepartment(departmentRepository.findByName(dto.getDepartmentName()));
+        user.setBankName(dto.getBankName());
+        user.setAccountNumber(dto.getAccountNumber());
+        user.setAccountHolder(dto.getAccountHolder());
+//        user.setDepartment(departmentRepository.findByName(dto.getDepartmentName()));
+        user.setDepartment(departmentRepository.findById(dto.getDepartmentId()).orElseThrow(
+                () -> new EntityNotFoundException("Department not found with ID: " + dto.getDepartmentId())
+        ));
         user.setPosition(positionRepository.findByPositionName(dto.getPositionName()));
         if (user.getProfileImage() != null) {
             uploadProfile(UserRequestDto.builder()

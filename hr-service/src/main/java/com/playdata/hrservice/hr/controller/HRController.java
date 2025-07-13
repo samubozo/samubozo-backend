@@ -1,6 +1,5 @@
 package com.playdata.hrservice.hr.controller;
 
-
 import com.playdata.hrservice.common.auth.TokenUserInfo;
 import com.playdata.hrservice.common.dto.CommonResDto;
 import com.playdata.hrservice.hr.dto.*;
@@ -16,6 +15,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -39,8 +39,9 @@ public class HRController {
 
     // 직원 계정 생성(등록)
     @PostMapping("/users/signup")
-    public ResponseEntity<?> createUser(@Valid @RequestBody UserSaveReqDto dto) {
-        UserResDto saved = userService.createUser(dto);
+    public ResponseEntity<?> createUser(@Valid @RequestBody UserSaveReqDto dto, @AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
+        String hrRole = tokenUserInfo.getHrRole();
+        UserResDto saved = userService.createUser(dto, hrRole);
         CommonResDto resDto = new CommonResDto(HttpStatus.CREATED, "User created", saved);
         return new ResponseEntity<>(resDto, HttpStatus.CREATED);
     }
@@ -88,10 +89,11 @@ public class HRController {
     }
 
     // 사용자 정보 수정
-    @PatchMapping("/users/{id}")
-    public ResponseEntity<?> updateUser(@PathVariable("id") Long employeeNo,
-                                        @RequestBody UserUpdateRequestDto dto,
-                                        @AuthenticationPrincipal TokenUserInfo tokenUserInfo) throws Exception {
+    @PatchMapping(value = "/users/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> updateUser(
+            @PathVariable("id") Long employeeNo,
+            @ModelAttribute UserUpdateRequestDto dto,
+            @AuthenticationPrincipal TokenUserInfo tokenUserInfo) throws Exception {
         String hrRole = tokenUserInfo.getHrRole();
         userService.updateUser(employeeNo, dto, hrRole);
         return new ResponseEntity<>(HttpStatus.OK);
@@ -178,6 +180,7 @@ public class HRController {
     }
 
 }
+
 
 
 

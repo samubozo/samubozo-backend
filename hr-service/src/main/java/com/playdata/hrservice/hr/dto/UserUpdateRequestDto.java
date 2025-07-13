@@ -24,6 +24,9 @@ public class UserUpdateRequestDto {
     private String phone;
     private LocalDate birthDate;
     private LocalDate hireDate;
+    private String bankName;
+    private String accountNumber;
+    private String accountHolder;
     private LocalDate retireDate;
     private String activate;
 
