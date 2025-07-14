@@ -32,6 +32,7 @@ public class CertificateController {
     // 증명서 조회
     @GetMapping("/list")
     public ResponseEntity<?> listCertificates(@PageableDefault(size = 5, sort = "certificateId") Pageable pageable) {
+        log.info("List certificates request: {}", pageable);
         return new ResponseEntity<>(new CommonResDto(HttpStatus.OK,
                 "Success", certificateService.listCertificates(pageable)), HttpStatus.OK);
     }

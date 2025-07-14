@@ -121,7 +121,7 @@ spring:
             - Path=/certificate-service/**
           filters:
             - RemoveRequestHeader=Cookie
-            - RewritePath=/chatbot-service/(?<segment>.*), /$\{segment}
+            - RewritePath=/certificate-service/(?<segment>.*), /$\{segment}
             - AuthorizationHeaderFilter
 
         #메시지 서비스
