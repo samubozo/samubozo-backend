@@ -15,6 +15,7 @@ import java.time.LocalDate;
 @Builder
 public class CertificateResDto {
     private Long certificateId;
+    private Long employeeNo;
     private Type type;
     private LocalDate requestDate;
     private LocalDate approveDate;
