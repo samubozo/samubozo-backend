@@ -1,6 +1,8 @@
 package com.playdata.attendanceservice.common.auth;
 
 
+
+import com.playdata.attendanceservice.common.auth.TokenUserInfo;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -57,7 +59,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     }
 }
-
 
 
 
