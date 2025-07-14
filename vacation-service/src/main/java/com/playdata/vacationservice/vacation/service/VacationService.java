@@ -3,6 +3,7 @@ package com.playdata.vacationservice.vacation.service;
 import com.playdata.vacationservice.client.HrServiceClient;
 import com.playdata.vacationservice.common.auth.TokenUserInfo;
 import com.playdata.vacationservice.vacation.dto.VacationRequestDto;
+import com.playdata.vacationservice.vacation.dto.VacationBalanceResDto; // 추가
 import com.playdata.vacationservice.vacation.entity.*;
 import com.playdata.vacationservice.vacation.repository.VacationBalanceRepository;
 import com.playdata.vacationservice.vacation.repository.VacationRepository;
@@ -106,6 +107,21 @@ public class VacationService {
         vacationBalanceRepository.save(vacationBalance);
 
         log.info("사용자 ID: {} 에게 연차 1일이 부여되었습니다. 총 부여된 연차: {}", userId, vacationBalance.getTotalGranted());
+    }
+
+    /**
+     * 특정 사용자의 연차 현황(총 연차, 사용 연차, 남은 연차)을 조회합니다.
+     *
+     * @param userId 연차 현황을 조회할 사용자의 ID
+     * @return 연차 현황 정보를 담은 VacationBalanceResDto
+     * @throws IllegalArgumentException 해당 사용자의 연차 정보를 찾을 수 없는 경우
+     */
+    @Transactional(readOnly = true)
+    public VacationBalanceResDto getVacationBalance(Long userId) {
+        VacationBalance vacationBalance = vacationBalanceRepository.findByUserId(userId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 사용자의 연차 정보를 찾을 수 없습니다. (User ID: " + userId + ")"));
+
+        return VacationBalanceResDto.from(vacationBalance);
     }
 
     // --- Private Helper Methods for SRP ---

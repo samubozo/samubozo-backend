@@ -1,6 +1,7 @@
 package com.playdata.attendanceservice.attendance.service;
 
 import com.playdata.attendanceservice.attendance.dto.WorkTimeDto;
+import com.playdata.attendanceservice.attendance.dto.AttendanceResDto; // 추가
 import com.playdata.attendanceservice.attendance.entity.Attendance;
 import com.playdata.attendanceservice.attendance.entity.WorkDayType;
 import com.playdata.attendanceservice.attendance.entity.WorkStatus;
@@ -373,46 +374,70 @@ public class AttendanceService {
         // 2. 현재까지 근무한 시간 계산 (퇴근하지 않은 경우)
         LocalDateTime checkInTime = attendance.getCheckInTime();
         LocalDateTime now = LocalDateTime.now();
-        Duration workedDuration = Duration.ZERO; // 실제 근무 시간
 
+        // 출근 시간부터 현재까지의 총 경과 시간
+        Duration totalElapsedDuration = Duration.between(checkInTime, now);
+
+        // 외출 시간 계산
+        Duration outingDuration = Duration.ZERO;
         if (attendance.getGoOutTime() != null) {
             LocalDateTime goOutTime = attendance.getGoOutTime();
             LocalDateTime returnTime = attendance.getReturnTime();
 
             if (returnTime != null) {
-                // 외출 시작부터 복귀까지의 시간은 근무 시간에서 제외
-                // (checkInTime ~ goOutTime) + (returnTime ~ now)
-                workedDuration = Duration.between(checkInTime, goOutTime).plus(Duration.between(returnTime, now));
+                // 외출 시작부터 복귀까지의 시간
+                outingDuration = Duration.between(goOutTime, returnTime);
             } else {
-                // 외출 중인 경우: checkInTime ~ goOutTime 까지만 근무 시간으로 계산
-                workedDuration = Duration.between(checkInTime, goOutTime);
+                // 현재 외출 중인 경우: 외출 시작부터 현재까지의 시간
+                outingDuration = Duration.between(goOutTime, now);
             }
-        } else {
-            // 외출 기록이 없는 경우: checkInTime ~ now 까지가 근무 시간
-            workedDuration = Duration.between(checkInTime, now);
         }
 
-        // 근무한 시간 계산
-        long workedHours = workedDuration.toHours();
-        long workedMinutes = workedDuration.toMinutes() % 60;
+        // 실제 근무 시간 = 총 경과 시간 - 외출 시간
+        Duration actualWorkedDuration = totalElapsedDuration.minus(outingDuration);
+
+        // 근무 시간이 음수가 되는 경우 (예: 외출 시간이 너무 길어서) 0으로 처리
+        if (actualWorkedDuration.isNegative()) {
+            actualWorkedDuration = Duration.ZERO;
+        }
+
+        // 근무한 시간 계산 (분 단위로 올림)
+        long workedTotalSeconds = actualWorkedDuration.getSeconds();
+        long workedMinutesRounded = (workedTotalSeconds + 59) / 60; // 1초라도 있으면 다음 분으로 올림
+
+        long workedHours = workedMinutesRounded / 60;
+        long workedMinutes = workedMinutesRounded % 60;
         String workedTime = String.format("%02d:%02d", workedHours, workedMinutes);
 
-        // 하루 총 필요 근무 시간 (8시간)
-        Duration standardWorkDuration = Duration.ofHours(8);
+        // 하루 총 필요 근무 시간 (8시간 = 480분)
+        long standardWorkMinutes = 8 * 60;
 
-        // 남은 근무 시간 계산
-        Duration remainingDuration = standardWorkDuration.minus(workedDuration);
+        // 남은 근무 시간 계산 (분 단위로 올림된 근무 시간을 기준으로 계산)
+        long remainingMinutesRounded = standardWorkMinutes - workedMinutesRounded;
 
         // 남은 시간이 음수이면 (초과 근무) 00:00으로 처리
-        if (remainingDuration.isNegative()) {
-            return new WorkTimeDto("00:00", workedTime);
+        if (remainingMinutesRounded < 0) {
+            remainingMinutesRounded = 0;
         }
 
-        // 남은 근무 시간 계산
-        long hours = remainingDuration.toHours();
-        long minutes = remainingDuration.toMinutes() % 60;
-        String remainingTime = String.format("%02d:%02d", hours, minutes);
+        long remainingHours = remainingMinutesRounded / 60;
+        long remainingMinutes = remainingMinutesRounded % 60;
+        String remainingTime = String.format("%02d:%02d", remainingHours, remainingMinutes);
 
         return new WorkTimeDto(remainingTime, workedTime);
+    }
+
+    /**
+     * 특정 사용자의 오늘 출근 기록을 조회합니다.
+     *
+     * @param userId 조회할 사용자의 ID
+     * @return 오늘 출근 기록이 있다면 AttendanceResDto, 없다면 Optional.empty()
+     */
+    @Transactional(readOnly = true)
+    public Optional<AttendanceResDto> getTodayAttendance(Long userId) {
+        LocalDate today = LocalDate.now();
+        Optional<Attendance> optionalAttendance = attendanceRepository.findByUserIdAndAttendanceDate(userId, today);
+
+        return optionalAttendance.map(AttendanceResDto::from);
     }
 }

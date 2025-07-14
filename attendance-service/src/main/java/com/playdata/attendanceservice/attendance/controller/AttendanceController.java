@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 
 
 import java.util.List;
+import java.util.Optional; // 추가
 
 @RestController
 @RequestMapping("/attendance")
@@ -140,6 +141,28 @@ public class AttendanceController {
         } catch (Exception e) {
             log.error("남은 근무 시간 조회 중 오류 발생: {}", e.getMessage(), e);
             return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "남은 근무 시간 조회 중 오류 발생");
+        }
+    }
+
+    /**
+     * 특정 사용자의 오늘 출근 기록을 조회하는 API 엔드포인트입니다.
+     * 로그인 후 또는 페이지 로드 시 현재 사용자의 출퇴근, 외출/복귀 시간을 프론트엔드에 제공합니다.
+     *
+     * @param userInfo 인증된 사용자의 정보 (userId 획득용)
+     * @return 오늘 출근 기록이 있다면 AttendanceResDto, 없다면 null을 포함한 CommonResDto
+     */
+    @GetMapping("/today")
+    public ResponseEntity<CommonResDto<?>> getTodayAttendance(@AuthenticationPrincipal TokenUserInfo userInfo) {
+        try {
+            Optional<AttendanceResDto> todayAttendance = attendanceService.getTodayAttendance(userInfo.getEmployeeNo());
+            if (todayAttendance.isPresent()) {
+                return buildSuccessResponse(todayAttendance.get(), "오늘 근태 기록 조회 성공");
+            } else {
+                return buildSuccessResponse(null, "오늘 근태 기록 없음"); // 기록이 없는 경우 null 반환
+            }
+        } catch (Exception e) {
+            log.error("오늘 근태 기록 조회 중 오류 발생: {}", e.getMessage(), e);
+            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "오늘 근태 기록 조회 중 오류 발생");
         }
     }
 
