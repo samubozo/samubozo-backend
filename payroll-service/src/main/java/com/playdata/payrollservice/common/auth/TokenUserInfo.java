@@ -14,5 +14,9 @@ public class TokenUserInfo {
     private Role role;
     private Long employeeNo;
 
+    public boolean isHrAdmin() {
+        return role == Role.HR;
+    }
+
 
 }

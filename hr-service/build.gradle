@@ -35,7 +35,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
-	implementation 'org.springframework.boot:spring-boot-starter-amqp'
+//	implementation 'org.springframework.boot:spring-boot-starter-amqp'
 	// spring에서 redis 접속 및 명령을 내릴 수 있게 해 주는 의존성 라이브러리
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 

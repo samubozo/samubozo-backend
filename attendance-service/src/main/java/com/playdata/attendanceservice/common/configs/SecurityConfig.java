@@ -34,8 +34,8 @@ public class SecurityConfig {
         //여기에 권한 없이 접근해야할 URL을 명시해주세요. "/actuator/**" 는 건드시면 안됩니다.
         http.authorizeHttpRequests(auth -> {
             auth
-                    .requestMatchers("/actuator/**", "/attendance/hello").permitAll()
-                    .anyRequest().authenticated();
+                    .requestMatchers("/actuator/**").permitAll() // actuator 엔드포인트는 허용
+                    .anyRequest().authenticated(); // 그 외 모든 요청은 인증 필요
         });
 
         http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

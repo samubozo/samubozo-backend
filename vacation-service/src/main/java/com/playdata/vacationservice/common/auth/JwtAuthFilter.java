@@ -1,7 +1,5 @@
 package com.playdata.vacationservice.common.auth;
 
-
-
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,33 +27,44 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         String userEmail = request.getHeader("X-User-Email");
         String userRole = request.getHeader("X-User-Role");
-        log.info("userEmail:{} userRole:{}", userEmail, userRole);
+        String employeeNoStr = request.getHeader("X-User-Employee-No");
 
-        if (userEmail != null && userRole != null) {
+        log.info("[VacationService JwtAuthFilter] Received Headers - Email: {}, Role: {}, EmpNoStr: {}",
+                userEmail, userRole, employeeNoStr);
+
+        Long employeeNo = null;
+        boolean headersPresentAndValid = false; // 헤더 존재 및 유효성 플래그
+
+        if (userEmail != null && !userEmail.isEmpty() &&
+                userRole != null && !userRole.isEmpty() &&
+                employeeNoStr != null && !employeeNoStr.isEmpty()) {
+            try {
+                employeeNo = Long.parseLong(employeeNoStr);
+                headersPresentAndValid = true; // 모든 헤더가 존재하고 유효함
+            } catch (NumberFormatException e) {
+                log.warn("[VacationService JwtAuthFilter] Invalid X-User-Employee-No header format: '{}'. Error: {}", employeeNoStr, e.getMessage());
+            }
+        } else {
+            log.warn("[VacationService JwtAuthFilter] Missing or empty X-User-* headers. Email={}, Role={}, EmpNoStr={}",
+                    userEmail, userRole, employeeNoStr);
+        }
+
+        if (headersPresentAndValid && employeeNo != null) { // employeeNo가 null이 아닌지 다시 확인
             List<SimpleGrantedAuthority> authorityList = new ArrayList<>();
             authorityList.add(new SimpleGrantedAuthority("ROLE_" + userRole));
 
             Authentication auth = new UsernamePasswordAuthenticationToken(
-                    new TokenUserInfo(userEmail, Role.valueOf(userRole)),
-                    "",
+                    new TokenUserInfo(userEmail, userRole, employeeNo),
+                    null,
                     authorityList
             );
 
             SecurityContextHolder.getContext().setAuthentication(auth);
+            log.info("[VacationService JwtAuthFilter] Authentication successful for user: {}", userEmail);
 
         }
+
         filterChain.doFilter(request, response);
 
     }
 }
-
-
-
-
-
-
-
-
-
-
-

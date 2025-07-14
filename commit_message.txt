@@ -1,0 +1,6 @@
+feat(attendance): 전일/반일 근무 계산 및 연차 부여 로직 개선
+
+- **근태 관리:** 퇴근 시 출근 시간과 퇴근 시간을 기반으로 '전일' 또는 '반일' 근무를 자동으로 계산하여 기록하도록 AttendanceService를 개선했습니다.
+- **연차 부여:** LeaveAccrualScheduler에서 '전일' 근무는 1일, '반일' 근무는 0.5일로 계산하여 월별 연차 부여 로직에 반영했습니다.
+- **API 응답:** AttendanceResDto에 workDayType 필드를 추가하여 프론트엔드에서 근무 형태를 확인할 수 있도록 했습니다.
+- **내부 구조 개선:** WorkDayType Enum, WorkStatus 엔티티, WorkStatusRepository, HrServiceClient, UserDto 등 관련 클래스들을 업데이트하고 불필요한 코드를 정리했습니다.

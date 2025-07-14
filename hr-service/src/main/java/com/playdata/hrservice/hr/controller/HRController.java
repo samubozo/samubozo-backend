@@ -1,6 +1,4 @@
 package com.playdata.hrservice.hr.controller;
-
-
 import com.playdata.hrservice.common.auth.TokenUserInfo;
 import com.playdata.hrservice.common.dto.CommonResDto;
 import com.playdata.hrservice.hr.dto.*;
@@ -16,10 +14,13 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -39,8 +40,9 @@ public class HRController {
 
     // 직원 계정 생성(등록)
     @PostMapping("/users/signup")
-    public ResponseEntity<?> createUser(@Valid @RequestBody UserSaveReqDto dto) {
-        UserResDto saved = userService.createUser(dto);
+    public ResponseEntity<?> createUser(@Valid @RequestBody UserSaveReqDto dto, @AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
+        String hrRole = tokenUserInfo.getHrRole();
+        UserResDto saved = userService.createUser(dto, hrRole);
         CommonResDto resDto = new CommonResDto(HttpStatus.CREATED, "User created", saved);
         return new ResponseEntity<>(resDto, HttpStatus.CREATED);
     }
@@ -88,10 +90,11 @@ public class HRController {
     }
 
     // 사용자 정보 수정
-    @PatchMapping("/users/{id}")
-    public ResponseEntity<?> updateUser(@PathVariable("id") Long employeeNo,
-                                        @RequestBody UserUpdateRequestDto dto,
-                                        @AuthenticationPrincipal TokenUserInfo tokenUserInfo) throws Exception {
+    @PatchMapping(value = "/users/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> updateUser(
+            @PathVariable("id") Long employeeNo,
+            @ModelAttribute UserUpdateRequestDto dto,
+            @AuthenticationPrincipal TokenUserInfo tokenUserInfo) throws Exception {
         String hrRole = tokenUserInfo.getHrRole();
         userService.updateUser(employeeNo, dto, hrRole);
         return new ResponseEntity<>(HttpStatus.OK);
@@ -167,6 +170,26 @@ public class HRController {
         return userService.getEmployeeByUserName(userName);
     }
 
+    // 특정 사용자가 특정 날짜에 승인된 외부 일정(출장, 연수 등)이 있는지 확인합니다.
+    // AttendanceService에서 FeignClient를 통해 호출됩니다.
+    @GetMapping("/schedules/approved")
+    public ResponseEntity<Boolean> hasApprovedExternalSchedule(
+            @RequestParam("userId") Long userId,
+            @RequestParam("date") LocalDate date) {
+        boolean hasSchedule = userService.hasApprovedExternalSchedule(userId, date);
+        return ResponseEntity.ok(hasSchedule);
+    }
+
+    // 특정 사용자가 특정 날짜에 승인된 외부 일정의 종류를 반환합니다.
+    // AttendanceService에서 FeignClient를 통해 호출됩니다.
+    @GetMapping("/schedules/approved-type")
+    public ResponseEntity<String> getApprovedExternalScheduleType(
+            @RequestParam("userId") Long userId,
+            @RequestParam("date") LocalDate date) {
+        String scheduleType = userService.getApprovedExternalScheduleType(userId, date);
+        return ResponseEntity.ok(scheduleType);
+    }
+
     // 직원 퇴사 처리
     @PatchMapping("/users/retire/{id}")
     public ResponseEntity<?> retireUser(@PathVariable("id") Long employeeNo,
@@ -178,6 +201,7 @@ public class HRController {
     }
 
 }
+
 
 
 

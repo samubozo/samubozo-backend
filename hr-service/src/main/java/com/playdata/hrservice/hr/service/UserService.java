@@ -41,7 +41,11 @@ public class UserService {
 
     // 회원가입
     @Transactional
-    public UserResDto createUser(UserSaveReqDto dto) {
+    public UserResDto createUser(UserSaveReqDto dto, String hrRole) {
+        if (hrRole.equals("N")) {
+            throw new BadRequestException("계정 생성 권한이 없습니다.");
+        }
+
         // 이메일 중복 확인 (신규 가입)
         if (userRepository.findByEmail(dto.getEmail()).isPresent()) {
             throw new IllegalArgumentException("이미 존재하는 이메일 입니다!");
@@ -125,7 +129,13 @@ public class UserService {
         user.setActivate(dto.getActivate());
         user.setBirthDate(dto.getBirthDate());
         user.setRemarks(dto.getRemarks());
-        user.setDepartment(departmentRepository.findByName(dto.getDepartmentName()));
+        user.setBankName(dto.getBankName());
+        user.setAccountNumber(dto.getAccountNumber());
+        user.setAccountHolder(dto.getAccountHolder());
+//        user.setDepartment(departmentRepository.findByName(dto.getDepartmentName()));
+        user.setDepartment(departmentRepository.findById(dto.getDepartmentId()).orElseThrow(
+                () -> new EntityNotFoundException("Department not found with ID: " + dto.getDepartmentId())
+        ));
         user.setPosition(positionRepository.findByPositionName(dto.getPositionName()));
         if (user.getProfileImage() != null) {
             uploadProfile(UserRequestDto.builder()
@@ -267,6 +277,20 @@ public class UserService {
         );
         user.setRetireDate(LocalDate.now());
         userRepository.save(user);
+    }
+
+    // 특정 사용자가 특정 날짜에 승인된 외부 일정(출장, 연수 등)이 있는지 확인
+    public boolean hasApprovedExternalSchedule(Long userId, LocalDate date) {
+        // TODO: 실제 외부 일정 관리 로직 구현 필요
+        // 현재는 항상 false 반환 (임시)
+        return false;
+    }
+
+    // 특정 사용자가 특정 날짜에 승인된 외부 일정의 종류를 조회
+    public String getApprovedExternalScheduleType(Long userId, LocalDate date) {
+        // TODO: 실제 외부 일정 관리 로직 구현 필요
+        // 현재는 항상 null 반환 (임시)
+        return null;
     }
 
 }
