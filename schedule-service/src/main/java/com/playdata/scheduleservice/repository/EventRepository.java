@@ -31,7 +31,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     // 검색 기능 (제목, 내용, 메모에서 키워드 검색 및 카테고리 필터링)
     @Query("SELECT e FROM Event e WHERE " +
            "(e.ownerEmployeeNo = :employeeNo OR e.category.departmentId = :departmentId) AND " +
-           "(:keyword IS NULL OR LOWER(e.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(e.content) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(e.memo) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND " +
+           "(:keyword IS NULL OR LOWER(e.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(e.content) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND " +
            "(:categoryId IS NULL OR e.category.id = :categoryId) AND " +
            "(:startDate IS NULL OR e.startDate >= :startDate) AND " +
            "(:endDate IS NULL OR e.endDate <= :endDate)")
@@ -52,5 +52,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     // 특정 부서의 모든 그룹 일정 조회 (부서 삭제 시 유효성 검사용)
     @Query("SELECT e FROM Event e WHERE e.category.type = 'GROUP' AND e.category.departmentId = :departmentId")
     List<Event> findGroupEventsByDepartmentId(@Param("departmentId") Long departmentId);
+
+    // isAllDay가 true인 모든 일정 조회
+    List<Event> findAllByIsAllDayTrue();
 
 }

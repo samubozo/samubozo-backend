@@ -18,7 +18,7 @@ public class EventResponse {
     private Long id;
     private String title;
     private String content;
-    private String memo;
+    
     private Long categoryId;
     private String categoryName;
     private String categoryColor;
@@ -35,7 +35,7 @@ public class EventResponse {
                 .id(event.getId())
                 .title(event.getTitle())
                 .content(event.getContent())
-                .memo(event.getMemo())
+                
                 .categoryId(event.getCategory().getId())
                 .categoryName(event.getCategory().getName())
                 .categoryColor(event.getCategory().getColor())

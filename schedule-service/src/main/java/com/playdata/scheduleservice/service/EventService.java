@@ -41,9 +41,9 @@ public class EventService {
             throw new IllegalArgumentException("그룹 카테고리에 일정을 생성할 권한이 없습니다.");
         }
 
-        // 기한 없는 할일 처리 (start, end가 null)
-        if (request.getType() == EventType.TODO && request.getStartDate() == null && request.getEndDate() == null) {
-            // start_date, end_date가 null인 경우를 허용
+        if ((request.getIsAllDay() != null && request.getIsAllDay())
+                && request.getStartDate() == null && request.getEndDate() == null) {
+            // isAllDay가 true이고 start_date, end_date가 null인 경우를 허용
         } else if (request.getStartDate() == null) {
             throw new IllegalArgumentException("시작일은 필수입니다.");
         }
@@ -51,7 +51,6 @@ public class EventService {
         Event event = Event.builder()
                 .title(request.getTitle())
                 .content(request.getContent())
-                .memo(request.getMemo())
                 .category(category)
                 .type(request.getType())
                 .startDate(request.getStartDate())
@@ -125,7 +124,6 @@ public class EventService {
 
         if (request.getTitle() != null) event.setTitle(request.getTitle());
         if (request.getContent() != null) event.setContent(request.getContent());
-        if (request.getMemo() != null) event.setMemo(request.getMemo());
         if (request.getType() != null) event.setType(request.getType());
         if (request.getStartDate() != null) event.setStartDate(request.getStartDate());
         if (request.getEndDate() != null) event.setEndDate(request.getEndDate());
@@ -164,9 +162,16 @@ public class EventService {
     // HR Service에서 departmentId를 가져오는 헬퍼 메소드
     private Long getDepartmentId(Long employeeNo) {
         UserFeignResDto user = hrServiceClient.getUserByEmployeeNo(employeeNo);
-        if (user == null || user.getDepartmentId() == null) {
+        if (user == null || user.getDepartment() == null || user.getDepartment().getDepartmentId() == null) {
             throw new IllegalStateException("사용자의 부서 정보를 찾을 수 없습니다.");
         }
-        return user.getDepartmentId();
+        return user.getDepartment().getDepartmentId();
+    }
+
+    // isAllDay가 true인 모든 일정 조회
+    public List<EventResponse> getIsAllDayEvents() {
+        return eventRepository.findAllByIsAllDayTrue().stream()
+                .map(EventResponse::from)
+                .collect(Collectors.toList());
     }
 }
