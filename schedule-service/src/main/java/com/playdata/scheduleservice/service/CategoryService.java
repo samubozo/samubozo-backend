@@ -99,7 +99,7 @@ public class CategoryService {
 
     // 카테고리 삭제
     @Transactional
-    public void deleteCategory(Long categoryId, Long employeeNo) {
+    public boolean deleteCategory(Long categoryId, Long employeeNo) {
         Long departmentId = getDepartmentId(employeeNo);
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new IllegalArgumentException("카테고리를 찾을 수 없습니다."));
@@ -114,10 +114,11 @@ public class CategoryService {
 
         // 연관된 일정이 있는지 확인
         if (!eventRepository.findByCategoryId(categoryId).isEmpty()) {
-            throw new IllegalStateException("해당 카테고리에 속한 일정이 존재하여 삭제할 수 없습니다.");
+            return false;
         }
 
         categoryRepository.delete(category);
+        return true;
     }
 
     // 카테고리 체크박스 상태 업데이트
@@ -144,9 +145,9 @@ public class CategoryService {
     // HR Service에서 departmentId를 가져오는 헬퍼 메소드
     private Long getDepartmentId(Long employeeNo) {
         UserFeignResDto user = hrServiceClient.getUserByEmployeeNo(employeeNo);
-        if (user == null || user.getDepartmentId() == null) {
+        if (user == null || user.getDepartment() == null || user.getDepartment().getDepartmentId() == null) {
             throw new IllegalStateException("사용자의 부서 정보를 찾을 수 없습니다.");
         }
-        return user.getDepartmentId();
+        return user.getDepartment().getDepartmentId();
     }
 }

@@ -9,10 +9,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class UserFeignResDto {
-    private Long employeeNo;
-    private String email;
-    private String userName;
-    private DepartmentResDto department;
-    private String position;
+public class DepartmentResDto {
+    private Long departmentId;
+    private String name;
+    private String departmentColor;
 }

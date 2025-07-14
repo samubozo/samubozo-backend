@@ -82,4 +82,11 @@ public class EventController {
         List<EventResponse> response = eventService.searchEvents(tokenUserInfo.getEmployeeNo(), keyword, categoryId, startDate, endDate);
         return ResponseEntity.ok(response);
     }
+
+    // isAllDay가 true인 모든 일정 조회
+    @GetMapping("/all-day")
+    public ResponseEntity<List<EventResponse>> getIsAllDayEvents() {
+        List<EventResponse> response = eventService.getIsAllDayEvents();
+        return ResponseEntity.ok(response);
+    }
 }

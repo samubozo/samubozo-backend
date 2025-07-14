@@ -27,8 +27,7 @@ public class Event {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
-    @Column(columnDefinition = "TEXT")
-    private String memo; // Nullable
+    
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", nullable = false)
@@ -38,7 +37,6 @@ public class Event {
     @Column(nullable = false)
     private EventType type; // 연차, 반차, 출장, 회의, 기타, 할 일
 
-    @Column(name = "start_date", nullable = false)
     private LocalDate startDate;
 
     @Column(name = "end_date")

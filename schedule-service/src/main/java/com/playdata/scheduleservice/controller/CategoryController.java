@@ -52,11 +52,14 @@ public class CategoryController {
 
     // 카테고리 삭제
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteCategory(
+    public ResponseEntity<String> deleteCategory(
             @AuthenticationPrincipal TokenUserInfo tokenUserInfo,
             @PathVariable Long id) {
-        categoryService.deleteCategory(id, tokenUserInfo.getEmployeeNo());
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        boolean deleted = categoryService.deleteCategory(id, tokenUserInfo.getEmployeeNo());
+        if (deleted) {
+            return new ResponseEntity<>("카테고리가 삭제되었습니다.", HttpStatus.OK);
+        }
+        return new ResponseEntity<>("해당 카테고리에 속한 일정이 존재하여 삭제할 수 없습니다.", HttpStatus.CONFLICT);
     }
 
     // 카테고리 체크박스 상태 업데이트
