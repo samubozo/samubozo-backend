@@ -30,8 +30,18 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByUserNameContaining(String userName);
 
     @Query("SELECT u FROM User u JOIN u.department d WHERE d.name LIKE %:departmentName%")
-    List<User> findByDepartmentDepartmentNameContaining(String departmentName); // 메서드 이름 변경
+    List<User> findByDepartmentNameContaining(String departmentName); // 메서드 이름 변경
 
     @Query("SELECT u FROM User u JOIN u.department d WHERE u.userName LIKE %:userName% AND d.name LIKE %:departmentName%")
-    List<User> findByUserNameContainingAndDepartmentDepartmentNameContaining(String userName, String departmentName); // 메서드 이름 변경
+    List<User> findByUserNameContainingAndDepartmentNameContaining(String userName, String departmentName); // 메서드 이름 변경
+
+    // hrRole 검색 추가
+    List<User> findByPositionHrRole(String hrRole);
+    List<User> findByUserNameContainingAndPositionHrRole(String userName, String hrRole);
+    @Query("SELECT u FROM User u JOIN u.department d JOIN u.position p WHERE d.name LIKE %:departmentName% AND p.hrRole = :hrRole")
+    List<User> findByDepartmentNameContainingAndPositionHrRole(String departmentName, String hrRole);
+    @Query("SELECT u FROM User u JOIN u.department d JOIN u.position p WHERE u.userName LIKE %:userName% AND d.name LIKE %:departmentName% AND p.hrRole = :hrRole")
+    List<User> findByUserNameContainingAndDepartmentNameContainingAndPositionHrRole(String userName, String departmentName, String hrRole);
+
+    boolean existsByDepartmentDepartmentId(Long departmentId);
 }

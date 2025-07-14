@@ -137,7 +137,7 @@ public class UserService {
                 () -> new EntityNotFoundException("Department not found with ID: " + dto.getDepartmentId())
         ));
         user.setPosition(positionRepository.findByPositionName(dto.getPositionName()));
-        if (user.getProfileImage() != null) {
+        if (dto.getProfileImage() != null && !dto.getProfileImage().isEmpty()) {
             uploadProfile(UserRequestDto.builder()
                     .employeeNo(user.getEmployeeNo())
                     .profileImage(dto.getProfileImage())
@@ -224,20 +224,30 @@ public class UserService {
                 .email(user.getEmail())
                 .address(user.getAddress())
                 .activate(user.getActivate())
+                .profileImage(user.getProfileImage())
+                .hrRole(user.getPosition().getHrRole())
                 .build());
     }
 
     // 사용자 검색 (조건에 따라 페이징 또는 전체 리스트 반환)
-    public Object searchUsers(String userName, String departmentName, Pageable pageable) {
-        if (StringUtils.hasText(userName) || StringUtils.hasText(departmentName)) {
+    public Object searchUsers(String userName, String departmentName, String hrRole, Pageable pageable) {
+        if (StringUtils.hasText(userName) || StringUtils.hasText(departmentName) || StringUtils.hasText(hrRole)) {
             // 검색 조건이 있을 경우, 페이징 없이 전체 리스트 반환
             List<User> users;
-            if (StringUtils.hasText(userName) && StringUtils.hasText(departmentName)) {
-                users = userRepository.findByUserNameContainingAndDepartmentDepartmentNameContaining(userName, departmentName);
+            if (StringUtils.hasText(userName) && StringUtils.hasText(departmentName) && StringUtils.hasText(hrRole)) {
+                users = userRepository.findByUserNameContainingAndDepartmentNameContainingAndPositionHrRole(userName, departmentName, hrRole);
+            } else if (StringUtils.hasText(userName) && StringUtils.hasText(departmentName)) {
+                users = userRepository.findByUserNameContainingAndDepartmentNameContaining(userName, departmentName);
+            } else if (StringUtils.hasText(userName) && StringUtils.hasText(hrRole)) {
+                users = userRepository.findByUserNameContainingAndPositionHrRole(userName, hrRole);
+            } else if (StringUtils.hasText(departmentName) && StringUtils.hasText(hrRole)) {
+                users = userRepository.findByDepartmentNameContainingAndPositionHrRole(departmentName, hrRole);
             } else if (StringUtils.hasText(userName)) {
                 users = userRepository.findByUserNameContaining(userName);
-            } else { // departmentName만 있을 경우
-                users = userRepository.findByDepartmentDepartmentNameContaining(departmentName);
+            } else if (StringUtils.hasText(departmentName)) {
+                users = userRepository.findByDepartmentNameContaining(departmentName);
+            } else { // hrRole만 있을 경우
+                users = userRepository.findByPositionHrRole(hrRole);
             }
             return users.stream().map(user -> UserResDto.builder()
                     .employeeNo(user.getEmployeeNo())
@@ -249,6 +259,8 @@ public class UserService {
                     .email(user.getEmail())
                     .address(user.getAddress())
                     .activate(user.getActivate())
+                    .profileImage(user.getProfileImage())
+                    .hrRole(user.getPosition().getHrRole())
                     .build()).collect(Collectors.toList());
         } else {
             // 검색 조건이 없을 경우, 페이징 적용
@@ -263,6 +275,8 @@ public class UserService {
                     .email(user.getEmail())
                     .address(user.getAddress())
                     .activate(user.getActivate())
+                    .profileImage(user.getProfileImage())
+                    .hrRole(user.getPosition().getHrRole())
                     .build());
         }
     }

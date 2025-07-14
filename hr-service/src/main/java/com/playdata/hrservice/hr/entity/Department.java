@@ -24,4 +24,7 @@ public class Department {
     @Column(name = "department_color", nullable = false)
     private String departmentColor;
 
+    @Column(name = "image_url")
+    private String imageUrl;
+
 }
