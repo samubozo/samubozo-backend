@@ -1,6 +1,7 @@
 package com.playdata.attendanceservice.attendance.controller;
 
 import com.playdata.attendanceservice.attendance.dto.AttendanceResDto;
+import com.playdata.attendanceservice.attendance.dto.WorkTimeDto;
 import com.playdata.attendanceservice.attendance.entity.Attendance;
 import com.playdata.attendanceservice.attendance.service.AttendanceService;
 import com.playdata.attendanceservice.client.VacationServiceClient; // 추가
@@ -122,6 +123,23 @@ public class AttendanceController {
             return buildErrorResponse(HttpStatus.BAD_REQUEST, e.getMessage());
         } catch (Exception e) {
             return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "복귀 기록 중 오류 발생");
+        }
+    }
+
+    /**
+     * 사용자의 남은 근무 시간을 조회하는 API 엔드포인트입니다.
+     *
+     * @param userInfo 인증된 사용자의 정보 (userId 획득용)
+     * @return 남은 근무 시간 문자열 또는 오류에 대한 응답 (CommonResDto)
+     */
+    @GetMapping("/remaining-work-time")
+    public ResponseEntity<CommonResDto<?>> getRemainingWorkTime(@AuthenticationPrincipal TokenUserInfo userInfo) {
+        try {
+            WorkTimeDto remainingTime = attendanceService.getRemainingWorkTime(userInfo.getEmployeeNo());
+            return buildSuccessResponse(remainingTime, "남은 근무 시간 조회 성공");
+        } catch (Exception e) {
+            log.error("남은 근무 시간 조회 중 오류 발생: {}", e.getMessage(), e);
+            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "남은 근무 시간 조회 중 오류 발생");
         }
     }
 

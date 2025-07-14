@@ -1,5 +1,6 @@
 package com.playdata.attendanceservice.attendance.service;
 
+import com.playdata.attendanceservice.attendance.dto.WorkTimeDto;
 import com.playdata.attendanceservice.attendance.entity.Attendance;
 import com.playdata.attendanceservice.attendance.entity.WorkDayType;
 import com.playdata.attendanceservice.attendance.entity.WorkStatus;
@@ -72,19 +73,16 @@ public class AttendanceService {
      * 사용자의 출근을 기록하는 메소드입니다.
      * 이 메소드는 사용자가 하루에 한 번만 출근 기록을 할 수 있도록 제약 조건을 처리합니다.
      *
-     * @param userId 출근을 기록할 사용자의 고유 ID
+     * @param userId    출근을 기록할 사용자의 고유 ID
      * @param ipAddress 출근 기록 시 사용된 클라이언트의 IP 주소
      * @return 성공적으로 저장된 Attendance 엔티티 객체
-     *
+     * @throws IllegalStateException: 만약 해당 사용자가 이미 오늘 출근 기록을 한 경우 (데이터베이스의 복합 유니크 제약 조건 위반 시)
+     *                                이 예외를 발생시켜 클라이언트에게 이미 출근했음을 알립니다.
      * @Transactional 어노테이션:
-     *                 이 메소드는 데이터베이스에 새로운 출근 기록을 저장하는 쓰기 작업을 수행하므로,
-     *                 클래스 레벨의 readOnly = true 트랜잭션 설정을 오버라이드하여
-     *                 쓰기 가능한 트랜잭션으로 실행되도록 합니다.
-     *                 만약 이 메소드 실행 중 예외가 발생하면, 트랜잭션은 롤백되어 데이터베이스에 변경사항이 반영되지 않습니다.
-     *
-     * @throws IllegalStateException:
-     *         만약 해당 사용자가 이미 오늘 출근 기록을 한 경우 (데이터베이스의 복합 유니크 제약 조건 위반 시)
-     *         이 예외를 발생시켜 클라이언트에게 이미 출근했음을 알립니다.
+     * 이 메소드는 데이터베이스에 새로운 출근 기록을 저장하는 쓰기 작업을 수행하므로,
+     * 클래스 레벨의 readOnly = true 트랜잭션 설정을 오버라이드하여
+     * 쓰기 가능한 트랜잭션으로 실행되도록 합니다.
+     * 만약 이 메소드 실행 중 예외가 발생하면, 트랜잭션은 롤백되어 데이터베이스에 변경사항이 반영되지 않습니다.
      */
     @Transactional
     public Attendance recordCheckIn(Long userId, String ipAddress) {
@@ -243,8 +241,8 @@ public class AttendanceService {
      * 특정 사용자의 월별 근태 기록 목록을 조회합니다.
      *
      * @param userId 조회할 사용자의 ID
-     * @param year 조회할 연도
-     * @param month 조회할 월
+     * @param year   조회할 연도
+     * @param month  조회할 월
      * @return 해당 월의 근태 기록 목록
      */
     @Transactional(readOnly = true)
@@ -318,5 +316,103 @@ public class AttendanceService {
         }
 
         return attendanceRepository.save(attendance);
+    }
+
+    /**
+     * 사용자의 남은 근무 시간을 계산하여 반환합니다.
+     * 하루 총 필요 근무 시간(예: 8시간)에서 현재까지 근무한 시간을 뺀 값을 계산합니다.
+     * 퇴근하지 않았을 때만 계산하며, 퇴근했으면 "00:00"을 반환합니다.
+     * 외출/복귀 시간을 고려하여 외출 중인 시간은 근무 시간에서 제외합니다.
+     *
+     * @param userId 남은 근무 시간을 조회할 사용자의 ID
+     * @return "HH:mm" 형식의 남은 근무 시간 문자열
+     */
+    @Transactional(readOnly = true)
+    public WorkTimeDto getRemainingWorkTime(Long userId) {
+        LocalDate today = LocalDate.now();
+        Optional<Attendance> optionalAttendance = attendanceRepository.findByUserIdAndAttendanceDate(userId, today);
+
+        if (optionalAttendance.isEmpty()) {
+            // 오늘 출근 기록이 없으면 남은 근무 시간은 8시간, 근무한 시간은 0시간
+            return new WorkTimeDto("08:00", "00:00");
+        }
+
+        Attendance attendance = optionalAttendance.get();
+
+        // 퇴근한 경우: 남은 시간은 0, 근무한 시간은 실제 근무시간
+        if (attendance.getCheckOutTime() != null) {
+            // 출근부터 퇴근까지의 실제 근무시간 계산
+            LocalDateTime checkInTime = attendance.getCheckInTime();
+            LocalDateTime checkOutTime = attendance.getCheckOutTime();
+            Duration workedDuration = Duration.ZERO;
+
+            if (attendance.getGoOutTime() != null) {
+                LocalDateTime goOutTime = attendance.getGoOutTime();
+                LocalDateTime returnTime = attendance.getReturnTime();
+
+                if (returnTime != null) {
+                    // 외출 시간을 제외한 실제 근무시간
+                    workedDuration = Duration.between(checkInTime, goOutTime)
+                            .plus(Duration.between(returnTime, checkOutTime));
+                } else {
+                    // 복귀하지 않은 경우
+                    workedDuration = Duration.between(checkInTime, goOutTime);
+                }
+            } else {
+                // 외출 기록이 없는 경우
+                workedDuration = Duration.between(checkInTime, checkOutTime);
+            }
+
+            long workedHours = workedDuration.toHours();
+            long workedMinutes = workedDuration.toMinutes() % 60;
+            String workedTime = String.format("%02d:%02d", workedHours, workedMinutes);
+
+            return new WorkTimeDto("00:00", workedTime);
+        }
+
+        // 2. 현재까지 근무한 시간 계산 (퇴근하지 않은 경우)
+        LocalDateTime checkInTime = attendance.getCheckInTime();
+        LocalDateTime now = LocalDateTime.now();
+        Duration workedDuration = Duration.ZERO; // 실제 근무 시간
+
+        if (attendance.getGoOutTime() != null) {
+            LocalDateTime goOutTime = attendance.getGoOutTime();
+            LocalDateTime returnTime = attendance.getReturnTime();
+
+            if (returnTime != null) {
+                // 외출 시작부터 복귀까지의 시간은 근무 시간에서 제외
+                // (checkInTime ~ goOutTime) + (returnTime ~ now)
+                workedDuration = Duration.between(checkInTime, goOutTime).plus(Duration.between(returnTime, now));
+            } else {
+                // 외출 중인 경우: checkInTime ~ goOutTime 까지만 근무 시간으로 계산
+                workedDuration = Duration.between(checkInTime, goOutTime);
+            }
+        } else {
+            // 외출 기록이 없는 경우: checkInTime ~ now 까지가 근무 시간
+            workedDuration = Duration.between(checkInTime, now);
+        }
+
+        // 근무한 시간 계산
+        long workedHours = workedDuration.toHours();
+        long workedMinutes = workedDuration.toMinutes() % 60;
+        String workedTime = String.format("%02d:%02d", workedHours, workedMinutes);
+
+        // 하루 총 필요 근무 시간 (8시간)
+        Duration standardWorkDuration = Duration.ofHours(8);
+
+        // 남은 근무 시간 계산
+        Duration remainingDuration = standardWorkDuration.minus(workedDuration);
+
+        // 남은 시간이 음수이면 (초과 근무) 00:00으로 처리
+        if (remainingDuration.isNegative()) {
+            return new WorkTimeDto("00:00", workedTime);
+        }
+
+        // 남은 근무 시간 계산
+        long hours = remainingDuration.toHours();
+        long minutes = remainingDuration.toMinutes() % 60;
+        String remainingTime = String.format("%02d:%02d", hours, minutes);
+
+        return new WorkTimeDto(remainingTime, workedTime);
     }
 }
