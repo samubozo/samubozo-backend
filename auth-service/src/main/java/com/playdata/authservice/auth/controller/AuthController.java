@@ -62,7 +62,7 @@ public class AuthController {
     public ResponseEntity<?> refreshToken(@RequestBody TokenRefreshRequestDto requestDto) {
         try {
             TokenUserInfo userInfo = jwtTokenProvider.validateAndGetTokenUserInfo(requestDto.getRefreshToken());
-            String savedToken = (String) redisTemplate.opsForValue().get(userInfo.getEmail());
+            String savedToken = (String) redisTemplate.opsForValue().get("user:refresh:" + userInfo.getEmployeeNo());
 
             if (!requestDto.getRefreshToken().equals(savedToken)) {
                 log.warn("요청된 리프레시 토큰과 Redis에 저장된 토큰이 일치하지 않습니다.");

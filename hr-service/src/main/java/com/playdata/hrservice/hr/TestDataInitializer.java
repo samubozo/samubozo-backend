@@ -31,10 +31,10 @@ public class TestDataInitializer implements CommandLineRunner {
     @Override
     public void run(String... args) throws Exception {
         // 부서 더미 데이터 생성 및 저장
-        createDepartment(1L, "경영지원", "#FFAB91");
-        createDepartment(2L, "인사팀", "#B39DDB");
-        createDepartment(3L, "회계팀", "#81D4FA");
-        createDepartment(4L, "영업팀", "#A5D6A7");
+        createDepartment(1L, "경영지원", "#FFAB91", "https://i.pravatar.cc/150?img=10");
+        createDepartment(2L, "인사팀", "#B39DDB", "https://i.pravatar.cc/150?img=11");
+        createDepartment(3L, "회계팀", "#81D4FA", "https://i.pravatar.cc/150?img=12");
+        createDepartment(4L, "영업팀", "#A5D6A7", "https://i.pravatar.cc/150?img=13");
 
         // 직책 더미 데이터 생성 및 저장
         createPosition(1L, "사장", "Y");
@@ -59,12 +59,13 @@ public class TestDataInitializer implements CommandLineRunner {
         createTestUser("test5", "test5@s.com", "1234", 4L, 1L, DEFAULT_PROFILE_IMAGE_URL + "5");
     }
 
-    private void createDepartment(Long id, String name, String color) {
+    private void createDepartment(Long id, String name, String color, String imageUrl) {
         if (departmentRepository.findById(id).isEmpty()) {
             Department department = Department.builder()
                     .departmentId(id)
                     .name(name)
                     .departmentColor(color)
+                    .imageUrl(imageUrl)
                     .build();
             departmentRepository.save(department);
             log.info("Department {} created.", name);
