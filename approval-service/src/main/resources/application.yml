@@ -4,3 +4,9 @@ server:
 spring:
   application:
     name: approval-service
+
+logging:
+  level:
+    root: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p [%t] %c{1.}:%L - %m%n"

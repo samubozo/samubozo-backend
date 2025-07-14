@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -33,7 +34,8 @@ public class LeaveAccrualScheduler {
         log.info("{} 기준, 입사 1주년 연차 부여 스케줄을 시작합니다.", today);
 
         try {
-            List<UserDto> users = hrServiceClient.getUsersWithFirstAnniversary(today);
+            String todayString = today.format(DateTimeFormatter.ISO_LOCAL_DATE);
+            List<UserDto> users = hrServiceClient.getUsersWithFirstAnniversary(todayString);
             log.info("총 {}명의 입사 1주년 대상자가 조회되었습니다.", users.size());
 
             users.forEach(user -> {

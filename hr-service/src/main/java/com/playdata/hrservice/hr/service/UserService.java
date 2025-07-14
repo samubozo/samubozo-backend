@@ -279,6 +279,20 @@ public class UserService {
         userRepository.save(user);
     }
 
+    // 특정 사용자가 특정 날짜에 승인된 외부 일정(출장, 연수 등)이 있는지 확인
+    public boolean hasApprovedExternalSchedule(Long userId, LocalDate date) {
+        // TODO: 실제 외부 일정 관리 로직 구현 필요
+        // 현재는 항상 false 반환 (임시)
+        return false;
+    }
+
+    // 특정 사용자가 특정 날짜에 승인된 외부 일정의 종류를 조회
+    public String getApprovedExternalScheduleType(Long userId, LocalDate date) {
+        // TODO: 실제 외부 일정 관리 로직 구현 필요
+        // 현재는 항상 null 반환 (임시)
+        return null;
+    }
+
 }
 
 
