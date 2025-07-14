@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -17,12 +19,27 @@ public class PayrollService {
 
     public PayrollResponseDto savePayroll(PayrollRequestDto requestDto) {
 
+        Long userId = requestDto.getUserId();
+        int payYear = requestDto.getPayYear();
+        int payMonth = requestDto.getPayMonth();
+
+
+        Optional<Payroll> existing = payrollRepository.findByUserIdAndPayYearAndPayMonth(
+                userId, payYear, payMonth
+        );
+
+        // ✅ 2. 존재하면 중복 입력 방지
+        if (existing.isPresent()) {
+            throw new IllegalArgumentException("이미 해당 월의 급여 정보가 존재합니다.");
+        }
         // 1. 급여 정보 저장
         Payroll payroll = Payroll.builder()
                 .userId(requestDto.getUserId())
                 .basePayroll(requestDto.getBasePayroll())
                 .positionAllowance(requestDto.getPositionAllowance())
                 .mealAllowance(requestDto.getMealAllowance())
+                .payYear(requestDto.getPayYear())
+                .payMonth(requestDto.getPayMonth())
                 .build();
 
         Payroll saved = payrollRepository.save(payroll);
@@ -57,13 +74,19 @@ public class PayrollService {
         return toDto(updated);
     }
 
-
+    // 4. 급여 정보 삭제
     public void deletePayroll(Long userId) {
         Payroll payroll = payrollRepository.findByUserId(userId)
                 .orElseThrow(() -> new IllegalArgumentException("삭제할 급여 정보가 없습니다."));
         payrollRepository.delete(payroll);
     }
 
+    // 특정 연 /월 급여 조회
+    public PayrollResponseDto getPayrollByMonth(Long userId, int year, int month) {
+        Payroll payroll = payrollRepository.findByUserIdAndPayYearAndPayMonth(userId, year, month)
+                .orElseThrow(() -> new IllegalArgumentException("해당 월의 급여 정보가 존재하지 않습니다."));
+        return toDto(payroll);
+    }
 
     // Entity -> Dto 변환 메서드
     private PayrollResponseDto toDto(Payroll payroll) {

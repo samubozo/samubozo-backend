@@ -33,6 +33,12 @@ public class Payroll {
     @Column(name = "meal_allowance")
     private Integer mealAllowance;
 
+    @Column(name = "pay_year", nullable = false)
+    private Integer payYear;
+
+    @Column(name = "pay_month", nullable = false)
+    private Integer payMonth;
+
     @Column(name = "updated_at")
     @UpdateTimestamp
     private LocalDateTime updatedAt;
