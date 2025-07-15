@@ -2,6 +2,7 @@ package com.playdata.certificateservice.service;
 
 
 import com.playdata.certificateservice.client.HrServiceClient;
+import com.playdata.certificateservice.common.dto.CommonResDto;
 import com.playdata.certificateservice.dto.CertificateReqDto;
 import com.playdata.certificateservice.dto.CertificateResDto;
 import com.playdata.certificateservice.dto.UserFeignResDto;
@@ -17,13 +18,14 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType0Font;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.FileInputStream;
-import java.io.IOException;
+import java.io.*;
 
 @Slf4j
 @Service
@@ -38,60 +40,259 @@ public class CertificateService {
     public void createCertificate(CertificateReqDto dto) {
         // 1. Certificate 객체 생성 및 저장
         Certificate certificate = Certificate.builder()
+                .certificateId(dto.getCertificateId())
                 .employeeNo(dto.getEmployeeNo())
                 .type(Type.valueOf(dto.getType().name()))
                 .status(Status.REQUESTED) // 기본값
                 .purpose(dto.getPurpose())
                 .requestDate(dto.getRequestDate())
+                .approveDate(dto.getApproveDate())
                 .build();
 
+        log.info("Saved certificate: {}", certificate);
+
         certificateRepository.save(certificate);
+    }
 
-        // 2. FeignClient로 유저 정보 조회
-        UserFeignResDto userInfo = hrServiceClient.getUserById(dto.getEmployeeNo());
-        if (userInfo == null) {
-            throw new EntityNotFoundException("유저 정보 없음");
-        }
+    public byte[] generateCertificatePdf(Long id) {
+        Certificate certificate = certificateRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("증명서 없음"));
 
-        // 3. PDF 생성 및 저장
+        CommonResDto<UserFeignResDto> response = hrServiceClient.getUserById(certificate.getEmployeeNo());
+        UserFeignResDto userInfo = response.getResult();
+        if (userInfo == null) throw new EntityNotFoundException("유저 정보 없음");
+
         try {
-            // 필요에 따라 fontPath, savePath 세팅
-            String fontPath = "/경로/폰트.ttf";
-            String savePath = "/경로/pdf";
-            generatePdf(certificate, userInfo, fontPath, savePath);
+            String fontPath = "/Users/yeni/Downloads/nanum-gothic/NanumGothic.ttf";
+            return generatePdf(certificate, userInfo, fontPath);
         } catch (IOException e) {
             throw new RuntimeException("PDF 생성 실패", e);
         }
     }
 
-    public void generatePdf(Certificate certificate, UserFeignResDto userInfo, String fontPath, String savePath) throws IOException {
-        PDDocument document = new PDDocument();
-        PDPage page = new PDPage();
-        document.addPage(page);
+    public byte[] generatePdf(Certificate certificate, UserFeignResDto userInfo, String fontPath) throws IOException {
+        try (PDDocument document = new PDDocument(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            PDPage page = new PDPage();
+            document.addPage(page);
 
-        PDFont font = PDType0Font.load(document, new FileInputStream(fontPath));
+            PDFont font = PDType0Font.load(document, new FileInputStream(fontPath));
 
-        try (PDPageContentStream contentStream = new PDPageContentStream(document, page)) {
-            contentStream.beginText();
-            contentStream.setFont(font, 14);
-            contentStream.newLineAtOffset(100, 700);
-            contentStream.showText("유저: " + userInfo.getUserName()); // 실제 필드명에 맞게
-            contentStream.newLineAtOffset(0, -30);
-            contentStream.showText("타입: " + certificate.getType());
-            contentStream.newLineAtOffset(0, -30);
-            contentStream.showText("신청일: " + certificate.getRequestDate());
-            contentStream.newLineAtOffset(0, -30);
-            contentStream.showText("용도: " + certificate.getPurpose());
-            contentStream.endText();
+            float pageWidth = page.getMediaBox().getWidth();
+            float pageHeight = page.getMediaBox().getHeight();
+
+            // 1. 표 위치 및 크기(A4 기준) - 너비 더 넓게
+            float tableX = 40;
+            float tableY = pageHeight - 180; // 위쪽에 배치
+            float tableWidth = pageWidth - 80; // (기존 120 → 80)
+            float rowHeight = 44;
+
+            // 2. 행 Y좌표 (5줄)
+            float[] rowYs = new float[5];
+            for (int i = 0; i < 5; i++) rowYs[i] = tableY - rowHeight * i;
+
+            // 3. 열 너비 - 3,4번째(주민등록번호/직위)가 더 넓음: 15%/25%/30%/30%
+            float[] colWidths = {
+                    tableWidth * 0.15f,  // 성명/주소/소속 (좁게)
+                    tableWidth * 0.25f,  // 값1 (이름, 주소, 부서)
+                    tableWidth * 0.30f,  // 주민등록번호/직위 (넓게)
+                    tableWidth * 0.30f   // 주민등록번호/직위 값 (넓게)
+            };
+            float[] colXs = new float[colWidths.length + 1];
+            colXs[0] = tableX;
+            for (int i = 1; i <= colWidths.length; i++) {
+                colXs[i] = colXs[i - 1] + colWidths[i - 1];
+            }
+
+            // 데이터 추출
+            String userName = safe(userInfo.getUserName());
+            String rrn = safe(userInfo.getResidentRegNo());
+            String address = safe(userInfo.getAddress());
+            String dept = safe(userInfo.getDepartmentName());
+            String position = safe(userInfo.getPositionName());
+            String period = userInfo.getHireDate() != null ? userInfo.getHireDate() + " ~ 현재" : "";
+            String purpose = safe(certificate.getPurpose());
+
+            String title = "재직증명서";
+            if (certificate.getType() != null) {
+                switch (certificate.getType().name()) {
+                    case "EMPLOYMENT": title = "재직증명서"; break;
+                    case "CAREER": title = "경력증명서"; break;
+                    default: title = certificate.getType().name();
+                }
+            }
+
+            try (PDPageContentStream cs = new PDPageContentStream(document, page)) {
+                // 1. 타이틀
+                cs.beginText();
+                cs.setFont(font, 36);
+                float titleWidth = font.getStringWidth(title) / 1000 * 36;
+                cs.newLineAtOffset((pageWidth - titleWidth) / 2, tableY + 60);
+                cs.showText(title);
+                cs.endText();
+
+                // 2. 표 외곽선(4행)
+                cs.setLineWidth(1.3f);
+                cs.addRect(tableX, tableY - rowHeight * 4, tableWidth, rowHeight * 4);
+                cs.stroke();
+
+                // 3. 가로선
+                for (int i = 1; i < 4; i++) {
+                    cs.moveTo(tableX, tableY - rowHeight * i);
+                    cs.lineTo(tableX + tableWidth, tableY - rowHeight * i);
+                    cs.stroke();
+                }
+
+                // 4. 세로선 (1,3행만 네 칸)
+                for (int i = 1; i < colXs.length - 1; i++) {
+                    cs.moveTo(colXs[i], rowYs[0]);
+                    cs.lineTo(colXs[i], rowYs[1]);
+                    cs.stroke();
+
+                    cs.moveTo(colXs[i], rowYs[2]);
+                    cs.lineTo(colXs[i], rowYs[3]);
+                    cs.stroke();
+                }
+                // 2행(주소), 4행(기간): 첫 칸만 나누기
+                cs.moveTo(colXs[1], rowYs[1]);
+                cs.lineTo(colXs[1], rowYs[2]);
+                cs.stroke();
+
+                cs.moveTo(colXs[1], rowYs[3]);
+                cs.lineTo(colXs[1], rowYs[4]);
+                cs.stroke();
+
+                // 5. 표 텍스트 (폰트 20)
+                cs.setFont(font, 20);
+                drawCellText(cs, "성    명", font, 20, colXs[0], rowYs[0], colWidths[0], rowHeight);
+                drawCellText(cs, userName, font, 20, colXs[1], rowYs[0], colWidths[1], rowHeight);
+                drawCellText(cs, "주민등록번호", font, 20, colXs[2], rowYs[0], colWidths[2], rowHeight);
+                drawCellText(cs, rrn, font, 20, colXs[3], rowYs[0], colWidths[3], rowHeight);
+
+                drawCellText(cs, "주    소", font, 20, colXs[0], rowYs[1], colWidths[0], rowHeight);
+                drawCellText(cs, address, font, 20, colXs[1], rowYs[1], colWidths[1] + colWidths[2] + colWidths[3], rowHeight);
+
+                drawCellText(cs, "소    속", font, 20, colXs[0], rowYs[2], colWidths[0], rowHeight);
+                drawCellText(cs, dept, font, 20, colXs[1], rowYs[2], colWidths[1], rowHeight);
+                drawCellText(cs, "직    위", font, 20, colXs[2], rowYs[2], colWidths[2], rowHeight);
+                drawCellText(cs, position, font, 20, colXs[3], rowYs[2], colWidths[3], rowHeight);
+
+                drawCellText(cs, "기    간", font, 20, colXs[0], rowYs[3], colWidths[0], rowHeight);
+                drawCellText(cs, period, font, 20, colXs[1], rowYs[3], colWidths[1] + colWidths[2] + colWidths[3], rowHeight);
+
+                // 6. 표 아래 문구 (type별로 다르게)
+                String footerText;
+                if (certificate.getType() != null) {
+                    switch (certificate.getType().name()) {
+                        case "EMPLOYMENT":
+                            footerText = "상기와 같이 재직 중임을 증명함";
+                            break;
+                        case "CAREER":
+                            footerText = "상기와 같이 근무하였음을 증명함";
+                            break;
+                        default:
+                            footerText = "상기와 같이 사실임을 증명함";
+                    }
+                } else {
+                    footerText = "상기와 같이 사실임을 증명함";
+                }
+                cs.beginText();
+                cs.setFont(font, 17);
+                cs.newLineAtOffset(pageWidth / 2 - (font.getStringWidth(footerText) / 1000 * 17) / 2, rowYs[4] - 48);
+                cs.showText(footerText);
+                cs.endText();
+
+                // 7. 용도
+                cs.beginText();
+                cs.setFont(font, 16);
+                cs.newLineAtOffset(tableX, rowYs[4] - 90);
+                cs.showText("용도 : " + (purpose.isEmpty() ? "제출용" : purpose));
+                cs.endText();
+
+                // 8. 하단 회사 정보 (중앙, 간격 크게)
+                float bottomY = 100; // 기존 120 → 100로 더 아래로 내림
+                String corpAddress = "서울시 강남구 ○○로 123";
+                String corpName = "○○컴퍼니";
+                String ceo = "박대표";
+
+                // 주소 (회사명 위, 간격 +80)
+                cs.beginText();
+                cs.setFont(font, 14);
+                float addrWidth = font.getStringWidth("주소 : " + corpAddress) / 1000 * 14;
+                cs.newLineAtOffset((pageWidth - addrWidth) / 2, bottomY + 80);
+                cs.showText("주소 : " + corpAddress);
+                cs.endText();
+
+                // 회사명 (중앙, 간격 +45)
+                cs.beginText();
+                cs.setFont(font, 16);
+                float corpWidth = font.getStringWidth("회사명 : " + corpName) / 1000 * 16;
+                cs.newLineAtOffset((pageWidth - corpWidth) / 2, bottomY + 45);
+                cs.showText("회사명 : " + corpName);
+                cs.endText();
+
+                // 대표이사 (간격 +10)
+                cs.beginText();
+                cs.setFont(font, 16);
+                float ceoWidth = font.getStringWidth("대표이사 : " + ceo) / 1000 * 16;
+                cs.newLineAtOffset((pageWidth - ceoWidth) / 2, bottomY + 10);
+                cs.showText("대표이사 : " + ceo);
+                cs.endText();
+
+                // (인) 텍스트
+                float inTextX = pageWidth - 90;
+                float inTextY = bottomY + 10;
+                cs.beginText();
+                cs.setFont(font, 14);
+                cs.newLineAtOffset(inTextX, inTextY);
+                cs.showText("(인)");
+                cs.endText();
+
+                // 도장 이미지
+                ClassPathResource resource = new ClassPathResource("9a94a2dad35c7ace.png");
+                byte[] sealBytes = resource.getInputStream().readAllBytes();
+                PDImageXObject sealImage = PDImageXObject.createFromByteArray(document, sealBytes, "seal");
+
+                // (인) 텍스트 중앙에 도장 중앙이 오도록, 크기 65x65
+                float sealWidth = 85;
+                float sealHeight = 85;
+                float inTextFontSize = 14;
+                float inTextWidth = font.getStringWidth("(인)") / 1000 * inTextFontSize;
+                float inTextHeight = font.getFontDescriptor().getFontBoundingBox().getHeight() / 1000 * inTextFontSize;
+                float sealX = inTextX + inTextWidth/2 - sealWidth/2;
+                float sealY = inTextY + inTextHeight/2 - sealHeight/2;
+
+                cs.drawImage(sealImage, sealX, sealY, sealWidth, sealHeight);
+            }
+
+            document.save(baos);
+            return baos.toByteArray();
         }
+    }
 
-        document.save(savePath + "/certificate_" + certificate.getCertificateId() + ".pdf");
-        document.close();
+    // 텍스트를 셀 중앙에 그리는 함수
+    private void drawCellText(PDPageContentStream cs, String text, PDFont font, int fontSize,
+                              float x, float y, float width, float height) throws IOException {
+        log.info("drawCellText: {}", text); // 실제 PDF에 들어갈 값
+        if (text == null) text = "";
+        float textWidth = font.getStringWidth(text) / 1000 * fontSize;
+        float textHeight = font.getFontDescriptor().getFontBoundingBox().getHeight() / 1000 * fontSize;
+        float textX = x + (width - textWidth) / 2;
+        float textY = y - height / 2 - textHeight / 4; // 살짝 내려줘야 자연스럽다
+        cs.beginText();
+        cs.setFont(font, fontSize);
+        cs.newLineAtOffset(textX, textY);
+        cs.showText(text);
+        cs.endText();
+    }
+
+    // null safe
+    private String safe(String value) {
+        return value == null ? "" : value;
     }
 
     // 증명서 조회
-    public Page<CertificateResDto> listCertificates(Pageable pageable) {
-        Page<Certificate> certificates = certificateRepository.findAll(pageable);
+    public Page<CertificateResDto> listCertificates(Long employeeNo, Pageable pageable) {
+        Page<Certificate> certificates = certificateRepository.findByEmployeeNo(employeeNo, pageable);
         return certificates.map(certificate -> CertificateResDto.builder()
                 .certificateId(certificate.getCertificateId())
                 .type(Type.valueOf(certificate.getType().name()))
@@ -122,5 +323,6 @@ public class CertificateService {
         );
         certificateRepository.delete(certificate);
     }
+
 
 }

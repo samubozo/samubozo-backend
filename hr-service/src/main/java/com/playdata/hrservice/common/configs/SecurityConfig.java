@@ -35,7 +35,7 @@ public class SecurityConfig {
         http.authorizeHttpRequests(auth -> {
             auth
                     .requestMatchers("/actuator/**", "/hr/users/signup",
-                            "/hr/user/feign/**", "/hr/user/password", "/hr/positions","/hr/departments").permitAll()
+                            "/hr/user/feign/**","/hr/users/feign/**", "/hr/user/password", "/hr/positions","/hr/departments").permitAll()
                     .anyRequest().authenticated();
         });
 
