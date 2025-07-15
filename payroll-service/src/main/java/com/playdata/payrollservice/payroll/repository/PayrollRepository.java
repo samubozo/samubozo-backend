@@ -16,4 +16,7 @@ public interface PayrollRepository extends JpaRepository<Payroll, Long> {
 
     // 모든 사용자 급여 정보 조회
     List<Payroll> findAllByOrderByUpdatedAtDesc();
+
+    // 특정 사용자 한 달치 급여 조회
+    Optional<Payroll> findByUserIdAndPayYearAndPayMonth(Long userId, int payYear, int payMonth);
 }

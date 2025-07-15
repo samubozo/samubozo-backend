@@ -16,6 +16,10 @@ public class PayrollResponseDto {
     private Integer basePayroll;
     private Integer positionAllowance;
     private Integer mealAllowance;
+
+    private Integer payYear;
+    private Integer payMonth;
+
     private LocalDateTime updatedAt;
 
 }
