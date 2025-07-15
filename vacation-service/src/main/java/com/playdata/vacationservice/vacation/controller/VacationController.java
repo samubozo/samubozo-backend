@@ -1,15 +1,19 @@
 package com.playdata.vacationservice.vacation.controller;
 
 import com.playdata.vacationservice.common.auth.TokenUserInfo;
+import com.playdata.vacationservice.common.dto.CommonResDto;
+import com.playdata.vacationservice.vacation.dto.MonthlyVacationStatsDto;
+import com.playdata.vacationservice.vacation.dto.VacationBalanceResDto;
 import com.playdata.vacationservice.vacation.dto.VacationRequestDto;
-import com.playdata.vacationservice.vacation.dto.VacationBalanceResDto; // 추가
+import com.playdata.vacationservice.vacation.entity.Vacation;
 import com.playdata.vacationservice.vacation.service.VacationService;
-import com.playdata.vacationservice.common.dto.CommonResDto; // 추가
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * 휴가 관련 API 요청을 처리하는 컨트롤러입니다.
@@ -62,6 +66,48 @@ public class VacationController {
             return buildErrorResponse(HttpStatus.NOT_FOUND, e.getMessage());
         } catch (Exception e) {
             return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "연차 현황 조회 중 오류 발생");
+        }
+    }
+
+    /**
+     * 특정 사용자의 월별 휴가 사용 통계를 조회합니다.
+     *
+     * @param userId 사용자 ID
+     * @param year   조회할 연도
+     * @param month  조회할 월
+     * @return 월별 휴가 통계 응답
+     */
+    @GetMapping("/stats/{userId}/{year}/{month}")
+    public ResponseEntity<CommonResDto<MonthlyVacationStatsDto>> getMonthlyVacationStats(
+            @PathVariable Long userId,
+            @PathVariable int year,
+            @PathVariable int month) {
+        try {
+            MonthlyVacationStatsDto stats = vacationService.getMonthlyVacationStats(userId, year, month);
+            return buildSuccessResponse(stats, "월별 휴가 통계 조회 성공");
+        } catch (Exception e) {
+            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "월별 휴가 통계 조회 중 오류 발생");
+        }
+    }
+
+    /**
+     * 특정 사용자의 월별 반차 기록을 조회합니다.
+     *
+     * @param userId 사용자 ID
+     * @param year   조회할 연도
+     * @param month  조회할 월
+     * @return 월별 반차 기록 목록
+     */
+    @GetMapping("/half-day/{userId}/{year}/{month}")
+    public ResponseEntity<CommonResDto<List<Vacation>>> getMonthlyHalfDayVacations(
+            @PathVariable Long userId,
+            @PathVariable int year,
+            @PathVariable int month) {
+        try {
+            List<Vacation> halfDayVacations = vacationService.getMonthlyHalfDayVacations(userId, year, month);
+            return buildSuccessResponse(halfDayVacations, "월별 반차 기록 조회 성공");
+        } catch (Exception e) {
+            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "월별 반차 기록 조회 중 오류 발생");
         }
     }
 

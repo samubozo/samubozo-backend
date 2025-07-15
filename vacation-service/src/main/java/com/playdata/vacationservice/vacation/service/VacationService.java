@@ -1,15 +1,16 @@
 package com.playdata.vacationservice.vacation.service;
 
+import com.playdata.vacationservice.client.ApprovalServiceClient;
 import com.playdata.vacationservice.client.HrServiceClient;
+import com.playdata.vacationservice.client.dto.ApprovalRequestDto;
+import com.playdata.vacationservice.client.dto.UserDetailDto;
 import com.playdata.vacationservice.common.auth.TokenUserInfo;
+import com.playdata.vacationservice.vacation.dto.MonthlyVacationStatsDto;
+import com.playdata.vacationservice.vacation.dto.VacationBalanceResDto;
 import com.playdata.vacationservice.vacation.dto.VacationRequestDto;
-import com.playdata.vacationservice.vacation.dto.VacationBalanceResDto; // 추가
 import com.playdata.vacationservice.vacation.entity.*;
 import com.playdata.vacationservice.vacation.repository.VacationBalanceRepository;
 import com.playdata.vacationservice.vacation.repository.VacationRepository;
-import com.playdata.vacationservice.client.ApprovalServiceClient;
-import com.playdata.vacationservice.client.dto.ApprovalRequestDto;
-import com.playdata.vacationservice.client.dto.UserDetailDto;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +18,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDate; // LocalDate 임포트 추가
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 연차/휴가 관련 비즈니스 로직을 처리하는 서비스 클래스입니다.
@@ -33,6 +37,58 @@ public class VacationService {
     private final VacationRepository vacationRepository;
     private final ApprovalServiceClient approvalServiceClient;
     private final HrServiceClient hrServiceClient;
+
+    /**
+     * 특정 사용자의 특정 월의 휴가 사용 통계를 조회합니다.
+     *
+     * @param userId 사용자 ID
+     * @param year 연도
+     * @param month 월
+     * @return 월별 휴가 통계 DTO
+     */
+    public MonthlyVacationStatsDto getMonthlyVacationStats(Long userId, int year, int month) {
+        YearMonth yearMonth = YearMonth.of(year, month);
+        LocalDate startDate = yearMonth.atDay(1);
+        LocalDate endDate = yearMonth.atEndOfMonth();
+
+        List<Vacation> vacations = vacationRepository.findByUserIdAndStartDateBetweenAndVacationStatus(
+                userId, startDate, endDate, VacationStatus.APPROVED
+        );
+
+        BigDecimal fullDayVacations = BigDecimal.ZERO;
+        BigDecimal halfDayVacations = BigDecimal.ZERO;
+
+        for (Vacation vacation : vacations) {
+            if (vacation.getVacationType() == VacationType.ANNUAL_LEAVE) {
+                fullDayVacations = fullDayVacations.add(BigDecimal.ONE);
+            } else if (vacation.getVacationType() == VacationType.AM_HALF_DAY || vacation.getVacationType() == VacationType.PM_HALF_DAY) {
+                halfDayVacations = halfDayVacations.add(BigDecimal.ONE);
+            }
+        }
+
+        return new MonthlyVacationStatsDto(fullDayVacations, halfDayVacations);
+    }
+
+    /**
+     * 특정 사용자의 월별 반차 기록을 조회합니다.
+     *
+     * @param userId 사용자 ID
+     * @param year   연도
+     * @param month  월
+     * @return 월별 반차 기록 목록
+     */
+    @Transactional(readOnly = true)
+    public List<Vacation> getMonthlyHalfDayVacations(Long userId, int year, int month) {
+        YearMonth yearMonth = YearMonth.of(year, month);
+        LocalDate startDate = yearMonth.atDay(1);
+        LocalDate endDate = yearMonth.atEndOfMonth();
+
+        return vacationRepository.findByUserIdAndStartDateBetweenAndVacationStatus(
+                userId, startDate, endDate, VacationStatus.APPROVED
+        ).stream()
+                .filter(vacation -> vacation.getVacationType() == VacationType.AM_HALF_DAY || vacation.getVacationType() == VacationType.PM_HALF_DAY)
+                .collect(Collectors.toList());
+    }
 
     /**
      * 사용자로부터 휴가 신청을 받아 처리합니다.
