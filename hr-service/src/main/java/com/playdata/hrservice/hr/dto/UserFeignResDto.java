@@ -15,6 +15,7 @@ public class UserFeignResDto {
     private Long employeeNo;
     private String userName;
     private String email;
+    private String residentRegNo;
     private String externalEmail;
     private String password;
     private String gender;

@@ -103,7 +103,7 @@ public class HRController {
     // 직원 리스트 조회
     // 직원 조회 (기존 listUsers)
     @GetMapping("/user/list")
-    public ResponseEntity<?> listUsers(@PageableDefault(size = 10, sort = "employeeNo")Pageable pageable,
+    public ResponseEntity<?> listUsers(@PageableDefault(sort = "employeeNo")Pageable pageable,
                                        @AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
         String hrRole = tokenUserInfo.getHrRole();
         return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "Success",

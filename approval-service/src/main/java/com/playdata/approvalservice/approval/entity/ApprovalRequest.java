@@ -50,7 +50,7 @@ public class ApprovalRequest {
     private String vacationType;
 
     @Column(name = "certificates_id")
-    private Long certificatesId;
+    private Long certificateId;
 
     @Builder
     public ApprovalRequest(RequestType requestType, Long applicantId, Long approverId, ApprovalStatus status, LocalDateTime requestedAt, LocalDateTime approvedAt, String reason, Long vacationsId, String vacationType, Long certificatesId) {
@@ -63,7 +63,7 @@ public class ApprovalRequest {
         this.reason = reason;
         this.vacationsId = vacationsId;
         this.vacationType = vacationType;
-        this.certificatesId = certificatesId;
+        this.certificateId = certificatesId;
     }
 
     // 결재 상태 변경 메소드

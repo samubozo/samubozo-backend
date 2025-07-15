@@ -8,7 +8,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,16 +32,16 @@ public class CertificateController {
     }
 
     // 증명서 조회
-    @GetMapping("/list")
-    public ResponseEntity<?> listCertificates(@PageableDefault(size = 5, sort = "certificateId") Pageable pageable) {
+    @GetMapping("/list/{employeeNo}")
+    public ResponseEntity<?> listCertificates(@PathVariable Long employeeNo ,@PageableDefault(sort = "certificateId") Pageable pageable) {
         log.info("List certificates request: {}", pageable);
         return new ResponseEntity<>(new CommonResDto(HttpStatus.OK,
-                "Success", certificateService.listCertificates(pageable)), HttpStatus.OK);
+                "Success", certificateService.listCertificates(employeeNo, pageable)), HttpStatus.OK);
     }
 
     // 증명서 수정
     @PutMapping("/certificate/{id}")
-    public ResponseEntity<?> updateCertificate(@PathVariable("id") Long id, CertificateReqDto dto) {
+    public ResponseEntity<?> updateCertificate(@PathVariable("id") Long id, @RequestBody CertificateReqDto dto) {
         certificateService.updateCertificate(id, dto);
         CommonResDto resDto = new CommonResDto(HttpStatus.OK, "수정 완료되었습니다.", null);
         return ResponseEntity.ok().body(resDto);
@@ -51,6 +53,17 @@ public class CertificateController {
         certificateService.deleteCertificate(id);
         CommonResDto resDto = new CommonResDto(HttpStatus.OK, "삭제 완료되었습니다.", id);
         return ResponseEntity.ok().body(resDto);
+    }
+
+    @GetMapping("/print/{id}")
+    public ResponseEntity<byte[]> printCertificatePdf(@PathVariable Long id) {
+        byte[] pdfBytes = certificateService.generateCertificatePdf(id);
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=certificate_" + id + ".pdf")
+                .contentType(MediaType.APPLICATION_PDF)
+                .contentLength(pdfBytes.length)
+                .body(pdfBytes);
     }
 
 }

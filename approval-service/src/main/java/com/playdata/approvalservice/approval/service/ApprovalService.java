@@ -46,7 +46,7 @@ public class ApprovalService {
                 .reason(createDto.getReason())
                 .vacationsId(createDto.getVacationsId())
                 .vacationType(createDto.getVacationType()) // vacationType 저장
-                .certificatesId(createDto.getCertificatesId())
+                .certificatesId(createDto.getCertificateId())
                 .status(ApprovalStatus.PENDING) // 초기 상태는 PENDING
                 .requestedAt(LocalDateTime.now()) // 요청 시간은 현재 시간
                 .build();

@@ -1,6 +1,7 @@
 package com.playdata.certificateservice.client;
 
 
+import com.playdata.certificateservice.common.dto.CommonResDto;
 import com.playdata.certificateservice.dto.UserFeignResDto;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,6 +13,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 public interface HrServiceClient {
 
     @GetMapping("/hr/users/feign/{employeeNo}")
-    UserFeignResDto getUserById(@PathVariable Long employeeNo);
+    CommonResDto<UserFeignResDto> getUserById(@PathVariable Long employeeNo);
 
 }
