@@ -115,14 +115,15 @@ public class HRController {
     public ResponseEntity<?> searchUsers(
             @RequestParam(required = false) String userName,
             @RequestParam(required = false) String departmentName,
+            @RequestParam(required = false) String hrRole,
             @PageableDefault(size = 10, sort = "employeeNo") Pageable pageable) { // Pageable은 검색 조건 없을 때만 사용
         Object result;
-        if (userName != null || departmentName != null) {
+        if (userName != null || departmentName != null || hrRole != null) {
             // 검색 조건이 있을 경우, 페이징 없이 전체 리스트 반환
-            result = userService.searchUsers(userName, departmentName, null); // Pageable을 null로 전달
+            result = userService.searchUsers(userName, departmentName, hrRole, null); // Pageable을 null로 전달
         } else {
             // 검색 조건이 없을 경우, 페이징 적용
-            result = userService.searchUsers(null, null, pageable);
+            result = userService.searchUsers(null, null, null, pageable);
         }
         return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "Success", result), HttpStatus.OK);
     }
@@ -136,11 +137,25 @@ public class HRController {
     }
 
     // 부서 추가
-    @PostMapping("/departments")
-    public ResponseEntity<?> createDepartment(@RequestBody DepartmentReqDto dto) {
+    @PostMapping(value = "/departments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> createDepartment(@ModelAttribute DepartmentReqDto dto) {
         log.info("Create department : {}", dto);
         departmentService.createDepartment(dto);
         return ResponseEntity.ok().build();
+    }
+
+    // 부서 수정
+    @PutMapping(value = "/departments/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> updateDepartment(@PathVariable("id") Long departmentId, @ModelAttribute DepartmentReqDto dto) {
+        departmentService.updateDepartment(departmentId, dto);
+        return ResponseEntity.ok().build();
+    }
+
+    // 부서 삭제
+    @DeleteMapping("/departments/{id}")
+    public ResponseEntity<?> deleteDepartment(@PathVariable("id") Long departmentId) {
+        departmentService.deleteDepartment(departmentId);
+        return ResponseEntity.noContent().build();
     }
 
     // 직책 정보 조회 API

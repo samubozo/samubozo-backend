@@ -1,6 +1,7 @@
 package com.playdata.vacationservice.vacation.service;
 
 import com.playdata.vacationservice.vacation.dto.VacationRequestDto;
+import com.playdata.vacationservice.vacation.dto.VacationBalanceResDto; // 추가
 import com.playdata.vacationservice.vacation.entity.Vacation;
 import com.playdata.vacationservice.vacation.entity.VacationBalance;
 import com.playdata.vacationservice.vacation.entity.VacationType;
@@ -160,5 +161,39 @@ class VacationServiceTest {
         // 전혀 호출이 일어나지 않아야 함
         verifyNoInteractions(vacationRepository, hrServiceClient, approvalServiceClient);
         verify(vacationBalanceRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("사용자의 연차 현황을 성공적으로 조회해야 한다.")
+    void getVacationBalance_success() {
+        // Given
+        // setUp에서 이미 vacationBalance가 설정되어 있고, findByUserId가 이를 반환하도록 stubbing 되어 있음
+
+        // When
+        VacationBalanceResDto result = vacationService.getVacationBalance(userId);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getUserId()).isEqualTo(userId);
+        assertThat(result.getTotalGranted()).isEqualTo(BigDecimal.TEN);
+        assertThat(result.getUsedDays()).isEqualTo(BigDecimal.ZERO);
+        assertThat(result.getRemainingDays()).isEqualTo(BigDecimal.TEN);
+
+        verify(vacationBalanceRepository).findByUserId(userId); // findByUserId가 호출되었는지 검증
+    }
+
+    @Test
+    @DisplayName("연차 현황 조회 시 해당 사용자의 연차 정보를 찾을 수 없으면 예외를 발생시켜야 한다.")
+    void getVacationBalance_vacationBalanceNotFound_throwsException() {
+        // Given
+        when(vacationBalanceRepository.findByUserId(userId))
+                .thenReturn(Optional.empty()); // 연차 정보가 없는 상황 설정
+
+        // When & Then
+        assertThatThrownBy(() -> vacationService.getVacationBalance(userId))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("해당 사용자의 연차 정보를 찾을 수 없습니다.");
+
+        verify(vacationBalanceRepository).findByUserId(userId); // findByUserId가 호출되었는지 검증
     }
 }

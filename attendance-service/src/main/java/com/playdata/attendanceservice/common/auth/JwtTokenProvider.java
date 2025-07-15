@@ -7,23 +7,26 @@ import io.jsonwebtoken.SignatureAlgorithm;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import lombok.extern.slf4j.Slf4j;
+import java.time.Duration;
 import java.util.Date;
 
 
 @Component
+@Slf4j
 public class JwtTokenProvider {
 
     @Value("${jwt.secretKey}")
     private String secretKey;
 
     @Value("${jwt.expiration}")
-    private int expiration;
+    private Duration expiration;
 
     @Value("${jwt.secretKeyRt}")
     private String secretKeyRt;
 
     @Value("${jwt.expirationRt}")
-    private int expirationRt;
+    private Duration expirationRt;
 
 
     public String createToken(String email, String hrRole, Long employeeNo){
@@ -32,10 +35,11 @@ public class JwtTokenProvider {
         claims.put("employeeNo", employeeNo);
         Date now = new Date();
 
+        log.info("Access Token Expiration (millis): {}", expiration.toMillis()); // 추가
         return Jwts.builder()
                 .setClaims(claims)
                 .setIssuedAt(now)
-                .setExpiration(new Date(now.getTime() + expiration * 100 * 10000))
+                .setExpiration(new Date(now.getTime() + expiration.toMillis()))
                 .signWith(SignatureAlgorithm.HS256, secretKey)
                 .compact();
     }
@@ -46,10 +50,11 @@ public class JwtTokenProvider {
         claims.put("employeeNo", employeeNo);
         Date now = new Date();
 
+        log.info("Refresh Token Expiration (millis): {}", expirationRt.toMillis()); // 추가
         return Jwts.builder()
                 .setClaims(claims)
                 .setIssuedAt(now)
-                .setExpiration(new Date(now.getTime() + expirationRt * 60 * 1000))
+                .setExpiration(new Date(now.getTime() + expirationRt.toMillis()))
                 .signWith(SignatureAlgorithm.HS256, secretKeyRt)
                 .compact();
     }
@@ -84,9 +89,6 @@ public class JwtTokenProvider {
                 .build();
     }
 }
-
-
-
 
 
 

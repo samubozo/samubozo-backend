@@ -14,10 +14,12 @@ public class DepartmentResDto {
     private Long departmentId;
     private String name;
     private String departmentColor;
+    private String imageUrl;
 
     public DepartmentResDto(Department department) {
         this.departmentId = department.getDepartmentId();
         this.name = department.getName();
         this.departmentColor = department.getDepartmentColor();
+        this.imageUrl = department.getImageUrl();
     }
 }

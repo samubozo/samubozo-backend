@@ -116,7 +116,7 @@ class HrServiceApplicationTests {
     @Test
     void searchUsersByDepartmentName() {
         // 검색 조건이 있을 경우 (부서명), 페이징 없이 List 반환
-        List<UserResDto> users = (List<UserResDto>) userService.searchUsers(null, "경영지원", null);
+        List<UserResDto> users = (List<UserResDto>) userService.searchUsers(null, "경영지원", null, null);
         assertThat(users).hasSize(2);
         assertThat(users).extracting(UserResDto::getUserName).containsExactlyInAnyOrder("홍길동", "이영희");
     }
@@ -124,7 +124,7 @@ class HrServiceApplicationTests {
     @Test
     void searchUsersByUserName() {
         // 검색 조건이 있을 경우 (이름), 페이징 없이 List 반환
-        List<UserResDto> users = (List<UserResDto>) userService.searchUsers("홍길동", null, null);
+        List<UserResDto> users = (List<UserResDto>) userService.searchUsers("홍길동", null, null, null);
         assertThat(users).hasSize(1);
         assertThat(users.get(0).getUserName()).isEqualTo("홍길동");
     }
@@ -132,7 +132,7 @@ class HrServiceApplicationTests {
     @Test
     void searchUsersByUserNameAndDepartmentName() {
         // 검색 조건이 있을 경우 (이름과 부서명), 페이징 없이 List 반환
-        List<UserResDto> users = (List<UserResDto>) userService.searchUsers("이영희", "경영지원", null);
+        List<UserResDto> users = (List<UserResDto>) userService.searchUsers("이영희", "경영지원", null, null);
         assertThat(users).hasSize(1);
         assertThat(users.get(0).getUserName()).isEqualTo("이영희");
         assertThat(users.get(0).getDepartment().getName()).isEqualTo("경영지원");
@@ -142,7 +142,7 @@ class HrServiceApplicationTests {
     void searchUsersNoCriteria() {
         // 검색 조건이 없을 경우, 페이징 적용하여 Page 반환
         Pageable pageable = PageRequest.of(0, 10);
-        Page<UserResDto> users = (Page<UserResDto>) userService.searchUsers(null, null, pageable);
+        Page<UserResDto> users = (Page<UserResDto>) userService.searchUsers(null, null, null, pageable);
         assertThat(users.getTotalElements()).isEqualTo(3);
         assertThat(users.getContent()).hasSize(3);
     }
@@ -150,7 +150,7 @@ class HrServiceApplicationTests {
     @Test
     void searchUsersNotFound() {
         // 검색 조건이 있을 경우 (존재하지 않는 부서명), 페이징 없이 List 반환
-        List<UserResDto> users = (List<UserResDto>) userService.searchUsers(null, "없는부서", null);
+        List<UserResDto> users = (List<UserResDto>) userService.searchUsers(null, "없는부서", null, null);
         assertThat(users).isEmpty();
     }
 }

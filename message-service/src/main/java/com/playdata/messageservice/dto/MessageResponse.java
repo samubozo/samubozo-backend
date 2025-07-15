@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Setter
@@ -18,5 +19,5 @@ public class MessageResponse {
     private LocalDateTime sentAt;
     private Boolean isRead;
     private LocalDateTime readAt;
-    private String attachmentUrl;
+    private List<AttachmentResponse> attachments;
 }

@@ -17,6 +17,6 @@
          *
          * @param requestDto 결재 생성에 필요한 정보
          */
-        @PostMapping("/api/v1/approvals")
+        @PostMapping("/approvals")
         void createApproval(@RequestBody ApprovalRequestDto requestDto);
     }

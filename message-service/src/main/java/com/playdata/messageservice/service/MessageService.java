@@ -3,6 +3,7 @@ package com.playdata.messageservice.service;
 import com.playdata.messageservice.client.HrServiceClient;
 import com.playdata.messageservice.dto.MessageRequest;
 import com.playdata.messageservice.dto.MessageResponse;
+import com.playdata.messageservice.dto.AttachmentResponse;
 import com.playdata.messageservice.dto.UserFeignResDto;
 import com.playdata.messageservice.entity.Message;
 import com.playdata.messageservice.repository.MessageRepository;
@@ -11,14 +12,19 @@ import com.playdata.messageservice.type.NotificationType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
-import org.springframework.util.StringUtils;
+import com.playdata.messageservice.entity.Attachment;
+import com.playdata.messageservice.repository.AttachmentRepository;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -33,21 +39,10 @@ public class MessageService {
     private final NotificationService notificationService;
     private final AwsS3Config awsS3Config;
     private final HrServiceClient hrServiceClient;
+    private final AttachmentRepository attachmentRepository;
 
     @Transactional
-    public MessageResponse sendMessage(Long senderId, MessageRequest request, MultipartFile attachment) {
-        String attachmentUrl = null;
-        if (attachment != null && !attachment.isEmpty()) {
-            try {
-                String originalFilename = attachment.getOriginalFilename();
-                String uniqueFileName = UUID.randomUUID().toString() + "_" + originalFilename;
-                attachmentUrl = awsS3Config.uploadToS3Bucket(attachment.getBytes(), uniqueFileName);
-            } catch (IOException e) {
-                log.error("Failed to upload attachment to S3", e);
-                // 파일 업로드 실패 시 예외 처리 또는 null로 진행
-            }
-        }
-
+    public MessageResponse sendMessage(Long senderId, MessageRequest request, MultipartFile[] attachments) {
         Message message = Message.builder()
                 .senderId(senderId)
                 .receiverId(request.getReceiverId())
@@ -55,10 +50,32 @@ public class MessageService {
                 .content(request.getContent())
                 .isRead(false)
                 .sentAt(LocalDateTime.now())
-                .attachmentUrl(attachmentUrl) // 첨부 파일 URL 저장
                 .build();
 
         Message savedMessage = messageRepository.save(message);
+
+        if (attachments != null && attachments.length > 0) {
+            Arrays.stream(attachments).forEach(attachmentFile -> {
+                if (!attachmentFile.isEmpty()) {
+                    try {
+                        String originalFilename = attachmentFile.getOriginalFilename();
+                        String uniqueFileName = UUID.randomUUID().toString() + "_" + originalFilename;
+                        String attachmentUrl = awsS3Config.uploadToS3Bucket(attachmentFile.getBytes(), uniqueFileName);
+
+                        Attachment attachment = Attachment.builder()
+                                .message(savedMessage)
+                                .attachmentUrl(attachmentUrl)
+                                .originalFileName(originalFilename)
+                                .build();
+                        attachmentRepository.save(attachment);
+                        savedMessage.addAttachment(attachment);
+                    } catch (IOException e) {
+                        log.error("Failed to upload attachment to S3", e);
+                        // 파일 업로드 실패 시 예외 처리 또는 null로 진행
+                    }
+                }
+            });
+        }
 
         // 쪽지 발송 시 알림 생성
         notificationService.createNotification(
@@ -134,13 +151,15 @@ public class MessageService {
         }
 
         // S3에 첨부된 파일이 있다면 삭제
-        if (message.getAttachmentUrl() != null && !message.getAttachmentUrl().isEmpty()) {
-            try {
-                awsS3Config.deleteFromS3Bucket(message.getAttachmentUrl());
-            } catch (IOException e) {
-                log.error("Failed to delete attachment from S3: {}", message.getAttachmentUrl(), e);
-                // 파일 삭제 실패 시에도 메시지 삭제는 진행
-            }
+        if (message.getAttachments() != null && !message.getAttachments().isEmpty()) {
+            message.getAttachments().forEach(attachment -> {
+                try {
+                    awsS3Config.deleteFromS3Bucket(attachment.getAttachmentUrl());
+                } catch (IOException e) {
+                    log.error("Failed to delete attachment from S3: {}", attachment.getAttachmentUrl(), e);
+                    // 파일 삭제 실패 시에도 메시지 삭제는 진행
+                }
+            });
         }
 
         messageRepository.delete(message);
@@ -181,6 +200,19 @@ public class MessageService {
     }
 
     private MessageResponse convertToDto(Message message) {
+        List<AttachmentResponse> attachmentResponses;
+        if (message.getAttachments() != null) {
+            attachmentResponses = message.getAttachments().stream()
+                    .map(attachment -> AttachmentResponse.builder()
+                            .attachmentId(attachment.getAttachmentId())
+                            .attachmentUrl(attachment.getAttachmentUrl())
+                            .originalFileName(attachment.getOriginalFileName())
+                            .build())
+                    .collect(Collectors.toList());
+        } else {
+            attachmentResponses = Collections.emptyList();
+        }
+
         return MessageResponse.builder()
                 .messageId(message.getMessageId())
                 .senderId(message.getSenderId())
@@ -190,7 +222,7 @@ public class MessageService {
                 .sentAt(message.getSentAt())
                 .isRead(message.getIsRead())
                 .readAt(message.getReadAt())
-                .attachmentUrl(message.getAttachmentUrl())
+                .attachments(attachmentResponses)
                 .build();
     }
 
