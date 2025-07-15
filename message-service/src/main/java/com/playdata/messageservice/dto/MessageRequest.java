@@ -11,5 +11,5 @@ public class MessageRequest {
     private Long receiverId;
     private String subject;
     private String content;
-    private MultipartFile attachment;
+    private MultipartFile[] attachments;
 }
