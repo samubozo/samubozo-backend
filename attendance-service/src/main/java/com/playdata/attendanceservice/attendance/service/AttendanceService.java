@@ -280,7 +280,10 @@ public class AttendanceService {
 
         WorkStatus workStatus = attendance.getWorkStatus();
         if (workStatus != null) {
-            workStatus.setStatusType(WorkStatusType.OUT_OF_OFFICE);
+            // 현재 상태가 LATE가 아닌 경우에만 OUT_OF_OFFICE로 변경
+            if (workStatus.getStatusType() != WorkStatusType.LATE) {
+                workStatus.setStatusType(WorkStatusType.OUT_OF_OFFICE);
+            }
             workStatusRepository.save(workStatus);
         }
 
@@ -392,8 +395,8 @@ public class AttendanceService {
             }
         }
 
-        // 실제 근무 시간 = 총 경과 시간 - 외출 시간
-        Duration actualWorkedDuration = totalElapsedDuration.minus(outingDuration);
+        // 실제 근무 시간 = 총 경과 시간 (외출 시간도 근무 시간에 포함)
+        Duration actualWorkedDuration = totalElapsedDuration;
 
         // 근무 시간이 음수가 되는 경우 (예: 외출 시간이 너무 길어서) 0으로 처리
         if (actualWorkedDuration.isNegative()) {
