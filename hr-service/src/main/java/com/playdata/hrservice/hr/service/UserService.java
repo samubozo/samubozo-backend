@@ -290,6 +290,7 @@ public class UserService {
                 () -> new EntityNotFoundException("해당 사번 없음.")
         );
         user.setRetireDate(LocalDate.now());
+        user.setActivate("N");
         userRepository.save(user);
     }
 

@@ -132,6 +132,7 @@ public class User {
         return UserFeignResDto.builder()
                 .employeeNo(employeeNo)
                 .userName(userName)
+                .residentRegNo(residentRegNo)
                 .email(email)
                 .externalEmail(externalEmail)
                 .password(password)
