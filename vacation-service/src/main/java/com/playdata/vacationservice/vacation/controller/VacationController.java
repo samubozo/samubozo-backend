@@ -2,6 +2,9 @@ package com.playdata.vacationservice.vacation.controller;
 
 import com.playdata.vacationservice.common.auth.TokenUserInfo;
 import com.playdata.vacationservice.common.dto.CommonResDto;
+import com.playdata.vacationservice.vacation.dto.ApprovalRequestProcessDto;
+import com.playdata.vacationservice.vacation.dto.PendingApprovalDto;
+import com.playdata.vacationservice.vacation.dto.VacationHistoryResDto;
 import com.playdata.vacationservice.vacation.dto.MonthlyVacationStatsDto;
 import com.playdata.vacationservice.vacation.dto.VacationBalanceResDto;
 import com.playdata.vacationservice.vacation.dto.VacationRequestDto;
@@ -38,6 +41,55 @@ public class VacationController {
             @RequestBody VacationRequestDto requestDto) {
         vacationService.requestVacation(userInfo , requestDto);
         return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    /**
+     * 현재 로그인된 사용자의 모든 휴가 신청 내역을 조회합니다.
+     *
+     * @param userInfo 인증된 사용자 정보
+     * @return 휴가 신청 내역 목록
+     */
+    @GetMapping("/my-requests")
+    public ResponseEntity<CommonResDto<List<VacationHistoryResDto>>> getMyVacationRequests(
+            @AuthenticationPrincipal TokenUserInfo userInfo) {
+        List<VacationHistoryResDto> myRequests = vacationService.getMyVacationRequests(userInfo.getEmployeeNo());
+        return buildSuccessResponse(myRequests, "내 휴가 신청 내역 조회 성공");
+    }
+
+    /**
+     * 결재 대기 중인 모든 휴가 신청 목록을 조회합니다. (결재자용)
+     *
+     * @return 결재 대기 중인 휴가 신청 목록
+     */
+    @GetMapping("/pending-approvals")
+    public ResponseEntity<CommonResDto<List<PendingApprovalDto>>> getPendingApprovals() {
+        List<PendingApprovalDto> pendingApprovals = vacationService.getPendingApprovals();
+        return buildSuccessResponse(pendingApprovals, "결재 대기 목록 조회 성공");
+    }
+
+    /**
+     * 휴가 신청을 승인 처리합니다.
+     *
+     * @param vacationId 승인할 휴가 신청 ID
+     * @return 성공 응답
+     */
+    @PostMapping("/{vacationId}/approve")
+    public ResponseEntity<Void> approveVacation(@PathVariable Long vacationId) {
+        vacationService.approveVacation(vacationId);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 휴가 신청을 반려 처리합니다.
+     *
+     * @param vacationId 반려할 휴가 신청 ID
+     * @param requestDto 반려 사유를 포함하는 DTO
+     * @return 성공 응답
+     */
+    @PostMapping("/{vacationId}/reject")
+    public ResponseEntity<Void> rejectVacation(@PathVariable Long vacationId, @RequestBody ApprovalRequestProcessDto requestDto) {
+        vacationService.rejectVacation(vacationId, requestDto);
+        return ResponseEntity.ok().build();
     }
 
     /**

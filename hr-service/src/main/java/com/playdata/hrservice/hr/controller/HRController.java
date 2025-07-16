@@ -185,6 +185,12 @@ public class HRController {
         return userService.getEmployeeByUserName(userName);
     }
 
+    // Feign client 요청을 위한 메서드: ID 목록으로 유저 정보 얻어오기
+    @GetMapping("/users")
+    public List<UserResDto> getUsersInfo(@RequestParam("userIds") List<Long> userIds) {
+        return userService.getUsersByIds(userIds);
+    }
+
     // 특정 사용자가 특정 날짜에 승인된 외부 일정(출장, 연수 등)이 있는지 확인합니다.
     // AttendanceService에서 FeignClient를 통해 호출됩니다.
     @GetMapping("/schedules/approved")

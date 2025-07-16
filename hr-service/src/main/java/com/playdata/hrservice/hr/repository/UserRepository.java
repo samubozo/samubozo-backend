@@ -44,4 +44,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByUserNameContainingAndDepartmentNameContainingAndPositionHrRole(String userName, String departmentName, String hrRole);
 
     boolean existsByDepartmentDepartmentId(Long departmentId);
+
+    List<User> findByEmployeeNoIn(List<Long> employeeNos);
 }

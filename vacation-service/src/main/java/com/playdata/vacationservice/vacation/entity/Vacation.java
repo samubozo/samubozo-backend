@@ -6,6 +6,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 // import lombok.Setter; // 제거
 
 import java.time.LocalDate;
@@ -36,6 +37,7 @@ public class Vacation extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "vacation_status", nullable = false)
+    @Setter
     private VacationStatus vacationStatus;
 
     @Column(name = "reason")
