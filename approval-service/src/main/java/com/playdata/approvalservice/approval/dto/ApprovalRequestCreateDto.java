@@ -9,6 +9,7 @@ import lombok.Getter;
 public class ApprovalRequestCreateDto {
     private RequestType requestType;
     private Long applicantId;
+    private String title; // 추가
     private String reason;
     private Long vacationsId; // Optional, for VACATION request type
     private String vacationType; // Optional, for VACATION request type

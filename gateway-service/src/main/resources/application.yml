@@ -12,7 +12,6 @@ spring:
             allowed-origins:
               - "http://localhost:5173" #사용자 프론트 서버
               - "https://samubozo.co.kr" #AWS 정적 서버
-
             allowed-methods:
               - GET
               - POST
@@ -133,3 +132,14 @@ spring:
             - RemoveRequestHeader=Cookie
             - RewritePath=/message-service/(?<segment>.*), /$\{segment}
             - AuthorizationHeaderFilter
+
+        #결재 서비스
+        - id: approval-service
+          uri: lb://APPROVAL-SERVICE
+          predicates:
+            - Path=/approval-service/**
+          filters:
+            - RemoveRequestHeader=Cookie
+            - RewritePath=/approval-service/(?<segment>.*), /$\{segment}
+            - AuthorizationHeaderFilter
+

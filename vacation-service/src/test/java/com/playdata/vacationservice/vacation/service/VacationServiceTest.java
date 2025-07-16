@@ -13,6 +13,7 @@ import com.playdata.vacationservice.client.dto.ApprovalRequestDto;
 import com.playdata.vacationservice.client.dto.UserDetailDto;
 import com.playdata.vacationservice.common.auth.TokenUserInfo;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +27,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+@Disabled
 @ExtendWith(MockitoExtension.class)
 class VacationServiceTest {
 

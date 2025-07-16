@@ -43,6 +43,9 @@ public class ApprovalRequest {
     @Column(name = "reason", columnDefinition = "TEXT")
     private String reason;
 
+    @Column(name = "title")
+    private String title;
+
     @Column(name = "vacations_id")
     private Long vacationsId;
 
@@ -53,7 +56,7 @@ public class ApprovalRequest {
     private Long certificateId;
 
     @Builder
-    public ApprovalRequest(RequestType requestType, Long applicantId, Long approverId, ApprovalStatus status, LocalDateTime requestedAt, LocalDateTime approvedAt, String reason, Long vacationsId, String vacationType, Long certificatesId) {
+    public ApprovalRequest(RequestType requestType, Long applicantId, Long approverId, ApprovalStatus status, LocalDateTime requestedAt, LocalDateTime approvedAt, String reason, String title, Long vacationsId, String vacationType, Long certificatesId) {
         this.requestType = requestType;
         this.applicantId = applicantId;
         this.approverId = approverId;
@@ -61,6 +64,7 @@ public class ApprovalRequest {
         this.requestedAt = requestedAt;
         this.approvedAt = approvedAt;
         this.reason = reason;
+        this.title = title;
         this.vacationsId = vacationsId;
         this.vacationType = vacationType;
         this.certificateId = certificatesId;

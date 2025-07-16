@@ -1,16 +1,19 @@
 package com.playdata.attendanceservice.attendance.service;
 
-import com.playdata.attendanceservice.attendance.dto.WorkTimeDto;
 import com.playdata.attendanceservice.attendance.dto.AttendanceResDto; // 추가
+import com.playdata.attendanceservice.attendance.dto.PersonalAttendanceStatsDto;
+import com.playdata.attendanceservice.attendance.dto.WorkTimeDto;
 import com.playdata.attendanceservice.attendance.entity.Attendance;
 import com.playdata.attendanceservice.attendance.entity.WorkDayType;
 import com.playdata.attendanceservice.attendance.entity.WorkStatus;
 import com.playdata.attendanceservice.attendance.entity.WorkStatusType;
 import com.playdata.attendanceservice.attendance.repository.AttendanceRepository;
 import com.playdata.attendanceservice.attendance.repository.WorkStatusRepository; // WorkStatusRepository 임포트 추가
+import com.playdata.attendanceservice.client.ApprovalServiceClient; // ApprovalServiceClient 임포트
 import com.playdata.attendanceservice.client.HrServiceClient; // HrServiceClient 임포트
 import com.playdata.attendanceservice.client.VacationServiceClient; // VacationServiceClient 임포트
-import com.playdata.attendanceservice.client.ApprovalServiceClient; // ApprovalServiceClient 임포트
+import com.playdata.attendanceservice.client.dto.MonthlyVacationStatsDto;
+import com.playdata.attendanceservice.common.dto.CommonResDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value; // Value 임포트
@@ -18,11 +21,7 @@ import org.springframework.dao.DataIntegrityViolationException; // DataIntegrity
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
-import java.time.LocalDate;
-import java.time.LocalDateTime; // LocalDateTime 임포트
-import java.time.LocalTime; // LocalTime 임포트
-import java.time.YearMonth;
+import java.time.*; // LocalDateTime 임포트
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
@@ -42,7 +41,7 @@ import java.util.Optional;
  *                          이를 '생성자 주입'이라고 하며, 의존성 주입의 가장 권장되는 방식입니다。
  *
  * @Transactional(readOnly = true) 어노테이션:
- *                                 클래스 레벨에 트랜잭션 설정을 적용합니다。
+ *                                 클래스 레벨에 트랜잭션 설정을 적용합니다.
  *                                 기본적으로 이 클래스의 모든 메소드는 읽기 전용(readOnly = true) 트랜잭션으로 실행됩니다.
  *                                 이는 데이터를 변경하지 않는 조회 메소드에 적합합니다.
  *                                 데이터를 변경하는 메소드(예: checkIn, checkOut)에는 별도로 @Transactional을 적용하여
@@ -281,7 +280,10 @@ public class AttendanceService {
 
         WorkStatus workStatus = attendance.getWorkStatus();
         if (workStatus != null) {
-            workStatus.setStatusType(WorkStatusType.OUT_OF_OFFICE);
+            // 현재 상태가 LATE가 아닌 경우에만 OUT_OF_OFFICE로 변경
+            if (workStatus.getStatusType() != WorkStatusType.LATE) {
+                workStatus.setStatusType(WorkStatusType.OUT_OF_OFFICE);
+            }
             workStatusRepository.save(workStatus);
         }
 
@@ -393,8 +395,8 @@ public class AttendanceService {
             }
         }
 
-        // 실제 근무 시간 = 총 경과 시간 - 외출 시간
-        Duration actualWorkedDuration = totalElapsedDuration.minus(outingDuration);
+        // 실제 근무 시간 = 총 경과 시간 (외출 시간도 근무 시간에 포함)
+        Duration actualWorkedDuration = totalElapsedDuration;
 
         // 근무 시간이 음수가 되는 경우 (예: 외출 시간이 너무 길어서) 0으로 처리
         if (actualWorkedDuration.isNegative()) {
@@ -439,5 +441,86 @@ public class AttendanceService {
         Optional<Attendance> optionalAttendance = attendanceRepository.findByUserIdAndAttendanceDate(userId, today);
 
         return optionalAttendance.map(AttendanceResDto::from);
+    }
+
+    /**
+     * 특정 사용자의 월별 근태 및 휴가 통계를 조회합니다.
+     *
+     * @param userId 사용자 ID
+     * @param year   연도
+     * @param month  월
+     * @return 개인 근태 통계 DTO
+     */
+    public PersonalAttendanceStatsDto getPersonalAttendanceStats(Long userId, int year, int month) {
+        // 1. 해당 월의 모든 근태 기록 조회
+        List<Attendance> monthlyAttendances = getMonthlyAttendances(userId, year, month);
+
+        // 2. 근태 기록 기반으로 통계 계산 (총 출근, 지각, 외출)
+        long attendanceCount = monthlyAttendances.stream()
+                .filter(a -> a.getWorkStatus() != null)
+                .count();
+        long lateCount = monthlyAttendances.stream()
+                .filter(a -> a.getWorkStatus() != null && a.getWorkStatus().getStatusType() == WorkStatusType.LATE)
+                .count();
+        long goOutCount = monthlyAttendances.stream()
+                .filter(a -> a.getGoOutTime() != null)
+                .count();
+
+        // 3. vacation-service에서 휴가 통계 조회
+        CommonResDto<MonthlyVacationStatsDto> vacationStatsResponse = vacationServiceClient.getMonthlyVacationStats(userId, year, month);
+        MonthlyVacationStatsDto vacationStats = vacationStatsResponse.getResult();
+
+        // 4. 최종 통계 DTO 생성 및 반환
+        return PersonalAttendanceStatsDto.builder()
+                .attendanceCount(attendanceCount)
+                .lateCount(lateCount)
+                .goOutCount(goOutCount)
+                .fullDayVacationCount(vacationStats.getFullDayVacations())
+                .halfDayVacationCount(vacationStats.getHalfDayVacations())
+                .build();
+    }
+
+    /**
+     * 특정 사용자의 연차 현황을 조회합니다.
+     *
+     * @param userId 연차 현황을 조회할 사용자의 ID
+     * @return 연차 현황 정보를 담은 VacationBalanceResDto
+     */
+    public CommonResDto<com.playdata.attendanceservice.client.dto.VacationBalanceResDto> getPersonalVacationBalance(Long userId) {
+        return vacationServiceClient.getVacationBalance(userId);
+    }
+
+    /**
+     * 반차를 신청합니다.
+     *
+     * @param userId 사용자 ID
+     * @param requestDto 반차 신청 정보
+     */
+    @Transactional
+    public void requestHalfDayVacation(Long userId, com.playdata.attendanceservice.client.dto.VacationRequestDto requestDto) {
+        // VacationRequestDto에 userId 설정
+        requestDto.setUserId(userId);
+        vacationServiceClient.requestVacation(requestDto);
+    }
+
+    /**
+     * 특정 사용자의 월별 반차 기록을 조회합니다.
+     *
+     * @param userId 사용자 ID
+     * @param year   조회할 연도
+     * @param month  조회할 월
+     * @return 월별 반차 기록 목록
+     */
+    public CommonResDto<List<com.playdata.attendanceservice.client.dto.Vacation>> getPersonalMonthlyHalfDayVacations(Long userId, int year, int month) {
+        return vacationServiceClient.getMonthlyHalfDayVacations(userId, year, month);
+    }
+
+    /**
+     * 지각 기준 시간을 조회합니다.
+     *
+     * @return 지각 기준 시간 문자열 (예: "09:00:00")
+     */
+    public String getLateThreshold() {
+        return standardCheckInTimeStr;
     }
 }
