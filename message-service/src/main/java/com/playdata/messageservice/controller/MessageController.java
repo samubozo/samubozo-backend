@@ -31,10 +31,10 @@ public class MessageController {
     public ResponseEntity<MessageResponse> sendMessage(
             @AuthenticationPrincipal TokenUserInfo tokenUserInfo,
             @RequestPart("request") MessageRequest request,
-            @RequestPart(value = "attachment", required = false) MultipartFile attachment) {
+            @RequestPart(value = "attachments", required = false) MultipartFile[] attachments) {
         // 실제 senderId는 인증된 사용자 정보에서 가져옴
         Long senderId = tokenUserInfo.getEmployeeNo();
-        MessageResponse response = messageService.sendMessage(senderId, request, attachment);
+        MessageResponse response = messageService.sendMessage(senderId, request, attachments);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 

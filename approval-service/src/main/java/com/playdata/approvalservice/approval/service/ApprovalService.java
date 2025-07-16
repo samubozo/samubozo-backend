@@ -60,7 +60,7 @@ public class ApprovalService {
                 .title(createDto.getTitle())
                 .vacationsId(createDto.getVacationsId())
                 .vacationType(createDto.getVacationType())
-                .certificatesId(createDto.getCertificatesId())
+                .certificatesId(createDto.getCertificateId())
                 .status(ApprovalStatus.PENDING)
                 .requestedAt(LocalDateTime.now())
                 .build();
