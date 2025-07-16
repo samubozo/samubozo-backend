@@ -60,6 +60,7 @@ public class CertificateService {
 
         CommonResDto<UserFeignResDto> response = hrServiceClient.getUserById(certificate.getEmployeeNo());
         UserFeignResDto userInfo = response.getResult();
+        log.info("generateCertificatePdf - userInfo: {}", userInfo); // 주민등록번호 포함 확인
         if (userInfo == null) throw new EntityNotFoundException("유저 정보 없음");
 
         try {
@@ -92,10 +93,10 @@ public class CertificateService {
 
             // 3. 열 너비 - 3,4번째(주민등록번호/직위)가 더 넓음: 15%/25%/30%/30%
             float[] colWidths = {
-                    tableWidth * 0.15f,  // 성명/주소/소속 (좁게)
-                    tableWidth * 0.25f,  // 값1 (이름, 주소, 부서)
-                    tableWidth * 0.30f,  // 주민등록번호/직위 (넓게)
-                    tableWidth * 0.30f   // 주민등록번호/직위 값 (넓게)
+                    tableWidth * 0.17f,  // 성명/주소/소속 (살짝 넓게)
+                    tableWidth * 0.27f,  // 이름/주소/부서 (살짝 넓게)
+                    tableWidth * 0.28f,  // 주민등록번호/직위 (살짝 줄임)
+                    tableWidth * 0.28f   // 주민등록번호/직위 값 (살짝 줄임)
             };
             float[] colXs = new float[colWidths.length + 1];
             colXs[0] = tableX;
@@ -163,21 +164,21 @@ public class CertificateService {
 
                 // 5. 표 텍스트 (폰트 20)
                 cs.setFont(font, 20);
-                drawCellText(cs, "성    명", font, 20, colXs[0], rowYs[0], colWidths[0], rowHeight);
-                drawCellText(cs, userName, font, 20, colXs[1], rowYs[0], colWidths[1], rowHeight);
-                drawCellText(cs, "주민등록번호", font, 20, colXs[2], rowYs[0], colWidths[2], rowHeight);
-                drawCellText(cs, rrn, font, 20, colXs[3], rowYs[0], colWidths[3], rowHeight);
+                drawCellText(cs, "성    명", font, 18, colXs[0], rowYs[0], colWidths[0], rowHeight);
+                drawCellText(cs, userName, font, 15, colXs[1], rowYs[0], colWidths[1], rowHeight);
+                drawCellText(cs, "주민등록번호", font, 18, colXs[2], rowYs[0], colWidths[2], rowHeight);
+                drawCellText(cs, rrn, font, 15, colXs[3], rowYs[0], colWidths[3], rowHeight);
 
-                drawCellText(cs, "주    소", font, 20, colXs[0], rowYs[1], colWidths[0], rowHeight);
-                drawCellText(cs, address, font, 20, colXs[1], rowYs[1], colWidths[1] + colWidths[2] + colWidths[3], rowHeight);
+                drawCellText(cs, "주    소", font, 18, colXs[0], rowYs[1], colWidths[0], rowHeight);
+                drawCellText(cs, address, font, 15, colXs[1], rowYs[1], colWidths[1] + colWidths[2] + colWidths[3], rowHeight);
 
-                drawCellText(cs, "소    속", font, 20, colXs[0], rowYs[2], colWidths[0], rowHeight);
-                drawCellText(cs, dept, font, 20, colXs[1], rowYs[2], colWidths[1], rowHeight);
-                drawCellText(cs, "직    위", font, 20, colXs[2], rowYs[2], colWidths[2], rowHeight);
-                drawCellText(cs, position, font, 20, colXs[3], rowYs[2], colWidths[3], rowHeight);
+                drawCellText(cs, "소    속", font, 18, colXs[0], rowYs[2], colWidths[0], rowHeight);
+                drawCellText(cs, dept, font, 15, colXs[1], rowYs[2], colWidths[1], rowHeight);
+                drawCellText(cs, "직    위", font, 18, colXs[2], rowYs[2], colWidths[2], rowHeight);
+                drawCellText(cs, position, font, 15, colXs[3], rowYs[2], colWidths[3], rowHeight);
 
-                drawCellText(cs, "기    간", font, 20, colXs[0], rowYs[3], colWidths[0], rowHeight);
-                drawCellText(cs, period, font, 20, colXs[1], rowYs[3], colWidths[1] + colWidths[2] + colWidths[3], rowHeight);
+                drawCellText(cs, "기    간", font, 18, colXs[0], rowYs[3], colWidths[0], rowHeight);
+                drawCellText(cs, period, font, 15, colXs[1], rowYs[3], colWidths[1] + colWidths[2] + colWidths[3], rowHeight);
 
                 // 6. 표 아래 문구 (type별로 다르게)
                 String footerText;
@@ -216,7 +217,7 @@ public class CertificateService {
 
                 // 주소 (회사명 위, 간격 +80)
                 cs.beginText();
-                cs.setFont(font, 14);
+                cs.setFont(font, 15);
                 float addrWidth = font.getStringWidth("주소 : " + corpAddress) / 1000 * 14;
                 cs.newLineAtOffset((pageWidth - addrWidth) / 2, bottomY + 80);
                 cs.showText("주소 : " + corpAddress);
@@ -242,7 +243,7 @@ public class CertificateService {
                 float inTextX = pageWidth - 90;
                 float inTextY = bottomY + 10;
                 cs.beginText();
-                cs.setFont(font, 14);
+                cs.setFont(font, 15);
                 cs.newLineAtOffset(inTextX, inTextY);
                 cs.showText("(인)");
                 cs.endText();
