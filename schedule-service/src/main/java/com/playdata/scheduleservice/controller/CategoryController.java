@@ -4,7 +4,7 @@ import com.playdata.scheduleservice.common.auth.TokenUserInfo;
 import com.playdata.scheduleservice.dto.CategoryRequest;
 import com.playdata.scheduleservice.dto.CategoryResponse;
 import com.playdata.scheduleservice.entity.Category.CategoryType;
-import com.playdata.scheduleservice.service.CategoryService;
+import com.playdata.scheduleservice.service.CategoryServiceImpl;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +20,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CategoryController {
 
-    private final CategoryService categoryService;
+    private final CategoryServiceImpl categoryService;
 
     // 카테고리 생성
     @PostMapping

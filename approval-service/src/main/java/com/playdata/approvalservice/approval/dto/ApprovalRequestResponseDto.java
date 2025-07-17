@@ -39,7 +39,7 @@ public class ApprovalRequestResponseDto {
                 .reason(approvalRequest.getReason())
                 .title(approvalRequest.getTitle())
                 .vacationsId(approvalRequest.getVacationsId())
-                .certificatesId(approvalRequest.getCertificatesId())
+                .certificatesId(approvalRequest.getCertificateId())
                 .build();
     }
 }
