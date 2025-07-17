@@ -1,6 +1,8 @@
 package com.playdata.vacationservice.client.dto;
 
 import com.playdata.vacationservice.vacation.entity.RequestType;
+import com.playdata.vacationservice.vacation.entity.VacationType;
+import com.playdata.vacationservice.vacation.entity.VacationType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -13,9 +15,11 @@ import lombok.Getter;
 @AllArgsConstructor
 public class ApprovalRequestDto {
 
-    private RequestType requestType; // 결재 종류 (예: "VACATION")
+    private RequestType requestType;
     private Long applicantId;
-    private String reason; // 결재 사유
-    private Long vacationsId; // Optional, for VACATION request type
-    private Long certificatesId; // Optional, for CERTIFICATE request type
+    private String title; // 추가
+    private String reason;
+    private Long vacationsId;
+    private String vacationType;
+    private Long certificatesId;
 }

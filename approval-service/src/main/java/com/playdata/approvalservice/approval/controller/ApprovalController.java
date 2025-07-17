@@ -11,6 +11,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * 결재 요청 관련 API를 처리하는 컨트롤러입니다.
@@ -56,6 +57,17 @@ public class ApprovalController {
     }
 
     /**
+     * 모든 결재 요청 목록을 조회합니다.
+     *
+     * @return 모든 결재 요청 목록과 HTTP 200 OK 상태
+     */
+    @GetMapping
+    public ResponseEntity<List<ApprovalRequestResponseDto>> getAllApprovalRequests() {
+        List<ApprovalRequestResponseDto> allRequests = approvalService.getAllApprovalRequests();
+        return ResponseEntity.ok(allRequests);
+    }
+
+    /**
      * 특정 ID를 가진 결재 요청을 조회합니다.
      *
      * @param id 조회할 결재 요청의 ID
@@ -75,8 +87,10 @@ public class ApprovalController {
      * @return 승인 처리된 결재 요청의 응답 DTO와 HTTP 200 OK 상태
      */
     @PutMapping("/{id}/approve")
-    public ResponseEntity<ApprovalRequestResponseDto> approveApprovalRequest(@PathVariable Long id, @RequestParam Long approverId) {
-        ApprovalRequestResponseDto responseDto = approvalService.approveApprovalRequest(id, approverId);
+    public ResponseEntity<ApprovalRequestResponseDto> approveApprovalRequest(
+            @PathVariable Long id,
+            @AuthenticationPrincipal TokenUserInfo userInfo) {
+        ApprovalRequestResponseDto responseDto = approvalService.approveApprovalRequest(id, userInfo);
         return buildOkResponse(responseDto);
     }
 
@@ -84,12 +98,14 @@ public class ApprovalController {
      * 특정 결재 요청을 반려 처리합니다.
      *
      * @param id 반려할 결재 요청의 ID
-     * @param approverId 반려자의 ID (실제로는 인증 정보에서 추출)
+     * @param userInfo 반려자의 정보를 담은 객체
      * @return 반려 처리된 결재 요청의 응답 DTO와 HTTP 200 OK 상태
      */
     @PutMapping("/{id}/reject")
-    public ResponseEntity<ApprovalRequestResponseDto> rejectApprovalRequest(@PathVariable Long id, @RequestParam Long approverId) {
-        ApprovalRequestResponseDto responseDto = approvalService.rejectApprovalRequest(id, approverId);
+    public ResponseEntity<ApprovalRequestResponseDto> rejectApprovalRequest(
+            @PathVariable Long id,
+            @AuthenticationPrincipal TokenUserInfo userInfo) {
+        ApprovalRequestResponseDto responseDto = approvalService.rejectApprovalRequest(id, userInfo);
         return buildOkResponse(responseDto);
     }
 

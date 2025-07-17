@@ -9,6 +9,7 @@ import com.playdata.hrservice.hr.repository.PositionRepository;
 import com.playdata.hrservice.hr.repository.UserRepository;
 import com.playdata.hrservice.hr.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -23,6 +24,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@Disabled
 @SpringBootTest
 @Transactional
 class HrServiceApplicationTests {

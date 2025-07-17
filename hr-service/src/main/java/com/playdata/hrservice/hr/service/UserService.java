@@ -290,6 +290,7 @@ public class UserService {
                 () -> new EntityNotFoundException("해당 사번 없음.")
         );
         user.setRetireDate(LocalDate.now());
+        user.setActivate("N");
         userRepository.save(user);
     }
 
@@ -307,6 +308,19 @@ public class UserService {
         return null;
     }
 
+    /**
+     * 주어진 ID 목록에 해당하는 사용자 정보를 조회합니다.
+     *
+     * @param employeeNos 조회할 사용자 ID 목록
+     * @return 사용자 정보 DTO 목록
+     */
+    @Transactional(readOnly = true)
+    public List<UserResDto> getUsersByIds(List<Long> employeeNos) {
+        List<User> users = userRepository.findByEmployeeNoIn(employeeNos);
+        return users.stream()
+                .map(User::fromEntity)
+                .collect(Collectors.toList());
+    }
 }
 
 

@@ -132,3 +132,14 @@ spring:
             - RemoveRequestHeader=Cookie
             - RewritePath=/message-service/(?<segment>.*), /$\{segment}
             - AuthorizationHeaderFilter
+
+        #결재 서비스
+        - id: approval-service
+          uri: lb://APPROVAL-SERVICE
+          predicates:
+            - Path=/approval-service/**
+          filters:
+            - RemoveRequestHeader=Cookie
+            - RewritePath=/approval-service/(?<segment>.*), /$\{segment}
+            - AuthorizationHeaderFilter
+

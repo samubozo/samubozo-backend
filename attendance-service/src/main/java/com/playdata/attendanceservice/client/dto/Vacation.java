@@ -1,24 +1,21 @@
 package com.playdata.attendanceservice.client.dto;
 
 import com.playdata.attendanceservice.attendance.entity.VacationType;
+import com.playdata.attendanceservice.client.dto.VacationStatus;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 import java.time.LocalDate;
 
-/**
- * 휴가 신청 요청을 위한 DTO 입니다. (Vacation 서비스로 전송)
- */
 @Getter
-@Setter
-@AllArgsConstructor
 @NoArgsConstructor
-public class VacationRequestDto {
-
+@AllArgsConstructor
+public class Vacation {
+    private Long id;
     private Long userId;
     private VacationType vacationType;
+    private VacationStatus vacationStatus;
     private LocalDate startDate;
     private LocalDate endDate;
     private String reason;
