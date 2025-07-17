@@ -120,7 +120,7 @@ public class User {
     public UserLoginFeignResDto toUserLoginFeignResDto() {
         return UserLoginFeignResDto.builder()
                 .employeeNo(employeeNo)
-                .username(userName)
+                .userName(userName)
                 .email(email)
                 .password(password)
                 .activate(activate)
