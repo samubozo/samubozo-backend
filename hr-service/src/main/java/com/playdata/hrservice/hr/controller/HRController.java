@@ -83,7 +83,7 @@ public class HRController {
         return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "User info retrieved successfully", user), HttpStatus.OK);
     }
 
-    @PostMapping("/hr/user/password")
+    @PostMapping("/user/password")
     ResponseEntity<?> updatePassword(@RequestBody UserPwUpdateDto dto) {
         userService.updatePassword(dto);
         return new ResponseEntity<>(HttpStatus.OK);
