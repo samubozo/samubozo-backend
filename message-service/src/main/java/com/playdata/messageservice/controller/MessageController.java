@@ -13,8 +13,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import com.playdata.messageservice.common.auth.TokenUserInfo;
 
-import java.util.List;
-
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.multipart.MultipartFile;
@@ -42,8 +40,6 @@ public class MessageController {
     @GetMapping("/received")
     public ResponseEntity<Page<MessageResponse>> getReceivedMessages(
             @AuthenticationPrincipal TokenUserInfo tokenUserInfo,
-            @RequestParam(required = false, defaultValue = "0") int page,
-            @RequestParam(required = false, defaultValue = "10") int size,
             @RequestParam(required = false, defaultValue = "all") String period,
             @RequestParam(required = false) String searchType,
             @RequestParam(required = false) String searchValue,
@@ -58,8 +54,6 @@ public class MessageController {
     @GetMapping("/sent")
     public ResponseEntity<Page<MessageResponse>> getSentMessages(
             @AuthenticationPrincipal TokenUserInfo tokenUserInfo,
-            @RequestParam(required = false, defaultValue = "0") int page,
-            @RequestParam(required = false, defaultValue = "10") int size,
             @RequestParam(required = false, defaultValue = "all") String period,
             @RequestParam(required = false) String searchType,
             @RequestParam(required = false) String searchValue,

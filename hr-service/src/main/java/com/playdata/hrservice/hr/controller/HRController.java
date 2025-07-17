@@ -2,16 +2,12 @@ package com.playdata.hrservice.hr.controller;
 import com.playdata.hrservice.common.auth.TokenUserInfo;
 import com.playdata.hrservice.common.dto.CommonResDto;
 import com.playdata.hrservice.hr.dto.*;
-import com.playdata.hrservice.hr.service.DepartmentService;
-import com.playdata.hrservice.hr.service.PositionService;
-import com.playdata.hrservice.hr.service.UserService;
+import com.playdata.hrservice.hr.service.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
-import org.springframework.core.env.Environment;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -34,16 +30,14 @@ public class HRController {
     private final UserService userService;
     private final DepartmentService departmentService;
     private final PositionService positionService;
-    private final RedisTemplate<String, Object> redisTemplate;
 
-    private final Environment env;
 
     // 직원 계정 생성(등록)
     @PostMapping("/users/signup")
     public ResponseEntity<?> createUser(@Valid @RequestBody UserSaveReqDto dto, @AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
         String hrRole = tokenUserInfo.getHrRole();
         UserResDto saved = userService.createUser(dto, hrRole);
-        CommonResDto resDto = new CommonResDto(HttpStatus.CREATED, "User created", saved);
+        CommonResDto<UserResDto> resDto = new CommonResDto<>(HttpStatus.CREATED, "User created", saved);
         return new ResponseEntity<>(resDto, HttpStatus.CREATED);
     }
 
@@ -51,7 +45,7 @@ public class HRController {
     @PostMapping("/user/profile")
     public ResponseEntity<?> uploadProfile(@ModelAttribute UserRequestDto dto) throws Exception{
         String newProfile = userService.uploadProfile(dto);
-        CommonResDto resDto = new CommonResDto(HttpStatus.OK,
+        CommonResDto<Map<String, String>> resDto = new CommonResDto<>(HttpStatus.OK,
                 "User profile created", Map.of("newProfileName", newProfile));
         return new ResponseEntity<>(resDto, HttpStatus.OK);
     }
@@ -66,21 +60,21 @@ public class HRController {
 
     // 인증되어 권한있는 사람이 요청할 수 있는 상세 정보 조회 API
     @GetMapping("/users/detail")
-    public ResponseEntity<CommonResDto> getMyUserInfo(@AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
+    public ResponseEntity<CommonResDto<UserFeignResDto>> getMyUserInfo(@AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
         String email = tokenUserInfo.getEmail();
         UserFeignResDto user = userService.getEmployeeByEmail(email);
-        CommonResDto resDto = new CommonResDto(HttpStatus.OK, "User info retrieved successfully", user);
+        CommonResDto<UserFeignResDto> resDto = new CommonResDto<>(HttpStatus.OK, "User info retrieved successfully", user);
         return new ResponseEntity<>(resDto, HttpStatus.OK);
     }
 
     // 인증된 사용자가 employeeNo로 상세정보 요청할 수 있는 API
     @GetMapping("/users/feign/{employeeNo}")
-    public ResponseEntity<CommonResDto> getUserById(@PathVariable Long employeeNo) {
+    public ResponseEntity<CommonResDto<UserFeignResDto>> getUserById(@PathVariable Long employeeNo) {
         UserFeignResDto user = userService.getEmployeeById(employeeNo);
         if (user == null) {
-            return new ResponseEntity<>(new CommonResDto(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다.", null), HttpStatus.NOT_FOUND);
+            return new ResponseEntity<>(new CommonResDto<>(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다.", null), HttpStatus.NOT_FOUND);
         }
-        return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "User info retrieved successfully", user), HttpStatus.OK);
+        return new ResponseEntity<>(new CommonResDto<>(HttpStatus.OK, "User info retrieved successfully", user), HttpStatus.OK);
     }
 
     @PostMapping("/hr/user/password")
@@ -106,7 +100,7 @@ public class HRController {
     public ResponseEntity<?> listUsers(@PageableDefault(sort = "employeeNo")Pageable pageable,
                                        @AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
         String hrRole = tokenUserInfo.getHrRole();
-        return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "Success",
+        return new ResponseEntity<>(new CommonResDto<>(HttpStatus.OK, "Success",
                 userService.listUsers(pageable, hrRole)), HttpStatus.OK);
     }
 
@@ -116,7 +110,7 @@ public class HRController {
             @RequestParam(required = false) String userName,
             @RequestParam(required = false) String departmentName,
             @RequestParam(required = false) String hrRole,
-            @PageableDefault(size = 10, sort = "employeeNo") Pageable pageable) { // Pageable은 검색 조건 없을 때만 사용
+            @PageableDefault(sort = "employeeNo") Pageable pageable) { // Pageable은 검색 조건 없을 때만 사용
         Object result;
         if (userName != null || departmentName != null || hrRole != null) {
             // 검색 조건이 있을 경우, 페이징 없이 전체 리스트 반환
@@ -125,14 +119,14 @@ public class HRController {
             // 검색 조건이 없을 경우, 페이징 적용
             result = userService.searchUsers(null, null, null, pageable);
         }
-        return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "Success", result), HttpStatus.OK);
+        return new ResponseEntity<>(new CommonResDto<>(HttpStatus.OK, "Success", result), HttpStatus.OK);
     }
 
     // 부서 정보 조회 API
     @GetMapping("/departments")
     public ResponseEntity<?> getAllDepartments() {
         List<DepartmentResDto> departments = departmentService.getAllDepartments();
-        CommonResDto resDto = new CommonResDto(HttpStatus.OK, "Departments retrieved successfully", departments);
+        CommonResDto<List<DepartmentResDto>> resDto = new CommonResDto<>(HttpStatus.OK, "Departments retrieved successfully", departments);
         return new ResponseEntity<>(resDto, HttpStatus.OK);
     }
 
@@ -162,14 +156,14 @@ public class HRController {
     @GetMapping("/positions")
     public ResponseEntity<?> getAllPositions() {
         List<PositionResDto> positions = positionService.getAllPositions();
-        CommonResDto resDto = new CommonResDto(HttpStatus.OK, "Positions retrieved successfully", positions);
+        CommonResDto<List<PositionResDto>> resDto = new CommonResDto<>(HttpStatus.OK, "Positions retrieved successfully", positions);
         return new ResponseEntity<>(resDto, HttpStatus.OK);
     }
 
     // 직원 상세 조회
     @GetMapping("/user/{id}")
     public ResponseEntity<?> getUserDetail(@PathVariable("id") Long employeeNo) {
-        return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "Success", userService.getUserByEmployeeNo(employeeNo)), HttpStatus.OK);
+        return new ResponseEntity<>(new CommonResDto<>(HttpStatus.OK, "Success", userService.getUserByEmployeeNo(employeeNo)), HttpStatus.OK);
     }
 
 

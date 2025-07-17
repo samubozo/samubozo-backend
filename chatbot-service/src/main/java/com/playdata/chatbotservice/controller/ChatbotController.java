@@ -1,28 +1,27 @@
 package com.playdata.chatbotservice.controller;
 
+import com.playdata.chatbotservice.common.auth.TokenUserInfo;
+import com.playdata.chatbotservice.config.BadWordsConfig;
+import com.playdata.chatbotservice.config.BusinessKeywordsConfig;
 import com.playdata.chatbotservice.dto.ChatRequest;
 import com.playdata.chatbotservice.dto.ChatResponse;
 import com.playdata.chatbotservice.entity.ChatMessage;
 import com.playdata.chatbotservice.service.ChatbotService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import com.playdata.chatbotservice.common.auth.TokenUserInfo;
-import com.playdata.chatbotservice.config.BadWordsConfig;
-import com.playdata.chatbotservice.config.BusinessKeywordsConfig;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/chatbot")
+@RequiredArgsConstructor
 public class ChatbotController {
 
     private final ChatbotService chatbotService;
 
-    public ChatbotController(ChatbotService chatbotService) {
-        this.chatbotService = chatbotService;
-    }
 
     @GetMapping("/hello")
     public String helloChatbot() {
