@@ -13,7 +13,7 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class PayrollService implements PayrollServiceInterface {
+public class PayrollServiceImpl implements PayrollService {
 
     private final PayrollRepository payrollRepository;
 

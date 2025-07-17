@@ -3,7 +3,7 @@ package com.playdata.payrollservice.payroll.service;
 import com.playdata.payrollservice.payroll.dto.PayrollRequestDto;
 import com.playdata.payrollservice.payroll.dto.PayrollResponseDto;
 
-public interface PayrollServiceInterface {
+public interface PayrollService {
     PayrollResponseDto savePayroll(PayrollRequestDto requestDto);
 
     // 2. 급여 정보 조회 (userId로)

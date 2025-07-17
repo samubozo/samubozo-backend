@@ -4,30 +4,32 @@ import com.playdata.payrollservice.payroll.dto.PayrollExtraDetailDto;
 import com.playdata.payrollservice.payroll.dto.PayrollExtraRequestDto;
 import com.playdata.payrollservice.payroll.entity.PayrollExtra;
 import com.playdata.payrollservice.payroll.repository.PayrollExtraRepository;
-import com.playdata.payrollservice.payroll.repository.PayrollRepository;
 import com.playdata.payrollservice.payroll.repository.UserServiceClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-public class PayrollExtraService {
+public class PayrollExtraServiceImpl implements PayrollExtraService {
 
     private final PayrollExtraRepository payrollExtraRepository;
     private final UserServiceClient userServiceClient;
 
     // 추가 수당 저장
+    @Override
     public PayrollExtra saveExtra(PayrollExtra extra) {
         return payrollExtraRepository.save(extra);
     }
 
     // 추가 수당 조회
+    @Override
     public PayrollExtra getExtraById(Long id) {
         return payrollExtraRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("해당 수당 내역이 없습니다."));
     }
 
     // 유저 정보와 함께
+    @Override
     public PayrollExtraDetailDto getExtraWithUser(Long id) {
         PayrollExtra extra = getExtraById(id);
 
@@ -47,6 +49,7 @@ public class PayrollExtraService {
     }
 
     // 수당 수정
+    @Override
     public PayrollExtra updateExtra(Long id, PayrollExtraRequestDto requestDto) {
         // DB에서 기존 데이터 가져옴
         PayrollExtra existing = getExtraById(id); // 없으면 예외 발생
@@ -60,6 +63,7 @@ public class PayrollExtraService {
     }
 
     // 수당 삭제
+    @Override
     public void deleteExtra(Long id) {
         PayrollExtra existing = getExtraById(id);
         payrollExtraRepository.delete(existing);
