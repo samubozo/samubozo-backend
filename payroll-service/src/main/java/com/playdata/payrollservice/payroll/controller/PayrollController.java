@@ -67,16 +67,18 @@ public class PayrollController {
     }
 
     // 4. 급여 정보 삭제 (HR만 가능)
-    @DeleteMapping("/{userId}")
+    @DeleteMapping
     public ResponseEntity<?> deletePayroll(
-            @PathVariable Long userId,
+            @RequestParam Long userId,
+            @RequestParam int payYear,
+            @RequestParam int payMonth,
             @RequestAttribute("userInfo") TokenUserInfo userInfo
     ) {
         if (!userInfo.isHrAdmin()) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("HR만 접근 가능");
         }
 
-        payrollService.deletePayroll(userId);
+        payrollService.deletePayroll(userId, payYear, payMonth);
         return ResponseEntity.ok(new CommonResDto<>(HttpStatus.OK, "급여 정보 삭제 성공!", null));
     }
 

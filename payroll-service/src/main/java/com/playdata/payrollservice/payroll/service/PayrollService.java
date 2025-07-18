@@ -13,7 +13,7 @@ public interface PayrollService {
     PayrollResponseDto updatePayroll(PayrollRequestDto requestDto);
 
     // 4. 급여 정보 삭제
-    void deletePayroll(Long userId);
+    void deletePayroll(Long userId, int payYear, int payMonth);
 
     // 특정 연 /월 급여 조회
     PayrollResponseDto getPayrollByMonth(Long userId, int year, int month);
