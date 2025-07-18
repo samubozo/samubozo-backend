@@ -33,6 +33,9 @@ public class Payroll {
     @Column(name = "meal_allowance")
     private Integer mealAllowance;
 
+    @Column(name = "bonus")
+    private Integer bonus;
+
     @Column(name = "pay_year", nullable = false)
     private Integer payYear;
 
