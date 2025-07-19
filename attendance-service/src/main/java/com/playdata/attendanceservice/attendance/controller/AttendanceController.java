@@ -40,8 +40,7 @@ public class AttendanceController {
     @PostMapping("/check-in")
     public ResponseEntity<CommonResDto<Attendance>> checkIn(@AuthenticationPrincipal TokenUserInfo userInfo, HttpServletRequest request) {
         try {
-            String ipAddress = request.getRemoteAddr();
-            Attendance attendance = attendanceService.recordCheckIn(userInfo.getEmployeeNo(), ipAddress);
+            Attendance attendance = attendanceService.recordCheckIn(userInfo.getEmployeeNo(), request.getRemoteAddr());
             return buildSuccessResponse(attendance, "출근 기록 성공");
         } catch (IllegalStateException e) {
             return buildErrorResponse(HttpStatus.BAD_REQUEST, e.getMessage());

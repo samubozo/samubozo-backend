@@ -69,6 +69,7 @@ public class HRController {
     public ResponseEntity<CommonResDto> getMyUserInfo(@AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
         String email = tokenUserInfo.getEmail();
         UserFeignResDto user = userService.getEmployeeByEmail(email);
+        log.info("HR Service - getMyUserInfo: UserFeignResDto hrRole = {}", user.getHrRole()); // 로그 추가
         CommonResDto resDto = new CommonResDto(HttpStatus.OK, "User info retrieved successfully", user);
         return new ResponseEntity<>(resDto, HttpStatus.OK);
     }

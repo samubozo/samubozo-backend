@@ -14,4 +14,6 @@ public class ApprovalRequestCreateDto {
     private Long vacationsId; // Optional, for VACATION request type
     private String vacationType; // Optional, for VACATION request type
     private Long certificateId; // Optional, for CERTIFICATE request type
+    private java.time.LocalDate startDate; // 추가
+    private java.time.LocalDate endDate; // 추가
 }

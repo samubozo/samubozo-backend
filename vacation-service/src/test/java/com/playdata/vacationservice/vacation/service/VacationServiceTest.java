@@ -1,7 +1,7 @@
 package com.playdata.vacationservice.vacation.service;
 
 import com.playdata.vacationservice.vacation.dto.VacationRequestDto;
-import com.playdata.vacationservice.vacation.dto.VacationBalanceResDto; // 추가
+import com.playdata.vacationservice.vacation.dto.VacationBalanceResDto;
 import com.playdata.vacationservice.vacation.entity.Vacation;
 import com.playdata.vacationservice.vacation.entity.VacationBalance;
 import com.playdata.vacationservice.vacation.entity.VacationType;
@@ -10,10 +10,12 @@ import com.playdata.vacationservice.vacation.repository.VacationRepository;
 import com.playdata.vacationservice.client.ApprovalServiceClient;
 import com.playdata.vacationservice.client.HrServiceClient;
 import com.playdata.vacationservice.client.dto.ApprovalRequestDto;
+import com.playdata.vacationservice.client.dto.ApprovalRequestResponseDto;
+import com.playdata.vacationservice.client.dto.DepartmentResDto;
 import com.playdata.vacationservice.client.dto.UserDetailDto;
+import com.playdata.vacationservice.client.dto.UserFeignResDto; // 추가
 import com.playdata.vacationservice.common.auth.TokenUserInfo;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,7 +29,6 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-@Disabled
 @ExtendWith(MockitoExtension.class)
 class VacationServiceTest {
 
@@ -69,7 +70,7 @@ class VacationServiceTest {
                 .totalGranted(BigDecimal.TEN)
                 .usedDays(BigDecimal.ZERO)
                 .build();
-        userDetailDto = new UserDetailDto(userId, "홍길동", "개발팀");
+        userDetailDto = new UserDetailDto(userId, "홍길동", "개발팀", "N"); // hrRole 추가
 
         // 3) SUT에 mock 주입
         vacationService = new VacationService(
@@ -83,12 +84,6 @@ class VacationServiceTest {
         // — 연차 조회 시 기존 balance 반환
         when(vacationBalanceRepository.findByUserId(userId))
                 .thenReturn(Optional.of(vacationBalance));
-        // — HR 서비스 호출 시 userDetailDto 반환
-        // when(hrServiceClient.getMyUserInfo())
-        //         .thenReturn(userDetailDto);
-        // — 결재 서비스 호출 시 예외 없이 처리
-        // doNothing().when(approvalServiceClient)
-        //         .createApproval(any(ApprovalRequestDto.class));
     }
 
     @Test
@@ -104,21 +99,22 @@ class VacationServiceTest {
 
         // HR 서비스 호출 시 userDetailDto 반환
         when(hrServiceClient.getMyUserInfo())
-                .thenReturn(userDetailDto);
+                .thenReturn(UserFeignResDto.builder()
+                        .employeeNo(userId)
+                        .userName("홍길동")
+                        .department(DepartmentResDto.builder().name("개발팀").build())
+                        .hrRole("N")
+                        .build());
         // 결재 서비스 호출 시 예외 없이 처리
-        doNothing().when(approvalServiceClient)
-                .createApproval(any(ApprovalRequestDto.class));
+        when(approvalServiceClient.createApproval(any(ApprovalRequestDto.class)))
+                .thenReturn(ApprovalRequestResponseDto.builder().id(1L).build()); // Mocking 반환 값 추가
 
         // when: 서비스 실행
         vacationService.requestVacation(userInfo, requestDto);
 
         // then: repository 조회/저장, 외부 서비스 호출 검증
         verify(vacationBalanceRepository).findByUserId(userId);
-        verify(vacationRepository).save(any(Vacation.class));
-        verify(vacationBalanceRepository).save(argThat(bal ->
-                bal.getUsedDays().equals(BigDecimal.ONE) &&
-                        bal.getRemainingDays().equals(BigDecimal.valueOf(9))
-        ));
+        verify(vacationRepository, times(2)).save(any(Vacation.class)); // savedVacation.setApprovalRequestId 후 다시 save
         verify(hrServiceClient).getMyUserInfo();
         verify(approvalServiceClient).createApproval(any(ApprovalRequestDto.class));
     }

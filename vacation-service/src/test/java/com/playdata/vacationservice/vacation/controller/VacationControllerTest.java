@@ -4,8 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.playdata.vacationservice.common.auth.TokenUserInfo;
 import com.playdata.vacationservice.vacation.dto.VacationBalanceResDto;
 import com.playdata.vacationservice.vacation.service.VacationService;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,12 +12,8 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import java.math.BigDecimal;
-import java.util.Collections;
 
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
@@ -27,8 +21,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@Disabled
-@WebMvcTest(value = VacationController.class, useDefaultFilters = false) // Spring Security 필터 체인 비활성화
+@WebMvcTest(VacationController.class) // Spring Security 필터 체인 활성화
 class VacationControllerTest {
 
     @Autowired

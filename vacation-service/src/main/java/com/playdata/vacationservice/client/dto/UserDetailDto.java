@@ -15,4 +15,5 @@ public class UserDetailDto {
     private Long userId;
     private String name;
     private String department;
+    private String hrRole; // 추가
 }

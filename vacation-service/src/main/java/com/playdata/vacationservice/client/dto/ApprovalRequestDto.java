@@ -22,4 +22,6 @@ public class ApprovalRequestDto {
     private Long vacationsId;
     private String vacationType;
     private Long certificatesId;
+    private java.time.LocalDate startDate; // 추가
+    private java.time.LocalDate endDate; // 추가
 }

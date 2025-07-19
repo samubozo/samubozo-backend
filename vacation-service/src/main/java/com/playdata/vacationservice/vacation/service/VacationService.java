@@ -3,7 +3,9 @@ package com.playdata.vacationservice.vacation.service;
 import com.playdata.vacationservice.client.ApprovalServiceClient;
 import com.playdata.vacationservice.client.HrServiceClient;
 import com.playdata.vacationservice.client.dto.ApprovalRequestDto;
+import com.playdata.vacationservice.client.dto.ApprovalRequestResponseDto;
 import com.playdata.vacationservice.client.dto.UserDetailDto;
+import com.playdata.vacationservice.client.dto.UserFeignResDto; // 추가
 import com.playdata.vacationservice.common.auth.TokenUserInfo;
 import com.playdata.vacationservice.client.dto.UserResDto;
 import com.playdata.vacationservice.vacation.dto.ApprovalRequestProcessDto;
@@ -114,7 +116,7 @@ public class VacationService {
         LocalDate startDate = requestDto.getStartDate();
         LocalDate endDate = requestDto.getEndDate();
         String reason = requestDto.getReason();
-        String vacationTypeDescription = requestDto.getVacationType().getDescription();
+        
 
         BigDecimal deductionDays;
         if (requestDto.getVacationType() == VacationType.ANNUAL_LEAVE) {
@@ -132,11 +134,13 @@ public class VacationService {
         // 1. 휴가 신청 내역 저장
         Vacation savedVacation = saveVacationRequest(employeeNo, requestDto);
 
-        // 3. HR 서비스에서 사용자 상세 정보 조회
+        // 2. HR 서비스에서 사용자 상세 정보 조회
         UserDetailDto userDetails = fetchUserDetailsFromHrService();
 
-        // 4. 결재 서비스에 결재 요청
-        requestApproval(savedVacation.getId(), userDetails, userInfo, requestDto.getVacationType(), startDate, endDate, reason);
+        // 3. 결재 서비스에 결재 요청 및 approvalRequestId 저장
+        ApprovalRequestResponseDto approvalResponse = requestApproval(savedVacation.getId(), userDetails, userInfo, requestDto.getVacationType(), startDate, endDate, reason);
+        savedVacation.setApprovalRequestId(approvalResponse.getId());
+        vacationRepository.save(savedVacation);
 
         log.info("사용자(ID: {})의 휴가 신청 프로세스가 완료되었습니다. 신청 ID: {}", employeeNo, savedVacation.getId());
     }
@@ -208,8 +212,40 @@ public class VacationService {
      */
     public List<VacationHistoryResDto> getMyVacationRequests(Long userId) {
         List<Vacation> vacations = vacationRepository.findByUserIdOrderByStartDateDesc(userId);
+
+        // 현재 로그인된 사용자의 부서 정보 조회
+        String applicantDepartment = null;
+        try {
+            UserFeignResDto currentUserInfo = hrServiceClient.getMyUserInfo();
+            if (currentUserInfo != null && currentUserInfo.getDepartment() != null) {
+                applicantDepartment = currentUserInfo.getDepartment().getName();
+            }
+        } catch (FeignException e) {
+            log.error("HR 서비스 통신 오류 (getMyUserInfo) for current user: {}", e.getMessage());
+            // 오류 발생 시 부서 정보 없이 진행
+        }
+
+        final String finalApplicantDepartment = applicantDepartment; // 람다 표현식에서 사용하기 위해 final 변수로 선언
+
         return vacations.stream()
-                .map(VacationHistoryResDto::from)
+                .map(vacation -> {
+                    String approverName = null;
+                    Long approverEmployeeNo = null;
+                    java.time.LocalDateTime processedAt = null;
+
+                    if (vacation.getApprovalRequestId() != null) {
+                        try {
+                            ApprovalRequestResponseDto approvalResponse = approvalServiceClient.getApprovalRequestById(vacation.getApprovalRequestId());
+                            approverName = approvalResponse.getApproverName();
+                            approverEmployeeNo = approvalResponse.getApproverId();
+                            processedAt = approvalResponse.getProcessedAt();
+                        } catch (FeignException e) {
+                            log.error("결재 서비스 통신 오류 (getApprovalRequestById) for approvalRequestId {}: {}", vacation.getApprovalRequestId(), e.getMessage());
+                            // 오류 발생 시 해당 휴가 신청은 결재자 정보 없이 반환
+                        }
+                    }
+                    return VacationHistoryResDto.from(vacation, approverName, approverEmployeeNo, processedAt, finalApplicantDepartment);
+                })
                 .collect(Collectors.toList());
     }
 
@@ -278,25 +314,12 @@ public class VacationService {
             throw new IllegalStateException("대기 중인 휴가 신청만 승인할 수 있습니다.");
         }
 
-        vacation.setVacationStatus(VacationStatus.APPROVED);
-        vacationRepository.save(vacation);
-
-        // 연차 차감
-        BigDecimal deductionDays;
-        if (vacation.getVacationType() == VacationType.ANNUAL_LEAVE) {
-            if (vacation.getStartDate() == null || vacation.getEndDate() == null) {
-                throw new IllegalStateException("휴가 시작일 또는 종료일 정보가 누락되었습니다. (Vacation ID: " + vacationId + ")");
-            }
-            long daysBetween = ChronoUnit.DAYS.between(vacation.getStartDate(), vacation.getEndDate()) + 1;
-            deductionDays = new BigDecimal(daysBetween);
-        } else {
-            deductionDays = vacation.getVacationType().getDeductionDays();
-        }
-        deductVacationBalance(vacation.getUserId(), deductionDays);
+        // 연차 차감 로직은 approval-service의 콜백을 통해 updateVacationBalanceOnApproval에서 처리됩니다.
+        // 휴가 상태 변경 로직도 updateVacationBalanceOnApproval에서 처리됩니다.
 
         // 결재 서비스에 상태 업데이트 요청
         try {
-            approvalServiceClient.updateApprovalStatus(vacationId, VacationStatus.APPROVED.name(), null);
+            approvalServiceClient.approveApprovalRequest(vacation.getApprovalRequestId(), null); // userInfo는 Feign Interceptor로 전달
             log.info("휴가 신청 (ID: {})이 승인되었습니다. 결재 서비스에 상태 업데이트 요청 완료.", vacationId);
         } catch (FeignException e) {
             log.error("결재 서비스 통신 오류 (approveVacation): {}", e.getMessage());
@@ -319,17 +342,52 @@ public class VacationService {
             throw new IllegalStateException("대기 중인 휴가 신청만 반려할 수 있습니다.");
         }
 
-        vacation.setVacationStatus(VacationStatus.REJECTED);
-        vacationRepository.save(vacation);
+        // 연차 복구 로직은 approval-service의 콜백을 통해 updateVacationBalanceOnApproval에서 처리됩니다.
+        // 휴가 상태 변경 로직도 updateVacationBalanceOnApproval에서 처리됩니다.
 
         // 결재 서비스에 상태 업데이트 요청
         try {
-            approvalServiceClient.updateApprovalStatus(vacationId, VacationStatus.REJECTED.name(), requestDto.getComment());
+            approvalServiceClient.rejectApprovalRequest(vacation.getApprovalRequestId(), requestDto); // requestDto를 직접 전달
             log.info("휴가 신청 (ID: {})이 반려되었습니다. 결재 서비스에 상태 업데이트 요청 완료. 사유: {}", vacationId, requestDto.getComment());
         } catch (FeignException e) {
             log.error("결재 서비스 통신 오류 (rejectVacation): {}", e.getMessage());
             throw new IllegalStateException("결재 서비스 통신 중 오류가 발생했습니다. 다시 시도해주세요.");
         }
+    }
+
+    /**
+     * 휴가 신청을 수정합니다. (PENDING_APPROVAL 상태만 가능)
+     *
+     * @param vacationId 수정할 휴가 신청 ID
+     * @param userId 요청한 사용자의 ID
+     * @param requestDto 수정할 휴가 정보를 담은 DTO
+     */
+    @Transactional
+    public void updateVacationRequest(Long vacationId, Long userId, VacationRequestDto requestDto) {
+        Vacation vacation = vacationRepository.findById(vacationId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 휴가 신청을 찾을 수 없습니다: " + vacationId));
+
+        // 신청자 본인만 수정 가능하도록 검증
+        if (!vacation.getUserId().equals(userId)) {
+            throw new IllegalStateException("본인의 휴가 신청만 수정할 수 있습니다.");
+        }
+
+        // PENDING_APPROVAL 상태의 휴가만 수정 가능
+        if (vacation.getVacationStatus() != VacationStatus.PENDING_APPROVAL) {
+            throw new IllegalStateException("대기 중인 휴가 신청만 수정할 수 있습니다.");
+        }
+
+        // 휴가 정보 업데이트
+        vacation.setStartDate(requestDto.getStartDate());
+        vacation.setEndDate(requestDto.getEndDate());
+        vacation.setVacationType(requestDto.getVacationType());
+        vacation.setReason(requestDto.getReason());
+
+        vacationRepository.save(vacation);
+        log.info("휴가 신청 (ID: {})이 수정되었습니다.", vacationId);
+
+        // TODO: approval-service의 해당 결재 요청도 업데이트해야 할 수 있습니다.
+        // 현재 approval-service에 결재 요청 수정 API가 없으므로, 필요 시 추가 구현
     }
 
     // --- Private Helper Methods for SRP ---
@@ -339,7 +397,7 @@ public class VacationService {
      * @param employeeNo 사용자 사번
      * @param deductionDays 차감할 일수
      */
-    private void deductVacationBalance(Long employeeNo, BigDecimal deductionDays) {
+    public void deductVacationBalance(Long employeeNo, BigDecimal deductionDays) {
         VacationBalance vacationBalance = vacationBalanceRepository.findByUserId(employeeNo)
                 .orElseThrow(() -> new IllegalArgumentException("해당 사용자의 연차 정보를 찾을 수 없습니다: " + employeeNo));
 
@@ -349,6 +407,21 @@ public class VacationService {
         vacationBalance.useDays(deductionDays);
         vacationBalanceRepository.save(vacationBalance);
         log.info("사용자(ID: {})의 연차를 {}일 차감했습니다. 남은 연차: {}", employeeNo, deductionDays, vacationBalance.getRemainingDays());
+    }
+
+    /**
+     * 연차 잔액을 복구합니다.
+     * @param employeeNo 사용자 사번
+     * @param restoredDays 복구할 일수
+     */
+    public void restoreVacationBalance(Long employeeNo, BigDecimal restoredDays) {
+        VacationBalance vacationBalance = vacationBalanceRepository.findByUserId(employeeNo)
+                .orElseThrow(() -> new IllegalArgumentException("해당 사용자의 연차 정보를 찾을 수 없습니다: " + employeeNo));
+
+        // 사용된 연차를 되돌리는 것이므로 usedDays를 감소시킵니다.
+        vacationBalance.useDays(restoredDays.negate()); // useDays 메서드에서 음수 처리 가능하도록 수정 필요
+        vacationBalanceRepository.save(vacationBalance);
+        log.info("사용자(ID: {})의 연차를 {}일 복구했습니다. 남은 연차: {}", employeeNo, restoredDays, vacationBalance.getRemainingDays());
     }
 
     /**
@@ -370,21 +443,112 @@ public class VacationService {
     }
 
     /**
+     * 특정 결재자가 처리한 (승인 또는 반려) 휴가 신청 내역을 조회합니다.
+     *
+     * @param userInfo 현재 로그인된 사용자의 인증 정보 (결재자 ID 추출용)
+     * @return 처리된 휴가 신청 내역 DTO 목록
+     */
+    public List<VacationHistoryResDto> getProcessedVacationApprovals(TokenUserInfo userInfo) {
+        // approval-service에서 해당 결재자가 처리한 모든 결재 요청을 조회
+        List<ApprovalRequestResponseDto> processedApprovals;
+        try {
+            processedApprovals = approvalServiceClient.getProcessedApprovalRequestsByApproverId(userInfo);
+        } catch (FeignException e) {
+            log.error("결재 서비스 통신 오류 (getProcessedApprovalRequestsByApproverId): {}", e.getMessage());
+            throw new IllegalStateException("결재 서비스 통신 중 오류가 발생했습니다. 다시 시도해주세요.");
+        }
+
+        if (processedApprovals.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 휴가 신청에 해당하는 approvalRequestId만 필터링하고, 해당 vacationsId를 추출
+        List<Long> vacationIds = processedApprovals.stream()
+                .filter(approval -> approval.getRequestType() == RequestType.VACATION && approval.getVacationsId() != null)
+                .map(ApprovalRequestResponseDto::getVacationsId)
+                .collect(Collectors.toList());
+
+        if (vacationIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // vacation-service의 DB에서 해당 휴가 엔티티들을 조회
+        Map<Long, Vacation> vacationMap = vacationRepository.findAllById(vacationIds).stream()
+                .collect(Collectors.toMap(Vacation::getId, Function.identity()));
+
+        // 모든 신청자 ID 추출
+        List<Long> applicantIds = processedApprovals.stream()
+                .map(ApprovalRequestResponseDto::getApplicantId)
+                .distinct()
+                .collect(Collectors.toList());
+
+        // HR 서비스에서 신청자 정보 조회
+        Map<Long, UserResDto> applicantInfoMap;
+        try {
+            List<UserResDto> usersInfo = hrServiceClient.getUsersInfo(applicantIds);
+            applicantInfoMap = usersInfo.stream()
+                    .collect(Collectors.toMap(UserResDto::getEmployeeNo, Function.identity()));
+        } catch (FeignException e) {
+            log.error("HR 서비스 통신 오류 (getUsersInfo) for applicants: {}", e.getMessage());
+            throw new IllegalStateException("HR 서비스 통신 중 오류가 발생했습니다. 다시 시도해주세요.");
+        }
+
+        // ApprovalRequestResponseDto와 Vacation 엔티티를 결합하여 VacationHistoryResDto 생성
+        return processedApprovals.stream()
+                .filter(approval -> approval.getRequestType() == RequestType.VACATION && vacationMap.containsKey(approval.getVacationsId()))
+                .map(approval -> {
+                    Vacation vacation = vacationMap.get(approval.getVacationsId());
+                    UserResDto applicantInfo = applicantInfoMap.get(approval.getApplicantId());
+                    String applicantDepartment = (applicantInfo != null && applicantInfo.getDepartment() != null) ? applicantInfo.getDepartment().getName() : null;
+
+                    return VacationHistoryResDto.from(
+                            vacation,
+                            approval.getApproverName(),
+                            approval.getApproverId(),
+                            approval.getProcessedAt(),
+                            applicantDepartment
+                    );
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 휴가 엔티티의 상태를 업데이트합니다.
+     *
+     * @param vacationId 휴가 ID
+     * @param status 업데이트할 휴가 상태
+     */
+    @Transactional
+    public void updateVacationStatus(Long vacationId, VacationStatus status) {
+        Vacation vacation = vacationRepository.findById(vacationId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 휴가 신청을 찾을 수 없습니다: " + vacationId));
+        vacation.setVacationStatus(status);
+        vacationRepository.save(vacation);
+        log.info("휴가 (ID: {})의 상태가 {}로 업데이트되었습니다.", vacationId, status);
+    }
+
+    /**
      * HR 서비스에서 사용자 상세 정보를 조회합니다.
      * @return 사용자 상세 정보 DTO
      */
     private UserDetailDto fetchUserDetailsFromHrService() {
-        UserDetailDto userDetails;
+        UserFeignResDto userFeignResDto;
         try {
-            userDetails = hrServiceClient.getMyUserInfo();
-            if (userDetails == null) {
+            userFeignResDto = hrServiceClient.getMyUserInfo();
+            if (userFeignResDto == null) {
                 throw new IllegalStateException("HR 서비스로부터 사용자 정보를 가져오는데 실패했습니다. (응답 null)");
             }
         } catch (FeignException e) {
             log.error("HR 서비스 통신 오류: {}", e.getMessage());
             throw new IllegalStateException("HR 서비스 통신 중 오류가 발생했습니다. 다시 시도해주세요.");
         }
-        return userDetails;
+        // UserFeignResDto를 UserDetailDto로 변환
+        return new UserDetailDto(
+                userFeignResDto.getEmployeeNo(),
+                userFeignResDto.getUserName(),
+                userFeignResDto.getDepartment() != null ? userFeignResDto.getDepartment().getName() : null,
+                userFeignResDto.getHrRole() // hrRole 추가
+        );
     }
 
     /**
@@ -392,12 +556,12 @@ public class VacationService {
      * @param employeeNo 사용자 사번
      * @param vacationId 휴가 신청 ID
      * @param userDetails 사용자 상세 정보
-     * @param vacationTypeDescription 휴가 종류 설명
+     * @param vacationType 휴가 종류
      * @param startDate 휴가 시작일
      * @param endDate 휴가 종료일
      * @param reason 휴가 사유
      */
-    private void requestApproval(Long vacationId, UserDetailDto userDetails, TokenUserInfo userInfo,
+    private ApprovalRequestResponseDto requestApproval(Long vacationId, UserDetailDto userDetails, TokenUserInfo userInfo,
                                  VacationType vacationType, LocalDate startDate, LocalDate endDate, String reason) {
 
         String title = String.format("%s 휴가 신청 (%s ~ %s)", vacationType.getDescription(), startDate, endDate);
@@ -409,11 +573,12 @@ public class VacationService {
                 .vacationsId(vacationId)
                 .vacationType(vacationType.name())
                 .title(title)
+                .startDate(startDate)
+                .endDate(endDate)
                 .build();
 
         try {
-            approvalServiceClient.createApproval(approvalRequest);
-            log.info("결재 서비스에 휴가(ID: {})에 대한 결재 생성을 요청했습니다.", vacationId);
+            return approvalServiceClient.createApproval(approvalRequest);
         } catch (FeignException e) {
             log.error("결재 서비스 통신 오류: {}", e.getMessage());
             throw new IllegalStateException("결재 서비스 통신 중 오류가 발생했습니다. 다시 시도해주세요.");
