@@ -1,11 +1,10 @@
 package com.playdata.vacationservice.vacation.dto;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
+import lombok.Builder;
+import lombok.Getter;
 import com.playdata.vacationservice.vacation.entity.Vacation;
 import com.playdata.vacationservice.vacation.entity.VacationStatus;
 import com.playdata.vacationservice.vacation.entity.VacationType;
-import lombok.Builder;
-import lombok.Getter;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -24,13 +23,11 @@ public class VacationHistoryResDto {
     private final VacationType vacationType;
     private final VacationStatus vacationStatus;
     private final String reason;
-    @JsonFormat(pattern = "yyyy.MM.dd", timezone = "Asia/Seoul")
-    private final java.time.LocalDateTime requestedAt;
+    private final LocalDate requestedAt;
     private final String applicantDepartment; // 신청자 부서 추가
     private final String approverName;
     private final Long approverEmployeeNo;
-    @JsonFormat(pattern = "yyyy.MM.dd", timezone = "Asia/Seoul")
-    private final java.time.LocalDateTime processedAt;
+    private final java.time.LocalDate processedAt;
 
     /**
      * Vacation 엔티티를 VacationHistoryResDto로 변환합니다.
@@ -51,7 +48,7 @@ public class VacationHistoryResDto {
                 .vacationType(vacation.getVacationType())
                 .vacationStatus(vacation.getVacationStatus())
                 .reason(vacation.getReason())
-                .requestedAt(vacation.getCreatedAt())
+                .requestedAt(vacation.getCreatedAt() != null ? vacation.getCreatedAt().toLocalDate() : null)
                 .build();
     }
 
@@ -65,7 +62,7 @@ public class VacationHistoryResDto {
      * @param applicantDepartment 신청자 부서
      * @return VacationHistoryResDto 객체
      */
-    public static VacationHistoryResDto from(Vacation vacation, String approverName, Long approverEmployeeNo, java.time.LocalDateTime processedAt, String applicantDepartment) {
+    public static VacationHistoryResDto from(Vacation vacation, String approverName, Long approverEmployeeNo, java.time.LocalDate processedAt, String applicantDepartment) {
         String periodString = String.format("%s ~ %s",
                 vacation.getStartDate().format(DateTimeFormatter.ofPattern("yyyy.MM.dd")),
                 vacation.getEndDate().format(DateTimeFormatter.ofPattern("yyyy.MM.dd"))
@@ -78,7 +75,7 @@ public class VacationHistoryResDto {
                 .vacationType(vacation.getVacationType())
                 .vacationStatus(vacation.getVacationStatus())
                 .reason(vacation.getReason())
-                .requestedAt(vacation.getCreatedAt())
+                .requestedAt(vacation.getCreatedAt() != null ? vacation.getCreatedAt().toLocalDate() : null)
                 .approverName(approverName)
                 .approverEmployeeNo(approverEmployeeNo)
                 .processedAt(processedAt)

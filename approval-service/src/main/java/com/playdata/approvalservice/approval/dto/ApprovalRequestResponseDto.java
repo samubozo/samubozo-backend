@@ -6,12 +6,14 @@ import com.playdata.approvalservice.approval.entity.RequestType;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.io.Serializable;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+
 
 @Getter
 @Builder
-public class ApprovalRequestResponseDto {
+public class ApprovalRequestResponseDto implements Serializable {
+    private static final long serialVersionUID = 1L;
     private Long id;
     private RequestType requestType;
     private Long applicantId;
@@ -19,8 +21,8 @@ public class ApprovalRequestResponseDto {
     private Long approverId;
     private String approverName; // 추가
     private ApprovalStatus status;
-    private LocalDateTime requestedAt;
-    private LocalDateTime processedAt;
+    private LocalDate requestedAt;
+    private LocalDate processedAt;
     private String reason;
     private String title; // 추가
     private Long vacationsId;
@@ -38,8 +40,8 @@ public class ApprovalRequestResponseDto {
                 .approverId(approvalRequest.getApproverId())
                 .approverName(approverName)
                 .status(approvalRequest.getStatus())
-                .requestedAt(approvalRequest.getRequestedAt())
-                .processedAt(approvalRequest.getProcessedAt())
+                .requestedAt(approvalRequest.getRequestedAt() != null ? approvalRequest.getRequestedAt().toLocalDate() : null)
+                .processedAt(approvalRequest.getProcessedAt() != null ? approvalRequest.getProcessedAt().toLocalDate() : null)
                 .reason(approvalRequest.getReason())
                 .title(approvalRequest.getTitle())
                 .vacationsId(approvalRequest.getVacationsId())

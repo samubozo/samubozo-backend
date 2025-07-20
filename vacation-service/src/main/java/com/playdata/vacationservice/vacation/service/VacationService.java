@@ -231,14 +231,14 @@ public class VacationService {
                 .map(vacation -> {
                     String approverName = null;
                     Long approverEmployeeNo = null;
-                    java.time.LocalDateTime processedAt = null;
+                    java.time.LocalDate processedAt = null;
 
                     if (vacation.getApprovalRequestId() != null) {
                         try {
                             ApprovalRequestResponseDto approvalResponse = approvalServiceClient.getApprovalRequestById(vacation.getApprovalRequestId());
                             approverName = approvalResponse.getApproverName();
                             approverEmployeeNo = approvalResponse.getApproverId();
-                            processedAt = approvalResponse.getProcessedAt();
+                                                        processedAt = approvalResponse.getProcessedAt();
                         } catch (FeignException e) {
                             log.error("결재 서비스 통신 오류 (getApprovalRequestById) for approvalRequestId {}: {}", vacation.getApprovalRequestId(), e.getMessage());
                             // 오류 발생 시 해당 휴가 신청은 결재자 정보 없이 반환
