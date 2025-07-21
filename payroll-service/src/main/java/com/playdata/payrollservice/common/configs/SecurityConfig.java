@@ -37,7 +37,7 @@ public class SecurityConfig {
             auth
                     .requestMatchers("/actuator/**", "/payroll","/payroll/**").permitAll()
                     .requestMatchers(
-                                "/payroll/extras","/payroll/extras/**").hasAnyRole("USER", "ADMIN")
+                                "/payroll/admin/**").hasAnyRole("USER", "ADMIN")
                     .anyRequest().authenticated();
         });
 

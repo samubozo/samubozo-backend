@@ -39,17 +39,20 @@ public class PayrollController {
     }
 
     // 2. 특정 직원 급여 정보 조회 (HR만 가능)
-    @GetMapping("/{userId}")
-    public ResponseEntity<?> getPayroll(
-            @PathVariable Long userId,
+    @GetMapping("/admin/monthly")
+    public ResponseEntity<?> getPayrollByAdmin(
+            @RequestParam Long userId,
+            @RequestParam Integer year,
+            @RequestParam Integer month,
             @RequestAttribute("userInfo") TokenUserInfo userInfo
     ) {
         if (!userInfo.isHrAdmin()) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("HR만 접근 가능");
         }
 
-        PayrollResponseDto payroll = payrollService.getPayrollByUserId(userId);
-        return ResponseEntity.ok(new CommonResDto<>(HttpStatus.OK, "급여 정보 조회 성공!", payroll));
+        PayrollResponseDto payroll = payrollService.getPayrollByMonth(userId, year, month);
+        return ResponseEntity.ok(
+                new CommonResDto<>(HttpStatus.OK, "월별 급여 조회 성공!", payroll));
     }
 
     // 3. 급여 정보 수정 (HR만 가능)

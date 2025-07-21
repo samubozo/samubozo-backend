@@ -83,6 +83,8 @@ public class PayrollServiceImpl implements PayrollService {
             payroll.setPositionAllowance(requestDto.getPositionAllowance());
         if (requestDto.getMealAllowance() != null)
             payroll.setMealAllowance(requestDto.getMealAllowance());
+        if (requestDto.getBonus() != null)
+            payroll.setBonus(requestDto.getBonus());
 
         Payroll updated = payrollRepository.save(payroll);
         return toDto(updated);
@@ -111,6 +113,7 @@ public class PayrollServiceImpl implements PayrollService {
                 .userId(payroll.getUserId())
                 .basePayroll(payroll.getBasePayroll())
                 .positionAllowance(payroll.getPositionAllowance())
+                .bonus(payroll.getBonus())
                 .payYear(payroll.getPayYear())
                 .payMonth(payroll.getPayMonth())
                 .mealAllowance(payroll.getMealAllowance())
