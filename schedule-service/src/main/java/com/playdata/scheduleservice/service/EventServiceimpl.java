@@ -42,7 +42,7 @@ public class EventServiceimpl implements EventService {
             throw new IllegalArgumentException("그룹 카테고리에 일정을 생성할 권한이 없습니다.");
         }
 
-        if (request.getStartDate() == null) {
+        if (request.getStartDate() == null && request.getIsAllDay() == false) {
             throw new IllegalArgumentException("시작일은 필수입니다.");
         }
 
