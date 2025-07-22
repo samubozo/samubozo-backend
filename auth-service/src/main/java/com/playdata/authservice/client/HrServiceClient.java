@@ -15,6 +15,6 @@ public interface HrServiceClient {
     UserLoginFeignResDto getLoginUser(@PathVariable String email);
 
     @PostMapping("/hr/user/password")
-    ResponseEntity<?> setPassword(@PathVariable UserPwUpdateDto dto);
+    ResponseEntity<?> setPassword(@RequestBody UserPwUpdateDto dto);
 
 }

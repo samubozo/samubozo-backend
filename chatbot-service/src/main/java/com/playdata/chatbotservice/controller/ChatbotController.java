@@ -1,28 +1,27 @@
 package com.playdata.chatbotservice.controller;
 
+import com.playdata.chatbotservice.common.auth.TokenUserInfo;
+import com.playdata.chatbotservice.config.BadWordsConfig;
+import com.playdata.chatbotservice.config.BusinessKeywordsConfig;
 import com.playdata.chatbotservice.dto.ChatRequest;
 import com.playdata.chatbotservice.dto.ChatResponse;
 import com.playdata.chatbotservice.entity.ChatMessage;
 import com.playdata.chatbotservice.service.ChatbotService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import com.playdata.chatbotservice.common.auth.TokenUserInfo;
-import com.playdata.chatbotservice.config.BadWordsConfig;
-import com.playdata.chatbotservice.config.BusinessKeywordsConfig;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/chatbot")
+@RequiredArgsConstructor
 public class ChatbotController {
 
     private final ChatbotService chatbotService;
 
-    public ChatbotController(ChatbotService chatbotService) {
-        this.chatbotService = chatbotService;
-    }
 
     @GetMapping("/hello")
     public String helloChatbot() {
@@ -55,7 +54,7 @@ public class ChatbotController {
         if (!isBusinessRelated) {
             String conversationId = request.getConversationId() != null && !request.getConversationId().trim().isEmpty() ?
                                     request.getConversationId() : UUID.randomUUID().toString();
-            return ResponseEntity.ok(new ChatResponse("저는 회사 규정 및 복지에 대한 질문에만 답변할 수 있습니다. 다른 질문은 도와드릴 수 없습니다.", conversationId));
+            return ResponseEntity.ok(new ChatResponse("저는 사이트 안내 및 인사 관련에 대한 질문만 답변할 수 있습니다. 다른 질문은 도와드릴 수 없습니다.", conversationId));
         }
 
         // ChatRequest에 employeeNo 설정

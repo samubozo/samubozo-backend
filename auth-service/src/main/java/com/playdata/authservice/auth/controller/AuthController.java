@@ -11,11 +11,13 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
-import org.springframework.core.env.Environment;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -31,8 +33,6 @@ public class AuthController {
     private final AuthService authService;
     private final JwtTokenProvider jwtTokenProvider;
     private final RedisTemplate<String, Object> redisTemplate;
-
-    private final Environment env;
 
     // 로그인
     @PostMapping("/login")
@@ -51,8 +51,8 @@ public class AuthController {
         loginInfo.put("token", token);
         loginInfo.put("refreshToken", refreshToken);
 
-        CommonResDto resDto
-                = new CommonResDto(HttpStatus.OK,
+        CommonResDto<Map<String, Object>> resDto
+                = new CommonResDto<>(HttpStatus.OK,
                 "Login Success", loginInfo);
         return new ResponseEntity<>(resDto, HttpStatus.OK);
     }
@@ -92,54 +92,54 @@ public class AuthController {
 
     // 인증코드 검증
     @PostMapping("/verify-code")
-    public ResponseEntity<CommonResDto> verifyCode(@Valid @RequestBody VerifyCodeDto dto) {
+    public ResponseEntity<CommonResDto<String>> verifyCode(@Valid @RequestBody VerifyCodeDto dto) {
         try {
             authService.verifyResetCode(dto.getEmail(), dto.getCode());
             return ResponseEntity.ok(
-                    new CommonResDto(
-                            HttpStatus.OK,
-                            "인증 코드가 일치합니다.",
-                            null
-                    )
+                new CommonResDto<>(
+                        HttpStatus.OK,
+                        "인증 코드가 일치합니다.",
+                        "인증 코드가 일치합니다."
+                )
             );
         } catch (IllegalArgumentException e) {
             return ResponseEntity
-                    .badRequest()
-                    .body(new CommonResDto(
-                            HttpStatus.BAD_REQUEST,
-                            e.getMessage(),
-                            null
-                    ));
+                .badRequest()
+                .body(new CommonResDto<>(
+                        HttpStatus.BAD_REQUEST,
+                        e.getMessage(),
+                        "요청이 잘못되었습니다. 다시 시도해주세요."
+                ));
         }
     }
 
     // 비밀번호 재설정
     @PostMapping("/reset-password")
-    public ResponseEntity<CommonResDto> resetPassword(@Valid @RequestBody ResetPasswordDto dto) {
+    public ResponseEntity<CommonResDto<String>> resetPassword(@Valid @RequestBody ResetPasswordDto dto) {
         try {
             authService.resetPassword(dto.getEmail(), dto.getCode(), dto.getNewPassword());
             return ResponseEntity.ok(
-                    new CommonResDto(
+                    new CommonResDto<>(
                             HttpStatus.OK,
                             "비밀번호 재설정이 완료되었습니다.",
-                            null
+                      "비밀번호 재설정이 완료되었습니다."
                     )
             );
         } catch (IllegalArgumentException e) {
             return ResponseEntity
                     .badRequest()
-                    .body(new CommonResDto(
+                    .body(new CommonResDto<>(
                             HttpStatus.BAD_REQUEST,
                             e.getMessage(),
-                            null
+                      "요청이 잘못되었습니다. 다시 시도해주세요."
                     ));
         } catch (Exception e) {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new CommonResDto(
+                    .body(new CommonResDto<>(
                             HttpStatus.INTERNAL_SERVER_ERROR,
-                            "서버 에러가 발생했습니다. 다시 시도해주세요.",
-                            null
+                            "서버 에러가 발생했습니다. 관리자에게 문의해주세요.",
+                            "서버 에러가 발생했습니다. 관리자에게 문의해주세요."
                     ));
         }
     }
@@ -153,7 +153,7 @@ public class AuthController {
             String authNum = authService.mailCheck(email);
             // 성공: 200 + 인증번호
             return ResponseEntity.ok(
-                    new CommonResDto(
+                    new CommonResDto<>(
                             HttpStatus.OK,
                             "인증 코드 발송 성공",
                             authNum
@@ -163,7 +163,7 @@ public class AuthController {
             // 중복 이메일 또는 차단 상태
             return ResponseEntity
                     .badRequest()
-                    .body(new CommonResDto(
+                    .body(new CommonResDto<>(
                             HttpStatus.BAD_REQUEST,
                             e.getMessage(),
                             null
@@ -172,22 +172,13 @@ public class AuthController {
             // 메일 전송 실패 등
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new CommonResDto(
+                    .body(new CommonResDto<>(
                             HttpStatus.INTERNAL_SERVER_ERROR,
                             "이메일 전송 과정 중 문제 발생!",
                             null
                     ));
         }
     }
-
-    // 인증코드 검증 요청
-    @PostMapping("/verify")
-    public ResponseEntity<?> verifyEmail(@RequestBody Map<String, String> map) {
-        log.info("인증 코드 검증! map: {}", map);
-        Map<String, String> result = authService.verifyEmail(map);
-        return ResponseEntity.ok().body("인증 성공!");
-    }
-
 }
 
 

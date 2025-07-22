@@ -4,7 +4,7 @@ import com.playdata.scheduleservice.common.auth.TokenUserInfo;
 import com.playdata.scheduleservice.dto.EventRequest;
 import com.playdata.scheduleservice.dto.EventResponse;
 import com.playdata.scheduleservice.entity.Event.EventType;
-import com.playdata.scheduleservice.service.EventService;
+import com.playdata.scheduleservice.service.EventServiceimpl;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -20,7 +20,7 @@ import java.time.LocalDate;
 @RequiredArgsConstructor
 public class EventController {
 
-    private final EventService eventService;
+    private final EventServiceimpl eventService;
 
     // 일정 생성
     @PostMapping
