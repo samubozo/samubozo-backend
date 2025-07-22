@@ -66,6 +66,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             LocalTime standardCheckInTime = LocalTime.parse(standardCheckInTimeStr);
 
             WorkStatusType initialStatusType = WorkStatusType.REGULAR;
+            boolean isLate = false;
 
             // 1. HR 서비스에서 승인된 외부 일정(출장, 연수 등)이 있는지 확인
             String dateString = checkInDateTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE);
@@ -92,10 +93,19 @@ public class AttendanceServiceImpl implements AttendanceService {
                 } else if (currentCheckInTime.isAfter(standardCheckInTime)) {
                     // 3. 승인된 외부 일정이나 오전 반차가 없고, 기준 시간보다 늦게 출근했으면 지각
                     initialStatusType = WorkStatusType.LATE;
+                    isLate = true;
                 }
             }
 
-            WorkStatus workStatus = new WorkStatus(attendance, initialStatusType, null);
+            WorkStatus workStatus = WorkStatus.builder()
+                    .userId(userId)
+                    .date(checkInDateTime.toLocalDate())
+                    .statusType(initialStatusType)
+                    .reason(null)
+                    .checkInTime(checkInDateTime.toLocalTime())
+                    .isLate(isLate)
+                    .build();
+
             attendance.setWorkStatus(workStatus);
 
             // Attendance와 WorkStatus를 함께 저장 (cascade 설정에 따라)
@@ -106,7 +116,6 @@ public class AttendanceServiceImpl implements AttendanceService {
             workStatus.setCheckInTime(checkInDateTime.toLocalTime()); // 파라미터로 받은 시간으로 설정
             workStatusRepository.save(workStatus); // WorkStatus를 명시적으로 저장
             log.info("WorkStatus after check-in: ID={}, CheckInTime={}", workStatus.getId(), workStatus.getCheckInTime());
-
 
             return savedAttendance;
 
@@ -250,7 +259,9 @@ public class AttendanceServiceImpl implements AttendanceService {
 
         WorkStatus workStatus = attendance.getWorkStatus();
         if (workStatus != null) {
-            workStatus.setStatusType(WorkStatusType.REGULAR); // 외출 후 복귀 시 정상 근무 상태로 변경
+            if (workStatus.getStatusType() != WorkStatusType.LATE) {
+                workStatus.setStatusType(WorkStatusType.OUT_OF_OFFICE);
+            }
             workStatusRepository.save(workStatus);
         }
 
@@ -357,7 +368,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .filter(a -> a.getWorkStatus() != null)
                 .count();
         long lateCount = monthlyAttendances.stream()
-                .filter(a -> a.getWorkStatus() != null && a.getWorkStatus().getStatusType() == WorkStatusType.LATE)
+                .filter(a -> a.getWorkStatus() != null && a.getWorkStatus().isLate())
                 .count();
         long goOutCount = monthlyAttendances.stream()
                 .filter(a -> a.getGoOutTime() != null)

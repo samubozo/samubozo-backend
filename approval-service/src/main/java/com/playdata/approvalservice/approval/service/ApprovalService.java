@@ -54,6 +54,17 @@ public class ApprovalService {
             log.warn("보안 검증 실패: 인증된 사용자 ID({})와 신청자 ID({})가 일치하지 않습니다.", userInfo.getEmployeeNo(), createDto.getApplicantId());
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Authenticated user ID does not match the applicant ID in the request.");
         }
+
+        // 중복 신청 방지: 동일한 신청자가 동일한 날짜에 PENDING 또는 APPROVED 상태의 요청을 가지고 있는지 확인
+        LocalDateTime startOfDay = createDto.getStartDate().atStartOfDay();
+        LocalDateTime endOfDay = createDto.getEndDate().atTime(23, 59, 59, 999999999);
+        List<ApprovalRequest> existingRequests = approvalRepository.findByApplicantIdAndRequestedAtBetweenAndStatusIn(
+                createDto.getApplicantId(), startOfDay, endOfDay, List.of(ApprovalStatus.PENDING, ApprovalStatus.APPROVED));
+
+        if (!existingRequests.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "이미 해당 기간에 처리 중이거나 승인된 결재 요청이 존재합니다.");
+        }
+
         log.info("보안 검증 통과. ApprovalRequest 엔티티 빌드 시작.");
 
         // ApprovalRequest 엔티티를 빌더 패턴을 사용하여 생성합니다.
@@ -251,10 +262,10 @@ public class ApprovalService {
         LocalDateTime startOfDay = date.atStartOfDay();
         LocalDateTime endOfDay = date.atTime(23, 59, 59, 999999999); // 해당 날짜의 마지막 시간
 
-        Optional<ApprovalRequest> approvedLeave = approvalRepository.findByApplicantIdAndRequestedAtBetweenAndStatus(
+        List<ApprovalRequest> approvedLeaves = approvalRepository.findAllByApplicantIdAndRequestedAtBetweenAndStatus(
                 userId, startOfDay, endOfDay, ApprovalStatus.APPROVED);
 
-        return approvedLeave.isPresent();
+        return !approvedLeaves.isEmpty();
     }
 
     /**
@@ -268,12 +279,14 @@ public class ApprovalService {
         LocalDateTime startOfDay = date.atStartOfDay();
         LocalDateTime endOfDay = date.atTime(23, 59, 59, 999999999); // 해당 날짜의 마지막 시간
 
-        Optional<ApprovalRequest> approvedLeave = approvalRepository.findByApplicantIdAndRequestedAtBetweenAndStatus(
+        List<ApprovalRequest> approvedLeaves = approvalRepository.findAllByApplicantIdAndRequestedAtBetweenAndStatus(
                 userId, startOfDay, endOfDay, ApprovalStatus.APPROVED);
 
-        return approvedLeave
+        // 여러 개의 승인된 휴가가 있을 수 있으므로, 첫 번째 휴가의 종류를 반환
+        return approvedLeaves.stream()
                 .filter(request -> request.getRequestType() == RequestType.VACATION)
                 .map(ApprovalRequest::getVacationType)
+                .findFirst()
                 .orElse(null);
     }
 
