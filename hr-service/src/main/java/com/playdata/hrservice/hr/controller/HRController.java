@@ -222,6 +222,21 @@ public class HRController {
 
     }
 
+    /**
+     * 특정 연도와 월에 입사 1주년을 맞이하는 사용자 목록을 조회합니다.
+     * AttendanceService에서 FeignClient를 통해 호출됩니다.
+     *
+     * @param year 조회할 연도 (입사일 기준)
+     * @param month 조회할 월 (입사일 기준)
+     * @return 해당 월에 입사 1주년을 맞이하는 사용자 정보 DTO 목록
+     */
+    @GetMapping("/anniversary/monthly")
+    public ResponseEntity<CommonResDto<List<UserResDto>>> getUsersWithFirstAnniversaryInMonth(
+            @RequestParam("year") int year,
+            @RequestParam("month") int month) {
+        List<UserResDto> users = userService.getUsersWithFirstAnniversaryInMonth(year, month);
+        return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "Success", users), HttpStatus.OK);
+    }
 }
 
 

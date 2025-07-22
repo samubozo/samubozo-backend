@@ -20,7 +20,7 @@ public interface AttendanceService {
 
     Attendance recordCheckOut(Long userId, LocalDateTime checkOutDateTime);
 
-    List<Attendance> getMonthlyAttendances(Long userId, int year, int month);
+    List<AttendanceResDto> getMonthlyAttendances(Long userId, int year, int month);
 
     Attendance recordGoOut(Long userId);
 

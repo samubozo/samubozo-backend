@@ -35,4 +35,15 @@ public interface VacationRepository extends JpaRepository<Vacation, Long> {
      * @return 휴가 목록
      */
     List<Vacation> findByVacationStatus(VacationStatus status);
+
+    /**
+     * 여러 사용자의 특정 기간 동안의 승인된 유급 휴가 기록을 조회합니다.
+     *
+     * @param userIds 사용자 ID 목록
+     * @param startDate 시작일
+     * @param endDate 종료일
+     * @param status 휴가 상태
+     * @return 휴가 목록
+     */
+    List<Vacation> findByUserIdInAndStartDateBetweenAndVacationStatus(List<Long> userIds, LocalDate startDate, LocalDate endDate, VacationStatus status);
 }

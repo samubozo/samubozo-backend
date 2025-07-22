@@ -584,4 +584,31 @@ public class VacationService {
             throw new IllegalStateException("결재 서비스 통신 중 오류가 발생했습니다. 다시 시도해주세요.");
         }
     }
+
+    /**
+     * 여러 사용자의 특정 기간 동안 승인된 유급 휴가 일수를 계산합니다.
+     *
+     * @param userIds   사용자 ID 목록
+     * @param startDate 시작일
+     * @param endDate   종료일
+     * @return 사용자 ID를 key로, 총 휴가 일수를 value로 갖는 Map
+     */
+    public Map<Long, Double> getApprovedPaidVacationDaysForUsers(List<Long> userIds, LocalDate startDate, LocalDate endDate) {
+        List<Vacation> approvedVacations = vacationRepository.findByUserIdInAndStartDateBetweenAndVacationStatus(
+                userIds, startDate, endDate, VacationStatus.APPROVED
+        );
+
+        return approvedVacations.stream()
+                .filter(v -> v.getVacationType().isDeducted()) // 연차 차감 대상 휴가만 필터링
+                .collect(Collectors.groupingBy(
+                        Vacation::getUserId,
+                        Collectors.summingDouble(v -> {
+                            if (v.getVacationType() == VacationType.ANNUAL_LEAVE) {
+                                return (double) (ChronoUnit.DAYS.between(v.getStartDate(), v.getEndDate()) + 1);
+                            } else {
+                                return v.getVacationType().getDeductionDays().doubleValue();
+                            }
+                        })
+                ));
+    }
 }

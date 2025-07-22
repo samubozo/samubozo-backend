@@ -86,4 +86,18 @@ public interface VacationServiceClient {
             @PathVariable("userId") Long userId,
             @PathVariable("year") int year,
             @PathVariable("month") int month);
+
+    /**
+     * 여러 사용자의 특정 기간 동안의 승인된 유급 휴가 일수를 조회합니다.
+     *
+     * @param userIds   조회할 사용자 ID 목록
+     * @param startDate 조회 시작일
+     * @param endDate   조회 종료일
+     * @return 사용자 ID별 유급 휴가 일수 Map
+     */
+    @PostMapping("/vacations/internal/approved-paid-days")
+    CommonResDto<java.util.Map<Long, Double>> getApprovedPaidVacationDays(
+            @RequestBody List<Long> userIds,
+            @RequestParam("startDate") String startDate,
+            @RequestParam("endDate") String endDate);
 }

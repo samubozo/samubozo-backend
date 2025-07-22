@@ -1,6 +1,6 @@
 package com.playdata.attendanceservice.attendance.service;
 
-import com.playdata.attendanceservice.attendance.dto.AttendanceResDto; // 추가
+import com.playdata.attendanceservice.attendance.dto.AttendanceResDto;
 import com.playdata.attendanceservice.attendance.dto.PersonalAttendanceStatsDto;
 import com.playdata.attendanceservice.attendance.dto.WorkTimeDto;
 import com.playdata.attendanceservice.attendance.entity.Attendance;
@@ -8,35 +8,48 @@ import com.playdata.attendanceservice.attendance.entity.WorkDayType;
 import com.playdata.attendanceservice.attendance.entity.WorkStatus;
 import com.playdata.attendanceservice.attendance.entity.WorkStatusType;
 import com.playdata.attendanceservice.attendance.repository.AttendanceRepository;
-import com.playdata.attendanceservice.attendance.repository.WorkStatusRepository; // WorkStatusRepository 임포트 추가
-import com.playdata.attendanceservice.client.ApprovalServiceClient; // ApprovalServiceClient 임포트
-import com.playdata.attendanceservice.client.HrServiceClient; // HrServiceClient 임포트
-import com.playdata.attendanceservice.client.VacationServiceClient; // VacationServiceClient 임포트
+import com.playdata.attendanceservice.attendance.repository.WorkStatusRepository;
+import com.playdata.attendanceservice.client.ApprovalServiceClient;
+import com.playdata.attendanceservice.client.HrServiceClient;
+import com.playdata.attendanceservice.client.VacationServiceClient;
 import com.playdata.attendanceservice.client.dto.MonthlyVacationStatsDto;
 import com.playdata.attendanceservice.common.dto.CommonResDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value; // Value 임포트
-import org.springframework.dao.DataIntegrityViolationException; // DataIntegrityViolationException 임포트
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.*; // LocalDateTime 임포트
+import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j // Slf4j 로거 사용을 위한 어노테이션 추가
+@Slf4j
 @Transactional(readOnly = true)
 public class AttendanceServiceImpl implements AttendanceService {
 
+    // 근무 시간 기준 상수 정의
+    private static final LocalTime NORMAL_WORK_START = LocalTime.of(9, 0);
+    private static final LocalTime NORMAL_WORK_END = LocalTime.of(18, 0);
+    private static final LocalTime LUNCH_START = LocalTime.of(12, 0);
+    private static final LocalTime LUNCH_END = LocalTime.of(13, 0);
+    private static final LocalTime OVERTIME_START = LocalTime.of(18, 0);
+    private static final LocalTime OVERTIME_END = LocalTime.of(22, 0); // 연장 근무 종료 시간 추가
+    private static final LocalTime NIGHT_WORK_START = LocalTime.of(22, 0);
+    private static final LocalTime NIGHT_WORK_END = LocalTime.of(6, 0); // 익일 06:00
+
     private final AttendanceRepository attendanceRepository;
-    private final WorkStatusRepository workStatusRepository; // WorkStatusRepository 주입
-    private final HrServiceClient hrServiceClient; // HrServiceClient 주입
-    private final VacationServiceClient vacationServiceClient; // VacationServiceClient 주입
-    private final ApprovalServiceClient approvalServiceClient; // ApprovalServiceClient 주입
+    private final WorkStatusRepository workStatusRepository;
+    private final HrServiceClient hrServiceClient;
+    private final VacationServiceClient vacationServiceClient;
+    private final ApprovalServiceClient approvalServiceClient;
 
     @Value("${standard.checkin.time}")
     private String standardCheckInTimeStr;
@@ -56,11 +69,11 @@ public class AttendanceServiceImpl implements AttendanceService {
         try {
             Attendance attendance = Attendance.builder()
                     .userId(userId)
-                    .attendanceDate(checkInDateTime.toLocalDate()) // checkInDateTime의 날짜 사용
+                    .attendanceDate(checkInDateTime.toLocalDate())
                     .ipAddress(ipAddress)
                     .build();
 
-            attendance.updateCheckInTime(checkInDateTime); // 파라미터로 받은 시간으로 설정
+            attendance.updateCheckInTime(checkInDateTime);
 
             LocalTime currentCheckInTime = checkInDateTime.toLocalTime();
             LocalTime standardCheckInTime = LocalTime.parse(standardCheckInTimeStr);
@@ -68,11 +81,9 @@ public class AttendanceServiceImpl implements AttendanceService {
             WorkStatusType initialStatusType = WorkStatusType.REGULAR;
             boolean isLate = false;
 
-            // 1. HR 서비스에서 승인된 외부 일정(출장, 연수 등)이 있는지 확인
             String dateString = checkInDateTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE);
             String externalScheduleType = hrServiceClient.getApprovedExternalScheduleType(userId, dateString);
             if (externalScheduleType != null) {
-                // 외부 일정 유형에 따라 WorkStatusType 매핑
                 switch (externalScheduleType) {
                     case "BUSINESS_TRIP":
                         initialStatusType = WorkStatusType.BUSINESS_TRIP;
@@ -80,18 +91,15 @@ public class AttendanceServiceImpl implements AttendanceService {
                     case "TRAINING":
                         initialStatusType = WorkStatusType.TRAINING;
                         break;
-                    // TODO: 다른 외부 일정 유형에 대한 매핑 추가
                     default:
-                        initialStatusType = WorkStatusType.OUT_OF_OFFICE; // 기본값
+                        initialStatusType = WorkStatusType.OUT_OF_OFFICE;
                         break;
                 }
             } else {
-                // 2. Approval 서비스에서 승인된 휴가(오전 반차)가 있는지 확인
                 String approvedLeaveType = approvalServiceClient.getApprovedLeaveType(userId, checkInDateTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE));
-                if (approvedLeaveType != null && approvedLeaveType.equals("HALF_DAY_LEAVE_AM")) { // 예시: 오전 반차 유형
+                if (approvedLeaveType != null && approvedLeaveType.equals("HALF_DAY_LEAVE_AM")) {
                     initialStatusType = WorkStatusType.HALF_DAY_LEAVE;
                 } else if (currentCheckInTime.isAfter(standardCheckInTime)) {
-                    // 3. 승인된 외부 일정이나 오전 반차가 없고, 기준 시간보다 늦게 출근했으면 지각
                     initialStatusType = WorkStatusType.LATE;
                     isLate = true;
                 }
@@ -108,13 +116,11 @@ public class AttendanceServiceImpl implements AttendanceService {
 
             attendance.setWorkStatus(workStatus);
 
-            // Attendance와 WorkStatus를 함께 저장 (cascade 설정에 따라)
             Attendance savedAttendance = attendanceRepository.save(attendance);
             log.info("Attendance saved after check-in: ID={}, CheckInTime={}, CheckOutTime={}", savedAttendance.getId(), savedAttendance.getCheckInTime(), savedAttendance.getCheckOutTime());
 
-            // WorkStatus의 checkInTime을 Attendance의 실제 checkInTime으로 업데이트
-            workStatus.setCheckInTime(checkInDateTime.toLocalTime()); // 파라미터로 받은 시간으로 설정
-            workStatusRepository.save(workStatus); // WorkStatus를 명시적으로 저장
+            workStatus.setCheckInTime(checkInDateTime.toLocalTime());
+            workStatusRepository.save(workStatus);
             log.info("WorkStatus after check-in: ID={}, CheckInTime={}", workStatus.getId(), workStatus.getCheckInTime());
 
             return savedAttendance;
@@ -137,7 +143,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Override
     @Transactional
     public Attendance recordCheckOut(Long userId, LocalDateTime checkOutDateTime) {
-        LocalDate today = checkOutDateTime.toLocalDate(); // checkOutDateTime의 날짜 사용
+        LocalDate today = checkOutDateTime.toLocalDate();
         Optional<Attendance> optionalAttendance = attendanceRepository.findByUserIdAndAttendanceDate(userId, today);
 
         Attendance attendance = optionalAttendance
@@ -147,7 +153,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             throw new IllegalArgumentException("이미 퇴근 기록이 완료되었습니다. (User ID: " + userId + ")");
         }
 
-        attendance.updateCheckOutTime(checkOutDateTime); // 파라미터로 받은 시간으로 설정
+        attendance.updateCheckOutTime(checkOutDateTime);
         log.info("Attendance will be saved with checkOutTime: {}", attendance.getCheckOutTime());
 
         Attendance savedAttendance = attendanceRepository.save(attendance);
@@ -156,12 +162,11 @@ public class AttendanceServiceImpl implements AttendanceService {
         Optional<WorkStatus> optionalWorkStatus = workStatusRepository.findByAttendanceId(savedAttendance.getId());
         if (optionalWorkStatus.isPresent()) {
             WorkStatus workStatus = optionalWorkStatus.get();
-            workStatus.setCheckOutTime(checkOutDateTime.toLocalTime()); // 파라미터로 받은 시간으로 설정
+            workStatus.setCheckOutTime(checkOutDateTime.toLocalTime());
 
             LocalTime currentCheckOutTime = checkOutDateTime.toLocalTime();
             LocalTime standardCheckOutTime = LocalTime.parse(standardCheckOutTimeStr);
 
-            // 1. Approval 서비스에서 승인된 부재(오후 반차, 조퇴)가 있는지 확인
             String approvedLeaveType = approvalServiceClient.getApprovedLeaveType(userId, checkOutDateTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE));
             if (approvedLeaveType != null) {
                 switch (approvedLeaveType) {
@@ -171,25 +176,20 @@ public class AttendanceServiceImpl implements AttendanceService {
                     case "EARLY_LEAVE":
                         workStatus.setStatusType(WorkStatusType.EARLY_LEAVE);
                         break;
-                    // TODO: 다른 휴가 유형에 대한 매핑 추가
                     default:
-                        // 승인된 휴가 유형이 있지만, 특별히 처리할 WorkStatusType이 없는 경우
                         break;
                 }
             } else if (currentCheckOutTime.isBefore(standardCheckOutTime)) {
-                // 2. 승인된 부재가 없고, 기준 시간보다 일찍 퇴근했으면 조퇴
                 workStatus.setStatusType(WorkStatusType.EARLY_LEAVE);
             }
 
             // 근무 시간 계산 로직 추가
-            LocalDateTime checkInTime = attendance.getCheckInTime();
-            LocalDateTime checkOutTime = checkOutDateTime; // 파라미터로 받은 시간 사용
-            Duration workDuration = Duration.between(checkInTime, checkOutTime);
-            long workHours = workDuration.toHours();
+            Map<String, Duration> workTimes = calculateWorkTimes(attendance.getCheckInTime(), checkOutDateTime, attendance.getAttendanceDate());
+            Duration totalWorkDuration = workTimes.get("totalWorkTime");
 
-            if (workHours >= 8) {
+            if (totalWorkDuration.toHours() >= 8) {
                 workStatus.setWorkDayType(WorkDayType.FULL_DAY);
-            } else if (workHours >= 4) {
+            } else if (totalWorkDuration.toHours() >= 4) {
                 workStatus.setWorkDayType(WorkDayType.HALF_DAY);
             }
 
@@ -204,12 +204,26 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Attendance> getMonthlyAttendances(Long userId, int year, int month) {
+    public List<AttendanceResDto> getMonthlyAttendances(Long userId, int year, int month) {
         YearMonth yearMonth = YearMonth.of(year, month);
-        LocalDate startDate = yearMonth.atDay(1); // 해당 월의 첫째 날
-        LocalDate endDate = yearMonth.atEndOfMonth(); // 해당 월의 마지막 날
+        LocalDate startDate = yearMonth.atDay(1);
+        LocalDate endDate = yearMonth.atEndOfMonth();
 
-        return attendanceRepository.findByUserIdAndAttendanceDateBetween(userId, startDate, endDate);
+        List<Attendance> monthlyAttendances = attendanceRepository.findByUserIdAndAttendanceDateBetween(userId, startDate, endDate);
+
+        return monthlyAttendances.stream().map(attendance -> {
+            if (attendance.getCheckOutTime() != null) {
+                Map<String, Duration> workTimes = calculateWorkTimes(attendance.getCheckInTime(), attendance.getCheckOutTime(), attendance.getAttendanceDate());
+                return AttendanceResDto.from(attendance,
+                        formatDuration(workTimes.get("totalWorkTime")),
+                        formatDuration(workTimes.get("normalWorkTime")),
+                        formatDuration(workTimes.get("overtimeWorkTime")),
+                        formatDuration(workTimes.get("nightWorkTime"))
+                );
+            } else {
+                return AttendanceResDto.from(attendance, null, null, null, null);
+            }
+        }).collect(Collectors.toList());
     }
 
     @Override
@@ -357,12 +371,24 @@ public class AttendanceServiceImpl implements AttendanceService {
         LocalDate today = LocalDate.now();
         Optional<Attendance> optionalAttendance = attendanceRepository.findByUserIdAndAttendanceDate(userId, today);
 
-        return optionalAttendance.map(AttendanceResDto::from);
+        return optionalAttendance.map(attendance -> {
+            if (attendance.getCheckOutTime() != null) {
+                Map<String, Duration> workTimes = calculateWorkTimes(attendance.getCheckInTime(), attendance.getCheckOutTime(), attendance.getAttendanceDate());
+                return AttendanceResDto.from(attendance,
+                        formatDuration(workTimes.get("totalWorkTime")),
+                        formatDuration(workTimes.get("normalWorkTime")),
+                        formatDuration(workTimes.get("overtimeWorkTime")),
+                        formatDuration(workTimes.get("nightWorkTime"))
+                );
+            } else {
+                return AttendanceResDto.from(attendance, null, null, null, null);
+            }
+        });
     }
 
     @Override
     public PersonalAttendanceStatsDto getPersonalAttendanceStats(Long userId, int year, int month) {
-        List<Attendance> monthlyAttendances = getMonthlyAttendances(userId, year, month);
+        List<Attendance> monthlyAttendances = attendanceRepository.findByUserIdAndAttendanceDateBetween(userId, YearMonth.of(year, month).atDay(1), YearMonth.of(year, month).atEndOfMonth());
 
         long attendanceCount = monthlyAttendances.stream()
                 .filter(a -> a.getWorkStatus() != null)
@@ -406,5 +432,118 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Override
     public String getLateThreshold() {
         return standardCheckInTimeStr;
+    }
+
+    /**
+     * 출근 시간, 퇴근 시간, 근무 날짜를 기반으로 총 근무 시간, 정상 근무 시간, 연장 근무 시간, 심야 근무 시간을 계산합니다.
+     * 점심 시간(12:00~13:00)은 근무 시간에서 제외됩니다.
+     * 주말 근무는 전체 연장 근무로 간주됩니다.
+     * 연장 근무는 18:00부터 22:00까지로 계산됩니다.
+     * 심야 근무는 22:00부터 익일 06:00까지로 계산됩니다.
+     * @param checkIn 출근 시간 (LocalDateTime)
+     * @param checkOut 퇴근 시간 (LocalDateTime)
+     * @param attendanceDate 근무 날짜 (LocalDate)
+     * @return 각 근무 시간(totalWorkTime, normalWorkTime, overtimeWorkTime, nightWorkTime)을 포함하는 Map
+     */
+    private Map<String, Duration> calculateWorkTimes(LocalDateTime checkIn, LocalDateTime checkOut, LocalDate attendanceDate) {
+        Map<String, Duration> workTimes = new HashMap<>();
+        Duration totalWorkTime = Duration.ZERO;
+        Duration normalWorkTime = Duration.ZERO;
+        Duration overtimeWorkTime = Duration.ZERO;
+        Duration nightWorkTime = Duration.ZERO;
+
+        // 출근 시간이 퇴근 시간보다 늦거나 같으면 유효하지 않은 경우
+        if (checkIn.isAfter(checkOut) || checkIn.isEqual(checkOut)) {
+            workTimes.put("totalWorkTime", totalWorkTime);
+            workTimes.put("normalWorkTime", normalWorkTime);
+            workTimes.put("overtimeWorkTime", overtimeWorkTime);
+            workTimes.put("nightWorkTime", nightWorkTime);
+            return workTimes;
+        }
+
+        // 근무 시간 구간
+        LocalDateTime workStart = checkIn;
+        LocalDateTime workEnd = checkOut;
+
+        // 점심 시간 구간 (오늘 날짜 기준)
+        LocalDateTime lunchStartDateTime = attendanceDate.atTime(LUNCH_START);
+        LocalDateTime lunchEndDateTime = attendanceDate.atTime(LUNCH_END);
+
+        // 정상 근무 시간 구간 (오늘 날짜 기준)
+        LocalDateTime normalWorkStartDateTime = attendanceDate.atTime(NORMAL_WORK_START);
+        LocalDateTime normalWorkEndDateTime = attendanceDate.atTime(NORMAL_WORK_END);
+
+        // 연장 근무 시간 구간 (오늘 날짜 기준)
+        LocalDateTime overtimeStartDateTime = attendanceDate.atTime(OVERTIME_START);
+        LocalDateTime overtimeEndDateTime = attendanceDate.atTime(OVERTIME_END);
+
+        // 심야 근무 시간 구간 (오늘 날짜 기준 및 익일 기준)
+        LocalDateTime nightWorkStartDateTimeToday = attendanceDate.atTime(NIGHT_WORK_START);
+        LocalDateTime nightWorkEndDateTimeToday = attendanceDate.plusDays(1).atStartOfDay(); // 자정
+        LocalDateTime nightWorkStartDateTimeNextDay = attendanceDate.plusDays(1).atStartOfDay(); // 자정
+        LocalDateTime nightWorkEndDateTimeNextDay = attendanceDate.plusDays(1).atTime(NIGHT_WORK_END);
+
+        // 주말(토, 일)인 경우 전체를 연장 근무로 처리
+        if (attendanceDate.getDayOfWeek() == DayOfWeek.SATURDAY || attendanceDate.getDayOfWeek() == DayOfWeek.SUNDAY) {
+            totalWorkTime = getOverlapDuration(workStart, workEnd, workStart, workEnd); // 전체 근무 시간
+            totalWorkTime = totalWorkTime.minus(getOverlapDuration(workStart, workEnd, lunchStartDateTime, lunchEndDateTime)); // 점심시간 제외
+            overtimeWorkTime = totalWorkTime; // 주말은 전체가 연장 근무
+        } else {
+            // 평일 근무 시간 계산
+            // 총 근무 시간 = 전체 근무 시간 - 점심 시간
+            totalWorkTime = getOverlapDuration(workStart, workEnd, workStart, workEnd);
+            totalWorkTime = totalWorkTime.minus(getOverlapDuration(workStart, workEnd, lunchStartDateTime, lunchEndDateTime));
+
+            // 정상 근무 시간
+            // 실제 근무 시간과 정상 근무 시간 구간의 겹치는 부분을 먼저 계산
+            Duration grossNormalWorkTime = getOverlapDuration(workStart, workEnd, normalWorkStartDateTime, normalWorkEndDateTime);
+            // 실제 근무 시간과 점심 시간 구간의 겹치는 부분을 계산
+            Duration lunchOverlapWithActualWork = getOverlapDuration(workStart, workEnd, lunchStartDateTime, lunchEndDateTime);
+            // 총 정상 근무 시간에서 실제 근무 시간과 겹치는 점심 시간을 제외
+            normalWorkTime = grossNormalWorkTime.minus(lunchOverlapWithActualWork);
+
+            // 연장 근무 시간 (18:00 ~ 22:00)
+            overtimeWorkTime = getOverlapDuration(workStart, workEnd, overtimeStartDateTime, overtimeEndDateTime);
+
+            // 심야 근무 시간 (22:00 ~ 익일 06:00)
+            nightWorkTime = nightWorkTime.plus(getOverlapDuration(workStart, workEnd, nightWorkStartDateTimeToday, nightWorkEndDateTimeToday)); // 22:00 ~ 자정
+            nightWorkTime = nightWorkTime.plus(getOverlapDuration(workStart, workEnd, nightWorkStartDateTimeNextDay, nightWorkEndDateTimeNextDay)); // 자정 ~ 익일 06:00
+        }
+
+        workTimes.put("totalWorkTime", totalWorkTime);
+        workTimes.put("normalWorkTime", normalWorkTime);
+        workTimes.put("overtimeWorkTime", overtimeWorkTime);
+        workTimes.put("nightWorkTime", nightWorkTime);
+        return workTimes;
+    }
+
+    // 두 시간 구간의 겹치는 Duration을 반환하는 헬퍼 메서드
+    private Duration getOverlapDuration(LocalDateTime start1, LocalDateTime end1, LocalDateTime start2, LocalDateTime end2) {
+        LocalDateTime overlapStart = max(start1, start2);
+        LocalDateTime overlapEnd = min(end1, end2);
+
+        if (overlapStart.isBefore(overlapEnd)) {
+            return Duration.between(overlapStart, overlapEnd);
+        }
+        return Duration.ZERO;
+    }
+
+    // LocalDateTime.max 및 min 헬퍼 (Java 8 호환성을 위해 직접 구현)
+    private LocalDateTime max(LocalDateTime a, LocalDateTime b) {
+        return a.isAfter(b) ? a : b;
+    }
+
+    private LocalDateTime min(LocalDateTime a, LocalDateTime b) {
+        return a.isBefore(b) ? a : b;
+    }
+
+    // Duration을 "HH:mm" 형식의 String으로 포맷하는 헬퍼 메서드
+    private String formatDuration(Duration duration) {
+        if (duration == null) {
+            return null;
+        }
+        long hours = duration.toHours();
+        long minutes = duration.toMinutes() % 60;
+        return String.format("%02d:%02d", hours, minutes);
     }
 }

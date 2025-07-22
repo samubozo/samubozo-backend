@@ -321,6 +321,21 @@ public class UserService {
                 .map(User::fromEntity)
                 .collect(Collectors.toList());
     }
+
+    /**
+     * 특정 연도와 월에 입사 1주년을 맞이하는 사용자 목록을 조회합니다.
+     *
+     * @param year 조회할 연도 (입사일 기준)
+     * @param month 조회할 월 (입사일 기준)
+     * @return 해당 월에 입사 1주년을 맞이하는 사용자 정보 DTO 목록
+     */
+    @Transactional(readOnly = true)
+    public List<UserResDto> getUsersWithFirstAnniversaryInMonth(int year, int month) {
+        List<User> users = userRepository.findUsersWithHireDateInMonth(year, month);
+        return users.stream()
+                .map(User::fromEntity)
+                .collect(Collectors.toList());
+    }
 }
 
 
