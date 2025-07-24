@@ -50,8 +50,6 @@ public class CertificateServiceImpl implements CertificateService {
                 .approveDate(dto.getApproveDate())
                 .build();
 
-        log.info("Saved certificate: {}", certificate);
-
         certificateRepository.save(certificate);
     }
 
@@ -62,7 +60,7 @@ public class CertificateServiceImpl implements CertificateService {
 
         CommonResDto<UserFeignResDto> response = hrServiceClient.getUserById(certificate.getEmployeeNo());
         UserFeignResDto userInfo = response.getResult();
-        log.info("generateCertificatePdf - userInfo: {}", userInfo); // 주민등록번호 포함 확인
+
         if (userInfo == null) throw new EntityNotFoundException("유저 정보 없음");
 
         try (InputStream fontStream = new ClassPathResource("nanum-gothic/NanumGothic.ttf").getInputStream()) {
