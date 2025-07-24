@@ -1,7 +1,7 @@
 package com.playdata.vacationservice.client;
 
 import com.playdata.vacationservice.client.dto.UserResDto;
-import com.playdata.vacationservice.client.dto.UserResDto;
+import com.playdata.vacationservice.client.dto.UserFeignResDto;
 import com.playdata.vacationservice.client.dto.UserDetailDto;
 import com.playdata.vacationservice.common.configs.FeignClientConfig;
 import org.springframework.cloud.openfeign.FeignClient;
@@ -22,10 +22,10 @@ public interface HrServiceClient {
      * 이 API는 @AuthenticationPrincipal을 통해 사용자 정보를 받으므로,
      * Feign Client에서는 별도의 파라미터 없이 호출하고 FeignClientInterceptor를 통해 헤더로 인증 정보가 전달됩니다.
      *
-     * @return 사용자의 상세 정보가 담긴 UserDetailDto
+     * @return 사용자의 상세 정보가 담긴 UserFeignResDto
      */
     @GetMapping("/hr/users/detail")
-    UserDetailDto getMyUserInfo();
+    UserFeignResDto getMyUserInfo();
 
     /**
      * HR 서비스로부터 여러 사용자의 정보를 조회합니다.

@@ -37,8 +37,9 @@ public class ApprovalRequest {
     @Column(name = "requested_at", nullable = false)
     private LocalDateTime requestedAt;
 
-    @Column(name = "approved_at")
-    private LocalDateTime approvedAt;
+    @Column(name = "processed_at")
+    @Setter // 추가
+    private LocalDateTime processedAt;
 
     @Column(name = "reason", columnDefinition = "TEXT")
     private String reason;
@@ -55,29 +56,37 @@ public class ApprovalRequest {
     @Column(name = "certificates_id")
     private Long certificateId;
 
+    @Column(name = "start_date") // 추가
+    private java.time.LocalDate startDate; // 추가
+
+    @Column(name = "end_date") // 추가
+    private java.time.LocalDate endDate; // 추가
+
     @Builder
-    public ApprovalRequest(RequestType requestType, Long applicantId, Long approverId, ApprovalStatus status, LocalDateTime requestedAt, LocalDateTime approvedAt, String reason, String title, Long vacationsId, String vacationType, Long certificatesId) {
+    public ApprovalRequest(RequestType requestType, Long applicantId, Long approverId, ApprovalStatus status, LocalDateTime requestedAt, LocalDateTime processedAt, String reason, String title, Long vacationsId, String vacationType, Long certificatesId, java.time.LocalDate startDate, java.time.LocalDate endDate) {
         this.requestType = requestType;
         this.applicantId = applicantId;
         this.approverId = approverId;
         this.status = status;
         this.requestedAt = requestedAt;
-        this.approvedAt = approvedAt;
+        this.processedAt = processedAt;
         this.reason = reason;
         this.title = title;
         this.vacationsId = vacationsId;
         this.vacationType = vacationType;
         this.certificateId = certificatesId;
+        this.startDate = startDate; // 빌더에 추가
+        this.endDate = endDate; // 빌더에 추가
     }
 
     // 결재 상태 변경 메소드
     public void approve() {
         this.status = ApprovalStatus.APPROVED;
-        this.approvedAt = LocalDateTime.now();
+        this.processedAt = LocalDateTime.now();
     }
 
     public void reject() {
         this.status = ApprovalStatus.REJECTED;
-        this.approvedAt = LocalDateTime.now(); // 반려 시점도 기록
+        this.processedAt = LocalDateTime.now(); // 반려 시점도 기록
     }
 }

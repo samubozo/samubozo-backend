@@ -4,18 +4,22 @@ package com.playdata.attendanceservice.attendance.entity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 @Entity
-@Table(name = "work_statuses")
+@Table(name = "work_statuses", uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"user_id", "date"})
+})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class WorkStatus {
+public class WorkStatus extends com.playdata.attendanceservice.common.domain.BaseEntity {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -33,10 +37,6 @@ public class WorkStatus {
     @Enumerated(EnumType.STRING)
     @Column(name = "work_day_type")
     private WorkDayType workDayType;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "absence_type")
-    private AbsenceType absenceType; // 출장, 연수, 연차, 반차 등
 
     @Column(columnDefinition = "TEXT")
     private String reason;
@@ -58,6 +58,25 @@ public class WorkStatus {
     @OneToOne
     @JoinColumn(name = "attendance_id")
     private Attendance attendance;
+
+    @Column(name = "is_late", nullable = false)
+    private boolean isLate; // 지각 여부
+
+    @Builder
+    public WorkStatus(Long id, Long userId, LocalDate date, WorkStatusType statusType, WorkDayType workDayType, String reason, LocalTime checkInTime, LocalTime checkOutTime, LocalTime outTime, LocalTime returnTime, Attendance attendance, boolean isLate) {
+        this.id = id;
+        this.userId = userId;
+        this.date = date;
+        this.statusType = statusType;
+        this.workDayType = workDayType;
+        this.reason = reason;
+        this.checkInTime = checkInTime;
+        this.checkOutTime = checkOutTime;
+        this.outTime = outTime;
+        this.returnTime = returnTime;
+        this.attendance = attendance;
+        this.isLate = isLate;
+    }
 
     // 새로운 생성자: Attendance 객체를 직접 받아 필요한 정보를 설정합니다.
     public WorkStatus(Attendance attendance, WorkStatusType type, String reason) {
@@ -90,16 +109,6 @@ public class WorkStatus {
         return status;
     }
 
-
-    // 출장/외출/교육 기록
-    public static WorkStatus recordAbsence(Long userId, LocalDate date, WorkStatusType type,
-                                           LocalTime outTime, LocalTime returnTime, String reason) {
-        WorkStatus status = new WorkStatus(userId, date, type, reason);
-        status.outTime = outTime;
-        status.returnTime = returnTime;
-        return status;
-    }
-
     public void setAttendance(Attendance attendance) {
         this.attendance = attendance;
     }
@@ -119,4 +128,6 @@ public class WorkStatus {
     public void setWorkDayType(WorkDayType workDayType) {
         this.workDayType = workDayType;
     }
+
+    
 }

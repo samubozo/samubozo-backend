@@ -21,4 +21,8 @@ public enum VacationType {
         this.description = description;
         this.deductionDays = deductionDays;
     }
+
+    public boolean isDeducted() {
+        return this.deductionDays.compareTo(BigDecimal.ZERO) > 0;
+    }
 }

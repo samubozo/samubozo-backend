@@ -26,13 +26,16 @@ public class Vacation extends BaseEntity {
     private Long userId;
 
     @Column(name = "start_date", nullable = false)
+    @Setter
     private LocalDate startDate;
 
     @Column(name = "end_date", nullable = false)
+    @Setter
     private LocalDate endDate;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "vacation_type", nullable = false)
+    @Setter
     private VacationType vacationType;
 
     @Enumerated(EnumType.STRING)
@@ -41,15 +44,21 @@ public class Vacation extends BaseEntity {
     private VacationStatus vacationStatus;
 
     @Column(name = "reason")
+    @Setter
     private String reason;
 
+    @Column(name = "approval_request_id") // 추가된 필드
+    @Setter // 추가된 필드에 대한 Setter
+    private Long approvalRequestId;
+
     @Builder
-    public Vacation(Long userId, LocalDate startDate, LocalDate endDate, VacationType vacationType, VacationStatus vacationStatus, String reason) {
+    public Vacation(Long userId, LocalDate startDate, LocalDate endDate, VacationType vacationType, VacationStatus vacationStatus, String reason, Long approvalRequestId) {
         this.userId = userId;
         this.startDate = startDate;
         this.endDate = endDate;
         this.vacationType = vacationType;
         this.vacationStatus = vacationStatus;
         this.reason = reason;
+        this.approvalRequestId = approvalRequestId; // 빌더에 추가
     }
 }

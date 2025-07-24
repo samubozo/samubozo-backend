@@ -46,4 +46,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByDepartmentDepartmentId(Long departmentId);
 
     List<User> findByEmployeeNoIn(List<Long> employeeNos);
+
+    @Query("SELECT u FROM User u WHERE YEAR(u.hireDate) = :year AND MONTH(u.hireDate) = :month")
+    List<User> findUsersWithHireDateInMonth(int year, int month);
 }

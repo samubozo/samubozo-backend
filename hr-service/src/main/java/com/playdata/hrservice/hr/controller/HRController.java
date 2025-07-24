@@ -7,7 +7,9 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
+import org.springframework.core.env.Environment;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -63,6 +65,7 @@ public class HRController {
     public ResponseEntity<CommonResDto<UserFeignResDto>> getMyUserInfo(@AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
         String email = tokenUserInfo.getEmail();
         UserFeignResDto user = userService.getEmployeeByEmail(email);
+        log.info("HR Service - getMyUserInfo: UserFeignResDto hrRole = {}", user.getHrRole()); // 로그 추가
         CommonResDto<UserFeignResDto> resDto = new CommonResDto<>(HttpStatus.OK, "User info retrieved successfully", user);
         return new ResponseEntity<>(resDto, HttpStatus.OK);
     }
@@ -215,6 +218,21 @@ public class HRController {
 
     }
 
+    /**
+     * 특정 연도와 월에 입사 1주년을 맞이하는 사용자 목록을 조회합니다.
+     * AttendanceService에서 FeignClient를 통해 호출됩니다.
+     *
+     * @param year 조회할 연도 (입사일 기준)
+     * @param month 조회할 월 (입사일 기준)
+     * @return 해당 월에 입사 1주년을 맞이하는 사용자 정보 DTO 목록
+     */
+    @GetMapping("/anniversary/monthly")
+    public ResponseEntity<CommonResDto<List<UserResDto>>> getUsersWithFirstAnniversaryInMonth(
+            @RequestParam("year") int year,
+            @RequestParam("month") int month) {
+        List<UserResDto> users = userService.getUsersWithFirstAnniversaryInMonth(year, month);
+        return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "Success", users), HttpStatus.OK);
+    }
 }
 
 

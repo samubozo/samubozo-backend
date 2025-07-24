@@ -40,8 +40,7 @@ public class AttendanceController {
     @PostMapping("/check-in")
     public ResponseEntity<CommonResDto<Attendance>> checkIn(@AuthenticationPrincipal TokenUserInfo userInfo, HttpServletRequest request) {
         try {
-            String ipAddress = request.getRemoteAddr();
-            Attendance attendance = attendanceService.recordCheckIn(userInfo.getEmployeeNo(), ipAddress);
+            Attendance attendance = attendanceService.recordCheckIn(userInfo.getEmployeeNo(), request.getRemoteAddr());
             return buildSuccessResponse(attendance, "출근 기록 성공");
         } catch (IllegalStateException e) {
             return buildErrorResponse(HttpStatus.BAD_REQUEST, e.getMessage());
@@ -75,12 +74,12 @@ public class AttendanceController {
      * @return 월별 근태 기록 목록 또는 오류에 대한 응답 (CommonResDto)
      */
     @GetMapping("/monthly/{year}/{month}")
-    public ResponseEntity<CommonResDto<List<Attendance>>> getMonthlyAttendance(
+    public ResponseEntity<CommonResDto<List<AttendanceResDto>>> getMonthlyAttendance(
             @AuthenticationPrincipal TokenUserInfo userInfo,
             @PathVariable int year,
             @PathVariable int month) {
         try {
-            List<Attendance> monthlyAttendances = attendanceService.getMonthlyAttendances(userInfo.getEmployeeNo(), year, month);
+            List<AttendanceResDto> monthlyAttendances = attendanceService.getMonthlyAttendances(userInfo.getEmployeeNo(), year, month);
             return buildSuccessResponse(monthlyAttendances, "월별 근태 조회 성공");
         } catch (Exception e) {
             return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "월별 근태 조회 중 오류 발생");
@@ -91,7 +90,7 @@ public class AttendanceController {
     public ResponseEntity<CommonResDto<AttendanceResDto>> goOut(@AuthenticationPrincipal TokenUserInfo userInfo) {
         try {
             Attendance attendance = attendanceService.recordGoOut(userInfo.getEmployeeNo());
-            return buildSuccessResponse(AttendanceResDto.from(attendance), "외출 기록 성공");
+            return buildSuccessResponse(AttendanceResDto.from(attendance, null, null, null, null), "외출 기록 성공");
         } catch (IllegalArgumentException | IllegalStateException e) {
             return buildErrorResponse(HttpStatus.BAD_REQUEST, e.getMessage());
         } catch (Exception e) {
@@ -103,7 +102,7 @@ public class AttendanceController {
     public ResponseEntity<CommonResDto<AttendanceResDto>> returnFromGoOut(@AuthenticationPrincipal TokenUserInfo userInfo) {
         try {
             Attendance attendance = attendanceService.recordReturn(userInfo.getEmployeeNo());
-            return buildSuccessResponse(AttendanceResDto.from(attendance), "복귀 기록 성공");
+            return buildSuccessResponse(AttendanceResDto.from(attendance, null, null, null, null), "복귀 기록 성공");
         } catch (IllegalArgumentException | IllegalStateException e) {
             return buildErrorResponse(HttpStatus.BAD_REQUEST, e.getMessage());
         } catch (Exception e) {

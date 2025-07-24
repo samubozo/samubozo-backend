@@ -2,17 +2,17 @@ package com.playdata.vacationservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.cloud.openfeign.EnableFeignClients; // 추가
-import org.springframework.data.jpa.repository.config.EnableJpaAuditing; // 추가
-import org.springframework.scheduling.annotation.EnableScheduling; // 추가 (스케줄러가 있다면)
-import com.playdata.vacationservice.vacation.service.VacationService; // VacationService 임포트
-import org.springframework.boot.CommandLineRunner; // CommandLineRunner 임포트
-import org.springframework.context.annotation.Bean; // @Bean 임포트
+import org.springframework.cloud.openfeign.EnableFeignClients;
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import com.playdata.vacationservice.vacation.service.VacationService;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Bean;
 
 @SpringBootApplication
-@EnableFeignClients // Feign 클라이언트를 활성화합니다。
-@EnableJpaAuditing // JPA Auditing을 활성화합니다。
-@EnableScheduling // 스케줄러가 있다면 활성화합니다。 (LeaveAccrualScheduler가 이동될 예정이므로 필요)
+@EnableFeignClients
+@EnableJpaAuditing
+@EnableScheduling
 public class VacationServiceApplication {
 
     public static void main(String[] args) {

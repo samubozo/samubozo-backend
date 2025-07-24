@@ -59,7 +59,8 @@ public class VacationBalance {
      * @param days 사용할 연차 일수
      */
     public void useDays(BigDecimal days) {
-        if (getRemainingDays().compareTo(days) < 0) {
+        // days가 양수일 경우 남은 연차 일수 확인
+        if (days.compareTo(BigDecimal.ZERO) > 0 && getRemainingDays().compareTo(days) < 0) {
             throw new IllegalArgumentException("남은 연차 일수가 부족합니다.");
         }
         this.usedDays = this.usedDays.add(days);

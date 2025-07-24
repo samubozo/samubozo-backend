@@ -48,4 +48,17 @@ public interface HrServiceClient {
 
     @GetMapping("/hr/schedules/approved-type")
     String getApprovedExternalScheduleType(@RequestParam("userId") Long userId, @RequestParam("date") String date);
+
+    /**
+     * 특정 연도와 월에 입사 1주년을 맞이하는 사용자 목록을 조회합니다.
+     * HR 서비스의 /hr/anniversary/monthly 엔드포인트를 호출합니다.
+     *
+     * @param year 조회할 연도 (입사일 기준)
+     * @param month 조회할 월 (입사일 기준)
+     * @return 해당 월에 입사 1주년을 맞이하는 사용자 정보 DTO 목록
+     */
+    @GetMapping("/hr/anniversary/monthly")
+    List<UserDto> getUsersWithFirstAnniversaryInMonth(
+            @RequestParam("year") int year,
+            @RequestParam("month") int month);
 }

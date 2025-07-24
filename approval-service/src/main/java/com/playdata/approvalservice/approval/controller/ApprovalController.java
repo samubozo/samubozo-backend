@@ -68,6 +68,20 @@ public class ApprovalController {
     }
 
     /**
+     * 결재 대기 중인 모든 결재 요청 목록을 조회합니다. (hrRole='Y' 사용자용)
+     *
+     * @param userInfo 인증된 사용자 정보
+     * @return 결재 대기 중인 결재 요청 목록과 HTTP 200 OK 상태
+     */
+    @GetMapping("/pending")
+    public ResponseEntity<List<ApprovalRequestResponseDto>> getPendingApprovalRequests(
+            @AuthenticationPrincipal TokenUserInfo userInfo) {
+        // hrRole이 'Y'인 사용자만 접근 가능하도록 서비스 계층에서 검증
+        List<ApprovalRequestResponseDto> pendingRequests = approvalService.getPendingApprovalRequests(userInfo);
+        return ResponseEntity.ok(pendingRequests);
+    }
+
+    /**
      * 특정 ID를 가진 결재 요청을 조회합니다.
      *
      * @param id 조회할 결재 요청의 ID
@@ -127,5 +141,18 @@ public class ApprovalController {
      */
     private ResponseEntity<ApprovalRequestResponseDto> buildCreatedResponse(ApprovalRequestResponseDto responseDto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(responseDto);
+    }
+
+    /**
+     * 특정 결재자가 처리한 모든 결재 요청 목록을 조회합니다. (hrRole='Y' 사용자용)
+     *
+     * @param userInfo 인증된 사용자 정보
+     * @return 처리된 결재 요청 목록과 HTTP 200 OK 상태
+     */
+    @GetMapping("/processed-by-me")
+    public ResponseEntity<List<ApprovalRequestResponseDto>> getProcessedApprovalRequestsByApproverId(
+            @AuthenticationPrincipal TokenUserInfo userInfo) {
+        List<ApprovalRequestResponseDto> processedRequests = approvalService.getProcessedApprovalRequestsByApproverId(userInfo);
+        return ResponseEntity.ok(processedRequests);
     }
 }
