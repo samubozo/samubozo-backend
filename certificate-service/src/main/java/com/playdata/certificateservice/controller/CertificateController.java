@@ -23,23 +23,19 @@ public class CertificateController {
 
     private final CertificateService certificateService;
 
-    // 증명서 발급
     @PostMapping("/application")
     public ResponseEntity<?> createCertificate(@RequestBody CertificateReqDto dto) {
-        log.info("Create certificate request: {}", dto);
         certificateService.createCertificate(dto);
         return ResponseEntity.ok().build();
     }
 
-    // 증명서 조회
     @GetMapping("/list/{employeeNo}")
     public ResponseEntity<?> listCertificates(@PathVariable Long employeeNo ,@PageableDefault(sort = "certificateId") Pageable pageable) {
-        log.info("List certificates request: {}", pageable);
         return new ResponseEntity<>(new CommonResDto(HttpStatus.OK,
-                "Success", certificateService.listCertificates(employeeNo, pageable)), HttpStatus.OK);
+                "Success", certificateService.listCertificates(employeeNo, pageable)),
+                HttpStatus.OK);
     }
 
-    // 증명서 수정
     @PutMapping("/certificate/{id}")
     public ResponseEntity<?> updateCertificate(@PathVariable("id") Long id, @RequestBody CertificateReqDto dto) {
         certificateService.updateCertificate(id, dto);
@@ -47,7 +43,6 @@ public class CertificateController {
         return ResponseEntity.ok().body(resDto);
     }
 
-    // 증명서 삭제
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<?> deleteCertificate(@PathVariable("id") Long id) {
         certificateService.deleteCertificate(id);

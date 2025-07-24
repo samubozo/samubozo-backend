@@ -35,16 +35,14 @@ public class CertificateServiceImpl implements CertificateService {
     private final CertificateRepository certificateRepository;
     private final HrServiceClient hrServiceClient;
 
-    // 증명서 신청
     @Transactional
     @Override
     public void createCertificate(CertificateReqDto dto) {
-        // 1. Certificate 객체 생성 및 저장
         Certificate certificate = Certificate.builder()
                 .certificateId(dto.getCertificateId())
                 .employeeNo(dto.getEmployeeNo())
                 .type(Type.valueOf(dto.getType().name()))
-                .status(Status.REQUESTED) // 기본값
+                .status(Status.REQUESTED)
                 .purpose(dto.getPurpose())
                 .requestDate(dto.getRequestDate())
                 .approveDate(dto.getApproveDate())
@@ -81,17 +79,17 @@ public class CertificateServiceImpl implements CertificateService {
             float pageWidth = page.getMediaBox().getWidth();
             float pageHeight = page.getMediaBox().getHeight();
 
-            // 1. 표 위치 및 크기(A4 기준) - 너비 더 넓게
+            // 1. 표 위치 및 크기(A4 기준)
             float tableX = 40;
-            float tableY = pageHeight - 180; // 위쪽에 배치
-            float tableWidth = pageWidth - 80; // (기존 120 → 80)
+            float tableY = pageHeight - 180;
+            float tableWidth = pageWidth - 80;
             float rowHeight = 44;
 
             // 2. 행 Y좌표 (5줄)
             float[] rowYs = new float[5];
             for (int i = 0; i < 5; i++) rowYs[i] = tableY - rowHeight * i;
 
-            // 3. 열 너비 - 3,4번째(주민등록번호/직위)가 더 넓음: 15%/25%/30%/30%
+            // 3. 열 너비 - 3,4번째
             float[] colWidths = {
                     tableWidth * 0.17f,  // 성명/주소/소속 (살짝 넓게)
                     tableWidth * 0.27f,  // 이름/주소/부서 (살짝 넓게)
@@ -162,7 +160,7 @@ public class CertificateServiceImpl implements CertificateService {
                 cs.lineTo(colXs[1], rowYs[4]);
                 cs.stroke();
 
-                // 5. 표 텍스트 (폰트 20)
+                // 5. 표 텍스트
                 cs.setFont(font, 20);
                 drawCellText(cs, "성    명", font, 18, colXs[0], rowYs[0], colWidths[0], rowHeight);
                 drawCellText(cs, userName, font, 15, colXs[1], rowYs[0], colWidths[1], rowHeight);
@@ -205,12 +203,12 @@ public class CertificateServiceImpl implements CertificateService {
                 cs.endText();
 
                 // 8. 하단 회사 정보 (중앙, 간격 크게)
-                float bottomY = 100; // 기존 120 → 100로 더 아래로 내림
+                float bottomY = 100;
                 String corpAddress = "서울시 강남구 ○○로 123";
                 String corpName = "○○컴퍼니";
                 String ceo = "박대표";
 
-                // 주소 (회사명 위, 간격 +80)
+                // 주소
                 cs.beginText();
                 cs.setFont(font, 15);
                 float addrWidth = font.getStringWidth("주소 : " + corpAddress) / 1000 * 14;
@@ -218,7 +216,7 @@ public class CertificateServiceImpl implements CertificateService {
                 cs.showText("주소 : " + corpAddress);
                 cs.endText();
 
-                // 회사명 (중앙, 간격 +45)
+                // 회사명
                 cs.beginText();
                 cs.setFont(font, 16);
                 float corpWidth = font.getStringWidth("회사명 : " + corpName) / 1000 * 16;
@@ -226,7 +224,7 @@ public class CertificateServiceImpl implements CertificateService {
                 cs.showText("회사명 : " + corpName);
                 cs.endText();
 
-                // 대표이사 (간격 +10)
+                // 대표이사
                 cs.beginText();
                 cs.setFont(font, 16);
                 float ceoWidth = font.getStringWidth("대표이사 : " + ceo) / 1000 * 16;
@@ -248,7 +246,7 @@ public class CertificateServiceImpl implements CertificateService {
                 byte[] sealBytes = resource.getInputStream().readAllBytes();
                 PDImageXObject sealImage = PDImageXObject.createFromByteArray(document, sealBytes, "seal");
 
-                // (인) 텍스트 중앙에 도장 중앙이 오도록, 크기 65x65
+                // (인) 텍스트 중앙에 도장 중앙이 오도록
                 float sealWidth = 85;
                 float sealHeight = 85;
                 float inTextFontSize = 14;
@@ -265,16 +263,14 @@ public class CertificateServiceImpl implements CertificateService {
         }
     }
 
-    // 텍스트를 셀 중앙에 그리는 함수
     @Override
     public void drawCellText(PDPageContentStream cs, String text, PDFont font, int fontSize,
                              float x, float y, float width, float height) throws IOException {
-        log.info("drawCellText: {}", text); // 실제 PDF에 들어갈 값
         if (text == null) text = "";
         float textWidth = font.getStringWidth(text) / 1000 * fontSize;
         float textHeight = font.getFontDescriptor().getFontBoundingBox().getHeight() / 1000 * fontSize;
         float textX = x + (width - textWidth) / 2;
-        float textY = y - height / 2 - textHeight / 4; // 살짝 내려줘야 자연스럽다
+        float textY = y - height / 2 - textHeight / 4;
         cs.beginText();
         cs.setFont(font, fontSize);
         cs.newLineAtOffset(textX, textY);
@@ -282,13 +278,11 @@ public class CertificateServiceImpl implements CertificateService {
         cs.endText();
     }
 
-    // null safe
     @Override
     public String safe(String value) {
         return value == null ? "" : value;
     }
 
-    // 증명서 조회
     @Override
     public Page<CertificateResDto> listCertificates(Long employeeNo, Pageable pageable) {
         Page<Certificate> certificates = certificateRepository.findByEmployeeNo(employeeNo, pageable);
@@ -302,7 +296,6 @@ public class CertificateServiceImpl implements CertificateService {
                 .build());
     }
 
-    // 증명서 수정
     @Override
     public void updateCertificate(Long id, CertificateReqDto dto) {
         Certificate certificate = certificateRepository.findById(id).orElseThrow(
@@ -316,7 +309,6 @@ public class CertificateServiceImpl implements CertificateService {
         certificateRepository.save(certificate);
     }
 
-    // 증명서 삭제
     @Override
     public void deleteCertificate(Long id) {
         Certificate certificate = certificateRepository.findById(id).orElseThrow(

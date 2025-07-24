@@ -27,14 +27,13 @@ import java.util.concurrent.TimeUnit;
 @RequestMapping("/auth")
 @RequiredArgsConstructor
 @Slf4j
-@RefreshScope // spring cloud config가 관리하는 파일의 데이터가 변경되면 빈들을 새로고침해주는 어노테이션
+@RefreshScope
 public class AuthController {
 
     private final AuthService authService;
     private final JwtTokenProvider jwtTokenProvider;
     private final RedisTemplate<String, Object> redisTemplate;
 
-    // 로그인
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody UserLoginReqDto dto) {
         UserLoginFeignResDto user = authService.login(dto);
@@ -57,7 +56,6 @@ public class AuthController {
         return new ResponseEntity<>(resDto, HttpStatus.OK);
     }
 
-    // 토큰 재발급
     @PostMapping("/refresh")
     public ResponseEntity<?> refreshToken(@RequestBody TokenRefreshRequestDto requestDto) {
         try {
@@ -83,14 +81,12 @@ public class AuthController {
         }
     }
 
-    // 비밀번호 찾기
     @PostMapping("/find-password")
     public ResponseEntity<Void> sendVerificationCode(@Valid @RequestBody FindPwDto dto) {
         authService.sendPasswordResetCode(dto.getEmail());
         return ResponseEntity.ok().build();
     }
 
-    // 인증코드 검증
     @PostMapping("/verify-code")
     public ResponseEntity<CommonResDto<String>> verifyCode(@Valid @RequestBody VerifyCodeDto dto) {
         try {
@@ -113,7 +109,6 @@ public class AuthController {
         }
     }
 
-    // 비밀번호 재설정
     @PostMapping("/reset-password")
     public ResponseEntity<CommonResDto<String>> resetPassword(@Valid @RequestBody ResetPasswordDto dto) {
         try {
@@ -144,14 +139,12 @@ public class AuthController {
         }
     }
 
-    // 유요한 이메일인지 검증 요청
     @PostMapping("/email-valid")
     public ResponseEntity<?> emailValid(@RequestBody Map<String, String> map) {
         String email = map.get("email");
-        log.info("이메일 인증 요청! email: {}", email);
+
         try {
             String authNum = authService.mailCheck(email);
-            // 성공: 200 + 인증번호
             return ResponseEntity.ok(
                     new CommonResDto<>(
                             HttpStatus.OK,
@@ -160,7 +153,6 @@ public class AuthController {
                     )
             );
         } catch (IllegalArgumentException e) {
-            // 중복 이메일 또는 차단 상태
             return ResponseEntity
                     .badRequest()
                     .body(new CommonResDto<>(
@@ -169,7 +161,6 @@ public class AuthController {
                             null
                     ));
         } catch (RuntimeException e) {
-            // 메일 전송 실패 등
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new CommonResDto<>(

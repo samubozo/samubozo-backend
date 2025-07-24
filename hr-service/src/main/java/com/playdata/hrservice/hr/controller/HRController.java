@@ -1,22 +1,22 @@
 package com.playdata.hrservice.hr.controller;
+
 import com.playdata.hrservice.common.auth.TokenUserInfo;
 import com.playdata.hrservice.common.dto.CommonResDto;
 import com.playdata.hrservice.hr.dto.*;
-import com.playdata.hrservice.hr.service.*;
+import com.playdata.hrservice.hr.service.DepartmentService;
+import com.playdata.hrservice.hr.service.PositionService;
+import com.playdata.hrservice.hr.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
-import org.springframework.core.env.Environment;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-
 
 import java.time.LocalDate;
 import java.util.List;
@@ -26,7 +26,7 @@ import java.util.Map;
 @RequestMapping("/hr")
 @RequiredArgsConstructor
 @Slf4j
-@RefreshScope // spring cloud config가 관리하는 파일의 데이터가 변경되면 빈들을 새로고침해주는 어노테이션
+@RefreshScope
 public class HRController {
 
     private final UserService userService;
@@ -34,7 +34,6 @@ public class HRController {
     private final PositionService positionService;
 
 
-    // 직원 계정 생성(등록)
     @PostMapping("/users/signup")
     public ResponseEntity<?> createUser(@Valid @RequestBody UserSaveReqDto dto, @AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
         String hrRole = tokenUserInfo.getHrRole();
@@ -43,7 +42,6 @@ public class HRController {
         return new ResponseEntity<>(resDto, HttpStatus.CREATED);
     }
 
-    // 프로필
     @PostMapping("/user/profile")
     public ResponseEntity<?> uploadProfile(@ModelAttribute UserRequestDto dto) throws Exception{
         String newProfile = userService.uploadProfile(dto);
@@ -52,32 +50,29 @@ public class HRController {
         return new ResponseEntity<>(resDto, HttpStatus.OK);
     }
 
-    // feign client 요청을 위한 메서드
-    // 이메일로 유저 정보 얻어오기
-    // 로그인 용으로 간략 정보 얻을 때 쓰기
     @GetMapping("/user/feign/{email}")
     public UserLoginFeignResDto getLoginUser(@PathVariable String email) {
         return userService.getUserByEmail(email);
     }
 
-    // 인증되어 권한있는 사람이 요청할 수 있는 상세 정보 조회 API
     @GetMapping("/users/detail")
     public ResponseEntity<CommonResDto<UserFeignResDto>> getMyUserInfo(@AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
         String email = tokenUserInfo.getEmail();
         UserFeignResDto user = userService.getEmployeeByEmail(email);
-        log.info("HR Service - getMyUserInfo: UserFeignResDto hrRole = {}", user.getHrRole()); // 로그 추가
-        CommonResDto<UserFeignResDto> resDto = new CommonResDto<>(HttpStatus.OK, "User info retrieved successfully", user);
+        CommonResDto<UserFeignResDto> resDto = new CommonResDto<>(HttpStatus.OK,
+                "User info retrieved successfully", user);
         return new ResponseEntity<>(resDto, HttpStatus.OK);
     }
 
-    // 인증된 사용자가 employeeNo로 상세정보 요청할 수 있는 API
     @GetMapping("/users/feign/{employeeNo}")
     public ResponseEntity<CommonResDto<UserFeignResDto>> getUserById(@PathVariable Long employeeNo) {
         UserFeignResDto user = userService.getEmployeeById(employeeNo);
         if (user == null) {
-            return new ResponseEntity<>(new CommonResDto<>(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다.", null), HttpStatus.NOT_FOUND);
+            return new ResponseEntity<>(new CommonResDto<>(HttpStatus.NOT_FOUND,
+                    "사용자를 찾을 수 없습니다.", null), HttpStatus.NOT_FOUND);
         }
-        return new ResponseEntity<>(new CommonResDto<>(HttpStatus.OK, "User info retrieved successfully", user), HttpStatus.OK);
+        return new ResponseEntity<>(new CommonResDto<>(HttpStatus.OK,
+                "User info retrieved successfully", user), HttpStatus.OK);
     }
 
     @PostMapping("/user/password")
@@ -86,7 +81,6 @@ public class HRController {
         return new ResponseEntity<>(HttpStatus.OK);
     }
 
-    // 사용자 정보 수정
     @PatchMapping(value = "/users/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> updateUser(
             @PathVariable("id") Long employeeNo,
@@ -97,8 +91,6 @@ public class HRController {
         return new ResponseEntity<>(HttpStatus.OK);
     }
 
-    // 직원 리스트 조회
-    // 직원 조회 (기존 listUsers)
     @GetMapping("/user/list")
     public ResponseEntity<?> listUsers(@PageableDefault(sort = "employeeNo")Pageable pageable,
                                        @AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
@@ -107,89 +99,77 @@ public class HRController {
                 userService.listUsers(pageable, hrRole)), HttpStatus.OK);
     }
 
-    // 사용자 검색 엔드포인트 수정 (조건에 따라 페이징 또는 전체 리스트 반환)
     @GetMapping("/users/search")
     public ResponseEntity<?> searchUsers(
             @RequestParam(required = false) String userName,
             @RequestParam(required = false) String departmentName,
             @RequestParam(required = false) String hrRole,
-            @PageableDefault(sort = "employeeNo") Pageable pageable) { // Pageable은 검색 조건 없을 때만 사용
+            @PageableDefault(sort = "employeeNo") Pageable pageable) {
         Object result;
         if (userName != null || departmentName != null || hrRole != null) {
-            // 검색 조건이 있을 경우, 페이징 없이 전체 리스트 반환
-            result = userService.searchUsers(userName, departmentName, hrRole, null); // Pageable을 null로 전달
+            result = userService.searchUsers(userName, departmentName, hrRole, null);
         } else {
-            // 검색 조건이 없을 경우, 페이징 적용
             result = userService.searchUsers(null, null, null, pageable);
         }
-        return new ResponseEntity<>(new CommonResDto<>(HttpStatus.OK, "Success", result), HttpStatus.OK);
+        return new ResponseEntity<>(new CommonResDto<>(HttpStatus.OK,
+                "Success", result), HttpStatus.OK);
     }
 
-    // 부서 정보 조회 API
     @GetMapping("/departments")
     public ResponseEntity<?> getAllDepartments() {
         List<DepartmentResDto> departments = departmentService.getAllDepartments();
-        CommonResDto<List<DepartmentResDto>> resDto = new CommonResDto<>(HttpStatus.OK, "Departments retrieved successfully", departments);
+        CommonResDto<List<DepartmentResDto>> resDto = new CommonResDto<>(HttpStatus.OK,
+                "Departments retrieved successfully", departments);
         return new ResponseEntity<>(resDto, HttpStatus.OK);
     }
 
-    // 부서 추가
     @PostMapping(value = "/departments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> createDepartment(@ModelAttribute DepartmentReqDto dto) {
-        log.info("Create department : {}", dto);
         departmentService.createDepartment(dto);
         return ResponseEntity.ok().build();
     }
 
-    // 부서 수정
     @PutMapping(value = "/departments/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> updateDepartment(@PathVariable("id") Long departmentId, @ModelAttribute DepartmentReqDto dto) {
         departmentService.updateDepartment(departmentId, dto);
         return ResponseEntity.ok().build();
     }
 
-    // 부서 삭제
     @DeleteMapping("/departments/{id}")
     public ResponseEntity<?> deleteDepartment(@PathVariable("id") Long departmentId) {
         departmentService.deleteDepartment(departmentId);
         return ResponseEntity.noContent().build();
     }
 
-    // 직책 정보 조회 API
     @GetMapping("/positions")
     public ResponseEntity<?> getAllPositions() {
         List<PositionResDto> positions = positionService.getAllPositions();
-        CommonResDto<List<PositionResDto>> resDto = new CommonResDto<>(HttpStatus.OK, "Positions retrieved successfully", positions);
+        CommonResDto<List<PositionResDto>> resDto = new CommonResDto<>(HttpStatus.OK,
+                "Positions retrieved successfully", positions);
         return new ResponseEntity<>(resDto, HttpStatus.OK);
     }
 
-    // 직원 상세 조회
     @GetMapping("/user/{id}")
     public ResponseEntity<?> getUserDetail(@PathVariable("id") Long employeeNo) {
-        return new ResponseEntity<>(new CommonResDto<>(HttpStatus.OK, "Success", userService.getUserByEmployeeNo(employeeNo)), HttpStatus.OK);
+        return new ResponseEntity<>(new CommonResDto<>(HttpStatus.OK,
+                "Success", userService.getUserByEmployeeNo(employeeNo)), HttpStatus.OK);
     }
 
-
-    // Feign client 요청을 위한 메서드: employeeNo로 유저 정보 얻어오기
     @GetMapping("/user/feign/employeeNo/{employeeNo}")
     public UserFeignResDto getUserByEmployeeNo(@PathVariable Long employeeNo) {
         return userService.getEmployeeByEmployeeNo(employeeNo);
     }
 
-    // Feign client 요청을 위한 메서드: userName으로 유저 정보 얻어오기 (리스트 반환)
     @GetMapping("/user/feign/userName/{userName}")
     public List<UserFeignResDto> getUserByUserName(@PathVariable String userName) {
         return userService.getEmployeeByUserName(userName);
     }
 
-    // Feign client 요청을 위한 메서드: ID 목록으로 유저 정보 얻어오기
     @GetMapping("/users")
     public List<UserResDto> getUsersInfo(@RequestParam("userIds") List<Long> userIds) {
         return userService.getUsersByIds(userIds);
     }
 
-    // 특정 사용자가 특정 날짜에 승인된 외부 일정(출장, 연수 등)이 있는지 확인합니다.
-    // AttendanceService에서 FeignClient를 통해 호출됩니다.
     @GetMapping("/schedules/approved")
     public ResponseEntity<Boolean> hasApprovedExternalSchedule(
             @RequestParam("userId") Long userId,
@@ -198,8 +178,6 @@ public class HRController {
         return ResponseEntity.ok(hasSchedule);
     }
 
-    // 특정 사용자가 특정 날짜에 승인된 외부 일정의 종류를 반환합니다.
-    // AttendanceService에서 FeignClient를 통해 호출됩니다.
     @GetMapping("/schedules/approved-type")
     public ResponseEntity<String> getApprovedExternalScheduleType(
             @RequestParam("userId") Long userId,
@@ -208,7 +186,6 @@ public class HRController {
         return ResponseEntity.ok(scheduleType);
     }
 
-    // 직원 퇴사 처리
     @PatchMapping("/users/retire/{id}")
     public ResponseEntity<?> retireUser(@PathVariable("id") Long employeeNo,
                                         @AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
@@ -218,20 +195,13 @@ public class HRController {
 
     }
 
-    /**
-     * 특정 연도와 월에 입사 1주년을 맞이하는 사용자 목록을 조회합니다.
-     * AttendanceService에서 FeignClient를 통해 호출됩니다.
-     *
-     * @param year 조회할 연도 (입사일 기준)
-     * @param month 조회할 월 (입사일 기준)
-     * @return 해당 월에 입사 1주년을 맞이하는 사용자 정보 DTO 목록
-     */
     @GetMapping("/anniversary/monthly")
     public ResponseEntity<CommonResDto<List<UserResDto>>> getUsersWithFirstAnniversaryInMonth(
             @RequestParam("year") int year,
             @RequestParam("month") int month) {
         List<UserResDto> users = userService.getUsersWithFirstAnniversaryInMonth(year, month);
-        return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "Success", users), HttpStatus.OK);
+        return new ResponseEntity<>(new CommonResDto(HttpStatus.OK,
+                "Success", users), HttpStatus.OK);
     }
 }
 
