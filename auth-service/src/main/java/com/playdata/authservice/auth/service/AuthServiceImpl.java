@@ -23,7 +23,6 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
-    //필요한 객체 생성하여 주입
     private final PasswordEncoder encoder;
     private final RedisTemplate<String, Object>  redisTemplate;
     private final MailSenderService mailSenderService;
@@ -34,14 +33,12 @@ public class AuthServiceImpl implements AuthService {
             "0123456789" + "ABCDEFGHIJKLMNOPQRSTUVWXYZ" + "abcdefghijklmnopqrstuvwxyz";
     private static final SecureRandom random = new SecureRandom();
 
-    // Redis Key 상수
     private static final String VERIFICATION_CODE_KEY = "email_verify:code:";
     private static final String VERIFICATION_ATTEMPT_KEY = "email_verify:attempt:";
     private static final String VERIFICATION_BLOCK_KEY = "email_verify:block:";
     private static final String RESET_KEY_PREFIX = "pw-reset:";
     private static final Duration RESET_CODE_TTL = Duration.ofMinutes(5);
 
-    // 로그인 인증
     @Override
     public UserLoginFeignResDto login(UserLoginReqDto dto) {
 
@@ -59,24 +56,19 @@ public class AuthServiceImpl implements AuthService {
         return userLoginFeignResDto;
     }
 
-    // 비밀번호 찾기(인증코드 발송)
     @Override
     public void sendPasswordResetCode(@NotBlank(message = "이메일을 입력해 주세요.") String email) {
-        // 1. 회원 존재 확인
         UserLoginFeignResDto userLoginFeignResDto = hrServiceClient.getLoginUser(email);
         if (userLoginFeignResDto == null) {
             throw new EntityNotFoundException("해당 이메일의 사용자를 찾을 수 없습니다.");
         }
 
-        // 2. 인증 코드 생성
         String code = makeAlphanumericCode(9);
 
-        // 3. Rediss에 저장
         String redisKey = RESET_KEY_PREFIX + email;
         redisTemplate.opsForValue()
                 .set(redisKey, code, RESET_CODE_TTL);
 
-        // 4. 비밀번호 재설정 메일 발송
         try {
             mailSenderService.sendPasswordResetMail(email, userLoginFeignResDto.getUserName(), code);
         } catch (MessagingException e) {
@@ -100,25 +92,20 @@ public class AuthServiceImpl implements AuthService {
         return code;
     }
 
-    // 비밀번호 재설정 인증코드 검증
     @Override
     public void verifyResetCode(@NotBlank String email, @NotBlank String code) {
-        // 1. 사용자 재확인 (옵션)
         UserLoginFeignResDto userLoginFeignResDto = hrServiceClient.getLoginUser(email);
         if (userLoginFeignResDto == null) {
             throw new EntityNotFoundException("해당 이메일의 사용자를 찾을 수 없습니다.");
         }
 
-        // 인증 시도 횟수 증가
         int attemptCount = incrementAttemptCount(email);
 
-        //최대 시도 횟수 초과시 차단
         if(attemptCount >= 5){
             blockUser(email);
             throw new IllegalArgumentException("너무 많이 시도하셨습니다. 30분 후에 다시 시도해주세요.");
         }
 
-        // 2. Redis에서 코드 조회
         String key = RESET_KEY_PREFIX + email;
         Object savedCode = redisTemplate.opsForValue().get(key);
         if (savedCode == null) {
@@ -129,18 +116,15 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
-    // 비밀번호 재설정(최종 적용)
     @Override
     public void resetPassword(@NotBlank String email, @NotBlank String code, @NotBlank String newPassword) {
         verifyResetCode(email, code);
 
-        // 사용자 조회
         UserLoginFeignResDto userLoginFeignResDto = hrServiceClient.getLoginUser(email);
         if (userLoginFeignResDto == null) {
             throw new EntityNotFoundException("해당 이메일의 사용자를 찾을 수 없습니다.");
         }
 
-        // 비밀번호 해시 후 저장
         String encoded = encoder.encode(newPassword);
         UserPwUpdateDto userPwUpdateDto = UserPwUpdateDto.builder()
                 .employeeNo(userLoginFeignResDto.getEmployeeNo())
@@ -148,15 +132,12 @@ public class AuthServiceImpl implements AuthService {
                 .build();
         hrServiceClient.setPassword(userPwUpdateDto);
 
-        // 사용한 코드 삭제
         redisTemplate.delete(RESET_KEY_PREFIX + email);
     }
 
-    // 이메일 인증코드 발송
     @Override
     public String mailCheck(String email) {
 
-        // 차단 상태 확인
         if(isBlocked(email)){
             throw new IllegalArgumentException("잘못된 요청 횟수가 과다하여 임시 차단 중입니다. 잠시 후에 시도해주세요.");
         }
@@ -167,36 +148,30 @@ public class AuthServiceImpl implements AuthService {
         }
 
         String authNum;
-        //이메일 전송만을 담당하는 객체를 이용해서 이메일 로직 작성.
         try {
             authNum = mailSenderService.joinMail(email);
         } catch (MessagingException e) {
             throw new RuntimeException("이메일 전송 과정 중 문제 발생!");
         }
 
-        //인증 코드 redis 에 저장
         String key = VERIFICATION_CODE_KEY + email;
         redisTemplate.opsForValue().set(key, authNum, Duration.ofMinutes(1));
         return authNum;
     }
 
 
-
-    // 인증 차단 여부 (이메일 인증용)
     @Override
     public boolean isBlocked(String email){
         String key = VERIFICATION_BLOCK_KEY + email;
         return redisTemplate.hasKey(key);
     }
 
-    // 인증 차단 (이메일 인증용)
     @Override
     public void blockUser(String email) {
         String key = VERIFICATION_BLOCK_KEY + email;
         redisTemplate.opsForValue().set(key, "blocked", Duration.ofMinutes(30));
     }
 
-    // 인증 시도 횟수 관리 (이메일 인증용)
     @Override
     public int incrementAttemptCount(String email){
         String key = VERIFICATION_ATTEMPT_KEY + email;

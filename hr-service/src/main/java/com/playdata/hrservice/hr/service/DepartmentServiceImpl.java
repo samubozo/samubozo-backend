@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 public class DepartmentServiceImpl implements DepartmentService {
 
     private final DepartmentRepository departmentRepository;
-    private final UserRepository userRepository; // 추가
+    private final UserRepository userRepository;
     private final AwsS3Config awsS3Config;
 
     @Override
@@ -33,16 +33,13 @@ public class DepartmentServiceImpl implements DepartmentService {
                 .collect(Collectors.toList());
     }
 
-    // 부서 추가
     @Transactional
     @Override
     public void createDepartment(DepartmentReqDto dto) {
-        // 부서명 중복 체크
         if (departmentRepository.existsByName(dto.getName())) {
             throw new IllegalArgumentException("이미 사용 중인 부서명입니다.");
         }
 
-        // 컬러 중복 체크
         if (departmentRepository.existsByDepartmentColor(dto.getDepartmentColor())) {
             throw new IllegalArgumentException("이미 사용 중인 부서 색상입니다.");
         }
@@ -67,19 +64,16 @@ public class DepartmentServiceImpl implements DepartmentService {
         departmentRepository.save(department);
     }
 
-    // 부서 수정
     @Transactional
     @Override
     public void updateDepartment(Long departmentId, DepartmentReqDto dto) {
         Department department = departmentRepository.findById(departmentId)
                 .orElseThrow(() -> new EntityNotFoundException("Department not found with ID: " + departmentId));
 
-        // 부서명 중복 체크 (자신 제외)
         if (departmentRepository.existsByName(dto.getName()) && !department.getName().equals(dto.getName())) {
             throw new IllegalArgumentException("이미 사용 중인 부서명입니다.");
         }
 
-        // 컬러 중복 체크 (자신 제외)
         if (departmentRepository.existsByDepartmentColor(dto.getDepartmentColor()) && !department.getDepartmentColor().equals(dto.getDepartmentColor())) {
             throw new IllegalArgumentException("이미 사용 중인 부서 색상입니다.");
         }
@@ -114,19 +108,16 @@ public class DepartmentServiceImpl implements DepartmentService {
         departmentRepository.save(department);
     }
 
-    // 부서 삭제
     @Transactional
     @Override
     public void deleteDepartment(Long departmentId) {
         Department department = departmentRepository.findById(departmentId)
                 .orElseThrow(() -> new EntityNotFoundException("Department not found with ID: " + departmentId));
 
-        // 해당 부서에 속한 직원이 있는지 확인
         if (userRepository.existsByDepartmentDepartmentId(departmentId)) {
             throw new IllegalArgumentException("해당 부서에 속한 직원이 존재하여 삭제할 수 없습니다.");
         }
 
-        // 이미지 파일이 있다면 S3에서 삭제
         if (department.getImageUrl() != null && !department.getImageUrl().isBlank()) {
             try {
                 awsS3Config.deleteFromS3Bucket(department.getImageUrl());
