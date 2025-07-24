@@ -65,21 +65,20 @@ public class CertificateServiceImpl implements CertificateService {
         log.info("generateCertificatePdf - userInfo: {}", userInfo); // 주민등록번호 포함 확인
         if (userInfo == null) throw new EntityNotFoundException("유저 정보 없음");
 
-        try {
-            String fontPath = "/Users/yeni/Downloads/nanum-gothic/NanumGothic.ttf";
-            return generatePdf(certificate, userInfo, fontPath);
+        try (InputStream fontStream = new ClassPathResource("nanum-gothic/NanumGothic.ttf").getInputStream()) {
+            return generatePdf(certificate, userInfo, fontStream);
         } catch (IOException e) {
             throw new RuntimeException("PDF 생성 실패", e);
         }
     }
 
     @Override
-    public byte[] generatePdf(Certificate certificate, UserFeignResDto userInfo, String fontPath) throws IOException {
+    public byte[] generatePdf(Certificate certificate, UserFeignResDto userInfo, InputStream fontStream) throws IOException {
         try (PDDocument document = new PDDocument(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             PDPage page = new PDPage();
             document.addPage(page);
 
-            PDFont font = PDType0Font.load(document, new FileInputStream(fontPath));
+            PDFont font = PDType0Font.load(document, fontStream, true);
 
             float pageWidth = page.getMediaBox().getWidth();
             float pageHeight = page.getMediaBox().getHeight();
