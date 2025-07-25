@@ -1,11 +1,19 @@
 package com.playdata.certificateservice.service;
 
 
-import com.playdata.certificateservice.client.HrServiceClient;
+import com.playdata.certificateservice.client.dto.ApprovalRequestCreateDto; // 이 DTO는 이제 사용하지 않습니다.
+import com.playdata.certificateservice.client.dto.CertificateApprovalRequestCreateDto; // 추가
+import com.playdata.certificateservice.client.dto.RequestType;
+import com.playdata.certificateservice.common.auth.TokenUserInfo;
 import com.playdata.certificateservice.common.dto.CommonResDto;
 import com.playdata.certificateservice.dto.CertificateReqDto;
 import com.playdata.certificateservice.dto.CertificateResDto;
-import com.playdata.certificateservice.dto.UserFeignResDto;
+import com.playdata.certificateservice.client.ApprovalServiceClient;
+import com.playdata.certificateservice.client.hr.HrServiceClient;
+import com.playdata.certificateservice.client.hr.dto.UserFeignResDto;
+import com.playdata.certificateservice.client.hr.dto.UserResDto;
+import com.playdata.certificateservice.client.dto.ApprovalRequestResponseDto;
+import feign.FeignException;
 import com.playdata.certificateservice.entity.Certificate;
 import com.playdata.certificateservice.entity.Status;
 import com.playdata.certificateservice.entity.Type;
@@ -24,8 +32,19 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Objects;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Slf4j
 @Service
@@ -34,52 +53,180 @@ public class CertificateServiceImpl implements CertificateService {
 
     private final CertificateRepository certificateRepository;
     private final HrServiceClient hrServiceClient;
+    private final ApprovalServiceClient approvalServiceClient;
 
-    // 증명서 신청
+
+
+    // 증명서 신청 (사용자)
     @Transactional
     @Override
-    public void createCertificate(CertificateReqDto dto) {
+    public void createCertificate(TokenUserInfo userInfo, CertificateReqDto dto) {
         // 1. Certificate 객체 생성 및 저장
         Certificate certificate = Certificate.builder()
-                .certificateId(dto.getCertificateId())
-                .employeeNo(dto.getEmployeeNo())
+                .employeeNo(userInfo.getEmployeeNo()) // 인증된 사용자 ID 사용
                 .type(Type.valueOf(dto.getType().name()))
-                .status(Status.REQUESTED) // 기본값
+                .status(Status.PENDING) // 기본값
                 .purpose(dto.getPurpose())
                 .requestDate(dto.getRequestDate())
-                .approveDate(dto.getApproveDate())
                 .build();
 
-        log.info("Saved certificate: {}", certificate);
+        Certificate savedCertificate = certificateRepository.save(certificate);
+        log.info("Saved certificate: {}", savedCertificate);
 
-        certificateRepository.save(certificate);
+        // 2. Approval-service 에 결재 요청 (CertificateApprovalRequestCreateDto 사용)
+        CertificateApprovalRequestCreateDto approvalRequestDto = CertificateApprovalRequestCreateDto.builder() // DTO 타입 변경
+                .requestType(RequestType.CERTIFICATE)
+                .applicantId(savedCertificate.getEmployeeNo())
+                .title(savedCertificate.getType().name() + " 증명서 발급 요청")
+                .reason(savedCertificate.getPurpose())
+                .certificateId(savedCertificate.getCertificateId())
+                .startDate(savedCertificate.getRequestDate())
+                .endDate(savedCertificate.getRequestDate())
+                .build();
+
+        ApprovalRequestResponseDto approvalResponse = approvalServiceClient.createCertificateApprovalRequest(approvalRequestDto); // 메서드 호출 변경
+        savedCertificate.setApprovalRequestId(approvalResponse.getId()); // approvalRequestId 저장
+        certificateRepository.save(savedCertificate); // approvalRequestId 업데이트
+        log.info("Certificate ID: {}, Saved Approval Request ID: {}", savedCertificate.getCertificateId(), savedCertificate.getApprovalRequestId()); // Added log
+        log.info("Sent approval request to approval-service: {}", approvalRequestDto);
     }
 
+    // 내 증명서 조회 (사용자)
     @Override
-    public byte[] generateCertificatePdf(Long id) {
+    public Page<CertificateResDto> listMyCertificates(TokenUserInfo userInfo, Pageable pageable) {
+        Page<Certificate> certificates = certificateRepository.findByEmployeeNo(userInfo.getEmployeeNo(), pageable);
+
+        // HR 서비스에서 현재 로그인한 사용자의 상세 정보 조회
+        String applicantName = null;
+        String departmentName = null;
+        try {
+            CommonResDto<UserFeignResDto> hrResponse = hrServiceClient.getUserById(userInfo.getEmployeeNo());
+            if (hrResponse != null && hrResponse.getResult() != null) {
+                UserFeignResDto currentUserInfo = hrResponse.getResult();
+                applicantName = currentUserInfo.getUserName();
+                if (currentUserInfo.getDepartment() != null) {
+                    departmentName = currentUserInfo.getDepartment().getName();
+                }
+            }
+        } catch (FeignException e) {
+            log.error("HR 서비스 통신 오류 (getUserById) for employeeNo {}: {}", userInfo.getEmployeeNo(), e.getMessage());
+            // 오류 발생 시 이름/부서 정보 없이 진행
+        }
+
+        final String finalApplicantName = applicantName;
+        final String finalDepartmentName = departmentName;
+
+        return certificates.map(certificate -> {
+            String approverName = null;
+            if (certificate.getApprovalRequestId() != null) {
+                try {
+                    ApprovalRequestResponseDto approvalResponse = approvalServiceClient.getApprovalRequestById(certificate.getApprovalRequestId());
+                    log.info("ApprovalRequestResponseDto from approval-service: approverId={}, approverName={}", approvalResponse.getApproverId(), approvalResponse.getApproverName());
+                    approverName = approvalResponse.getApproverName();
+                } catch (FeignException e) {
+                    log.error("결재 서비스 통신 오류 (getApprovalRequestById) for approvalRequestId {}: {}", certificate.getApprovalRequestId(), e.getMessage());
+                }
+            }
+
+            return CertificateResDto.builder()
+                    .certificateId(certificate.getCertificateId())
+                    .employeeNo(certificate.getEmployeeNo())
+                    .type(Type.valueOf(certificate.getType().name()))
+                    .requestDate(certificate.getRequestDate())
+                    .approveDate(certificate.getApproveDate())
+                    .status(Status.valueOf(certificate.getStatus().name()))
+                    .purpose(certificate.getPurpose())
+                    .applicantName(finalApplicantName)
+                    .departmentName(finalDepartmentName)
+                    .approverName(approverName)
+                    .build();
+        });
+    }
+
+    // 내 증명서 수정 (사용자)
+    @Override
+    @Transactional
+    public void updateMyCertificate(TokenUserInfo userInfo, Long id, CertificateReqDto dto) {
+        Certificate certificate = certificateRepository.findById(id).orElseThrow(
+                () -> new EntityNotFoundException("Certificate not found with id: " + id)
+        );
+
+        // 1. 소유권 확인
+        if (!certificate.getEmployeeNo().equals(userInfo.getEmployeeNo())) {
+            throw new IllegalStateException("본인의 증명서만 수정할 수 있습니다.");
+        }
+
+        // 2. 상태 확인: REQUESTED 상태일 때만 수정 가능
+        if (certificate.getStatus() != Status.PENDING) {
+            throw new IllegalStateException("결재 대기 중인 증명서만 수정할 수 있습니다. (현재 상태: " + certificate.getStatus() + ")");
+        }
+
+        certificate.setRequestDate(dto.getRequestDate());
+        certificate.setType(Type.valueOf(dto.getType().name()));
+        certificate.setPurpose(dto.getPurpose());
+
+        certificateRepository.save(certificate);
+        log.info("Certificate {} has been updated by user {}.", id, userInfo.getEmployeeNo());
+    }
+
+    // 내 증명서 삭제 (사용자 - 신청 취소)
+    @Override
+    @Transactional
+    public void deleteMyCertificate(TokenUserInfo userInfo, Long id) {
+        Certificate certificate = certificateRepository.findById(id).orElseThrow(
+                () -> new EntityNotFoundException("Certificate not found with id: " + id)
+        );
+
+        // 1. 소유권 확인
+        if (!certificate.getEmployeeNo().equals(userInfo.getEmployeeNo())) {
+            throw new IllegalStateException("본인의 증명서만 삭제할 수 있습니다.");
+        }
+
+        // 2. 상태 확인: REQUESTED 상태일 때만 삭제 가능 (신청 취소)
+        if (certificate.getStatus() != Status.PENDING) {
+            throw new IllegalStateException("결재 대기 중인 증명서만 삭제할 수 있습니다. (현재 상태: " + certificate.getStatus() + ")");
+        }
+
+        certificateRepository.delete(certificate);
+        log.info("Certificate {} has been deleted by user {}.", id, userInfo.getEmployeeNo());
+    }
+
+    // 내 증명서 인쇄 (사용자)
+    @Override
+    public byte[] generateMyCertificatePdf(TokenUserInfo userInfo, Long id) {
         Certificate certificate = certificateRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("증명서 없음"));
 
+        // 1. 소유권 확인
+        if (!certificate.getEmployeeNo().equals(userInfo.getEmployeeNo())) {
+            throw new IllegalStateException("본인의 증명서만 출력할 수 있습니다.");
+        }
+
+        // 2. 승인된 증명서만 출력 가능
+        if (certificate.getStatus() != Status.APPROVED) {
+            throw new IllegalStateException("승인되지 않은 증명서는 출력할 수 없습니다.");
+        }
+
         CommonResDto<UserFeignResDto> response = hrServiceClient.getUserById(certificate.getEmployeeNo());
-        UserFeignResDto userInfo = response.getResult();
-        log.info("generateCertificatePdf - userInfo: {}", userInfo); // 주민등록번호 포함 확인
-        if (userInfo == null) throw new EntityNotFoundException("유저 정보 없음");
+        UserFeignResDto userInfoRes = response.getResult();
+        log.info("generateCertificatePdf - userInfo: {}", userInfoRes); // 주민등록번호 포함 확인
+        if (userInfoRes == null) throw new EntityNotFoundException("유저 정보 없음");
 
         try {
-            String fontPath = "/Users/yeni/Downloads/nanum-gothic/NanumGothic.ttf";
-            return generatePdf(certificate, userInfo, fontPath);
+            return generatePdf(certificate, userInfoRes);
         } catch (IOException e) {
             throw new RuntimeException("PDF 생성 실패", e);
         }
     }
 
     @Override
-    public byte[] generatePdf(Certificate certificate, UserFeignResDto userInfo, String fontPath) throws IOException {
+    public byte[] generatePdf(Certificate certificate, UserFeignResDto userInfo) throws IOException {
         try (PDDocument document = new PDDocument(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             PDPage page = new PDPage();
             document.addPage(page);
 
-            PDFont font = PDType0Font.load(document, new FileInputStream(fontPath));
+            ClassPathResource fontResource = new ClassPathResource("fonts/NanumGothic.ttf");
+            PDFont font = PDType0Font.load(document, fontResource.getInputStream());
 
             float pageWidth = page.getMediaBox().getWidth();
             float pageHeight = page.getMediaBox().getHeight();
@@ -111,7 +258,7 @@ public class CertificateServiceImpl implements CertificateService {
             String userName = safe(userInfo.getUserName());
             String rrn = safe(userInfo.getResidentRegNo());
             String address = safe(userInfo.getAddress());
-            String dept = safe(userInfo.getDepartmentName());
+            String dept = safe(userInfo.getDepartment().getName());
             String position = safe(userInfo.getPositionName());
             String period = userInfo.getHireDate() != null ? userInfo.getHireDate() + " ~ 현재" : "";
             String purpose = safe(certificate.getPurpose());
@@ -188,7 +335,7 @@ public class CertificateServiceImpl implements CertificateService {
                 if (certificate.getType() != null) {
                     footerText = switch (certificate.getType().name()) {
                         case "EMPLOYMENT" -> "상기와 같이 재직 중임을 증명함";
-                        case "CAREER" -> "상기와 같이 근무하였음을 증명함";
+                        case "CAREER" -> "경력증명서";
                         default -> "상기와 같이 사실임을 증명함";
                     };
                 } else {
@@ -226,7 +373,7 @@ public class CertificateServiceImpl implements CertificateService {
                 cs.setFont(font, 16);
                 float corpWidth = font.getStringWidth("회사명 : " + corpName) / 1000 * 16;
                 cs.newLineAtOffset((pageWidth - corpWidth) / 2, bottomY + 45);
-                cs.showText("회사명 : " + corpName);
+                cs.showText(corpName);
                 cs.endText();
 
                 // 대표이사 (간격 +10)
@@ -291,42 +438,199 @@ public class CertificateServiceImpl implements CertificateService {
         return value == null ? "" : value;
     }
 
-    // 증명서 조회
+    // [내부호출] 증명서 승인 처리
     @Override
-    public Page<CertificateResDto> listCertificates(Long employeeNo, Pageable pageable) {
-        Page<Certificate> certificates = certificateRepository.findByEmployeeNo(employeeNo, pageable);
-        return certificates.map(certificate -> CertificateResDto.builder()
-                .certificateId(certificate.getCertificateId())
-                .type(Type.valueOf(certificate.getType().name()))
-                .requestDate(certificate.getRequestDate())
-                .approveDate(certificate.getApproveDate())
-                .status(Status.valueOf(certificate.getStatus().name()))
-                .purpose(certificate.getPurpose())
-                .build());
-    }
-
-    // 증명서 수정
-    @Override
-    public void updateCertificate(Long id, CertificateReqDto dto) {
+    @Transactional
+    public void approveCertificateInternal(Long id, Long approverId) {
         Certificate certificate = certificateRepository.findById(id).orElseThrow(
-                () -> new EntityNotFoundException("certificate not found")
+                () -> new EntityNotFoundException("Certificate not found with id: " + id)
         );
 
-        certificate.setRequestDate(dto.getRequestDate());
-        certificate.setType(Type.valueOf(dto.getType().name()));
-        certificate.setPurpose(dto.getPurpose());
+        certificate.setStatus(Status.APPROVED);
+        certificate.setApproveDate(java.time.LocalDate.now());
 
         certificateRepository.save(certificate);
+        log.info("Certificate {} has been approved.", id);
     }
 
-    // 증명서 삭제
+    // [내부호출] 증명서 반려 처리
     @Override
-    public void deleteCertificate(Long id) {
+    @Transactional
+    public void rejectCertificateInternal(Long id) {
         Certificate certificate = certificateRepository.findById(id).orElseThrow(
-                () -> new EntityNotFoundException("certificate with id " + id + " not found")
+                () -> new EntityNotFoundException("Certificate not found with id: " + id)
         );
-        certificateRepository.delete(certificate);
+
+        certificate.setStatus(Status.REJECTED);
+        certificate.setApproveDate(java.time.LocalDate.now()); // 반려 시점도 기록
+
+        certificateRepository.save(certificate);
+        log.info("Certificate {} has been rejected.", id);
     }
 
+    // 모든 증명서 조회 (HR 전용)
+    @Override
+    public Page<CertificateResDto> listAllCertificates(TokenUserInfo userInfo, Long employeeNo, Pageable pageable) {
+        // HR 역할 검증
+        if (!"Y".equals(userInfo.getHrRole())) {
+            throw new IllegalStateException("Only HR users can view all certificates.");
+        }
 
+        Page<Certificate> certificates;
+        if (employeeNo != null) {
+            // employeeNo가 제공되면 해당 사원의 증명서만 조회
+            certificates = certificateRepository.findByEmployeeNo(employeeNo, pageable);
+        } else {
+            // employeeNo가 제공되지 않으면 모든 증명서 조회
+            certificates = certificateRepository.findAll(pageable);
+        }
+
+        // 모든 신청자 및 결재자 ID 추출
+        List<Long> allUserIds = Stream.concat(
+                certificates.stream().map(Certificate::getEmployeeNo),
+                certificates.stream()
+                        .filter(cert -> cert.getApprovalRequestId() != null)
+                        .map(cert -> {
+                            try {
+                                return approvalServiceClient.getApprovalRequestById(cert.getApprovalRequestId()).getApproverId();
+                            } catch (FeignException e) {
+                                log.error("결재 서비스 통신 오류 (getApprovalRequestById) for approvalRequestId {}: {}", cert.getApprovalRequestId(), e.getMessage());
+                                return null;
+                            }
+                        })
+                        .filter(Objects::nonNull)
+        ).distinct().collect(Collectors.toList());
+
+        // HR 서비스에서 모든 사용자 정보 조회
+        final Map<Long, UserResDto> userMap = new HashMap<>();
+        try {
+            List<UserResDto> usersInfo = hrServiceClient.getUsersInfo(allUserIds);
+            if (usersInfo != null && !usersInfo.isEmpty()) {
+                userMap.putAll(usersInfo.stream()
+                        .collect(Collectors.toMap(UserResDto::getEmployeeNo, Function.identity())));
+            }
+        } catch (FeignException e) {
+            log.error("HR 서비스 통신 오류 (getUsersInfo): {}", e.getMessage());
+        }
+
+        return certificates.map(certificate -> {
+            String applicantName = null;
+            String departmentName = null;
+            String approverName = null;
+
+            UserResDto applicantInfo = userMap.get(certificate.getEmployeeNo());
+            if (applicantInfo != null) {
+                applicantName = applicantInfo.getUserName();
+                if (applicantInfo.getDepartment() != null) {
+                    departmentName = applicantInfo.getDepartment().getName();
+                }
+            }
+
+            if (certificate.getApprovalRequestId() != null) {
+                try {
+                    ApprovalRequestResponseDto approvalResponse = approvalServiceClient.getApprovalRequestById(certificate.getApprovalRequestId());
+                    log.info("ApprovalRequestResponseDto from approval-service (listAllCertificates): approverId={}, approverName={}", approvalResponse.getApproverId(), approvalResponse.getApproverName());
+                    if (approvalResponse.getApproverId() != null) {
+                        UserResDto approverInfo = userMap.get(approvalResponse.getApproverId());
+                        if (approverInfo != null) {
+                            approverName = approverInfo.getUserName();
+                        }
+                    }
+                } catch (FeignException e) {
+                    log.error("결재 서비스 통신 오류 (getApprovalRequestById) for approvalRequestId {}: {}", certificate.getApprovalRequestId(), e.getMessage());
+                }
+            }
+
+            return CertificateResDto.builder()
+                    .certificateId(certificate.getCertificateId())
+                    .employeeNo(certificate.getEmployeeNo())
+                    .type(Type.valueOf(certificate.getType().name()))
+                    .requestDate(certificate.getRequestDate())
+                    .approveDate(certificate.getApproveDate())
+                    .status(Status.valueOf(certificate.getStatus().name()))
+                    .purpose(certificate.getPurpose())
+                    .applicantName(applicantName)
+                    .departmentName(departmentName)
+                    .approverName(approverName)
+                    .build();
+        });
+    }
+
+    // 증명서 승인 (HR 전용)
+    @Override
+    @Transactional
+    public void approveCertificate(Long id, TokenUserInfo userInfo) {
+        Certificate certificate = certificateRepository.findById(id).orElseThrow(
+                () -> new EntityNotFoundException("Certificate not found with id: " + id)
+        );
+
+        // HR 역할 검증 (선택 사항: 컨트롤러나 서비스 상위에서 이미 검증될 수 있음)
+        if (!"Y".equals(userInfo.getHrRole())) {
+            throw new IllegalStateException("Only HR users can approve certificates.");
+        }
+
+        // 이미 처리된 증명서인지 확인
+        if (certificate.getStatus() != Status.PENDING) {
+            throw new IllegalStateException("Only requested certificates can be approved. Current status: " + certificate.getStatus() + ")");
+        }
+
+        // approval-service의 approveApprovalRequest API 호출
+        try {
+            // Certificate 엔티티에 저장된 approvalRequestId를 사용
+            Long approvalRequestId = certificate.getApprovalRequestId();
+            if (approvalRequestId == null) {
+                throw new IllegalStateException("Approval request ID not found for certificate: " + id);
+            }
+
+            // approval-service의 approveApprovalRequest 호출
+            // 이 메소드는 ApprovalRequestResponseDto를 반환하며, 이 DTO에는 업데이트된 결재 상태가 포함됩니다.
+            ApprovalRequestResponseDto updatedApprovalRequest = approvalServiceClient.approveApprovalRequest(approvalRequestId, userInfo.getEmployeeNo());
+
+            // approval-service의 응답을 기반으로 Certificate 엔티티 업데이트
+            // approval-service에서 상태와 승인 날짜를 업데이트하므로, 여기서는 그 결과를 반영합니다.
+            certificate.setStatus(Status.valueOf(updatedApprovalRequest.getStatus()));
+            certificate.setApproveDate(updatedApprovalRequest.getProcessedAt()); // processedAt이 승인 날짜가 됩니다.
+
+            certificateRepository.save(certificate);
+            log.info("Certificate {} has been approved by HR user {}. Approval Request ID: {}", id, userInfo.getEmployeeNo(), approvalRequestId);
+
+        } catch (FeignException e) {
+            log.error("ApprovalService 결재 승인 요청 실패 (certificateId: {}, approverId: {}): {}", id, userInfo.getEmployeeNo(), e.getMessage());
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "결재 서비스 승인 처리 중 오류 발생", e);
+        } catch (Exception e) {
+            log.error("증명서 승인 처리 중 예상치 못한 오류 발생 (certificateId: {}): {}", id, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "증명서 승인 처리 중 오류 발생", e);
+        }
+    }
+
+    // 증명서 반려 (HR 전용)
+    @Override
+    @Transactional
+    public void rejectCertificate(Long id, TokenUserInfo userInfo) {
+        Certificate certificate = certificateRepository.findById(id).orElseThrow(
+                () -> new EntityNotFoundException("Certificate not found with id: " + id)
+        );
+
+        // HR 역할 검증 (선택 사항: 컨트롤러나 서비스 상위에서 이미 검증될 수 있음)
+        if (!"Y".equals(userInfo.getHrRole())) {
+            throw new IllegalStateException("Only HR users can reject certificates.");
+        }
+
+        // 이미 처리된 증명서인지 확인
+        if (certificate.getStatus() != Status.PENDING) {
+            throw new IllegalStateException("Only requested certificates can be rejected. Current status: " + certificate.getStatus() + ")");
+        }
+
+        certificate.setStatus(Status.REJECTED);
+        certificate.setApproveDate(java.time.LocalDate.now()); // 반려 시점도 기록
+
+        certificateRepository.save(certificate);
+        log.info("Certificate {} has been rejected by HR user {}.", id, userInfo.getEmployeeNo());
+    }
+
+    @Override
+    public Certificate getCertificateById(Long id) {
+        return certificateRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Certificate not found with id: " + id));
+    }
 }

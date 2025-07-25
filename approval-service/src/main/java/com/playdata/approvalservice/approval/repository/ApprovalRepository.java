@@ -28,4 +28,8 @@ public interface ApprovalRepository extends JpaRepository<ApprovalRequest, Long>
     // 특정 사용자의 특정 날짜 범위 내에 특정 상태를 가진 요청이 있는지 조회
     List<ApprovalRequest> findByApplicantIdAndRequestedAtBetweenAndStatusIn(
             Long applicantId, LocalDateTime startOfDay, LocalDateTime endOfDay, List<ApprovalStatus> statuses);
+
+    // 특정 사용자의 특정 요청 유형에 대해 특정 날짜 범위 내에 특정 상태를 가진 요청이 있는지 조회
+    List<ApprovalRequest> findByApplicantIdAndRequestTypeAndRequestedAtBetweenAndStatusIn(
+            Long applicantId, com.playdata.approvalservice.approval.entity.RequestType requestType, LocalDateTime startOfDay, LocalDateTime endOfDay, List<ApprovalStatus> statuses);
 }

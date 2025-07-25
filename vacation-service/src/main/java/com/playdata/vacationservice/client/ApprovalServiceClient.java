@@ -26,8 +26,8 @@ public interface ApprovalServiceClient {
      * @param requestDto 결재 생성에 필요한 정보
      * @return 생성된 결재 요청의 응답 DTO
      */
-    @PostMapping("/approvals")
-    ApprovalRequestResponseDto createApproval(@RequestBody ApprovalRequestDto requestDto);
+    @PostMapping("/approvals/vacation")
+    ApprovalRequestResponseDto createApproval(@RequestBody com.playdata.vacationservice.client.dto.VacationApprovalRequestCreateDto requestDto);
 
     /**
      * 특정 결재 요청을 승인 처리합니다.

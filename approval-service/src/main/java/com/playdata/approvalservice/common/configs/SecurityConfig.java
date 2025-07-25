@@ -38,7 +38,8 @@ public class SecurityConfig {
                             "/auth/login",
                             "/auth/email-valid",
                             "/auth/verify",
-                            "/auth/verify-code").permitAll()
+                            "/auth/verify-code",
+                            "/approvals").permitAll()
                     .anyRequest().authenticated();
         });
 

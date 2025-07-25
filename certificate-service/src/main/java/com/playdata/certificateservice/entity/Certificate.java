@@ -6,7 +6,7 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDate;
 
-import static com.playdata.certificateservice.entity.Status.REQUESTED;
+import static com.playdata.certificateservice.entity.Status.PENDING;
 
 
 @Getter
@@ -33,7 +33,7 @@ public class Certificate {
 
     @Enumerated(EnumType.STRING)
     @Builder.Default
-    private Status status = REQUESTED;
+    private Status status = PENDING;
 
     @Column(columnDefinition = "TEXT")
     private String purpose;
@@ -43,5 +43,8 @@ public class Certificate {
 
     @Column(name = "approve_date")
     private LocalDate approveDate;
+
+    @Column(name = "approval_request_id")
+    private Long approvalRequestId;
 
 }

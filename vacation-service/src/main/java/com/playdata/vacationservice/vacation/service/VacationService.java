@@ -2,7 +2,7 @@ package com.playdata.vacationservice.vacation.service;
 
 import com.playdata.vacationservice.client.ApprovalServiceClient;
 import com.playdata.vacationservice.client.HrServiceClient;
-import com.playdata.vacationservice.client.dto.ApprovalRequestDto;
+import com.playdata.vacationservice.client.dto.VacationApprovalRequestCreateDto;
 import com.playdata.vacationservice.client.dto.ApprovalRequestResponseDto;
 import com.playdata.vacationservice.client.dto.UserDetailDto;
 import com.playdata.vacationservice.client.dto.UserFeignResDto; // 추가
@@ -566,8 +566,8 @@ public class VacationService {
 
         String title = String.format("%s 휴가 신청 (%s ~ %s)", vacationType.getDescription(), startDate, endDate);
 
-        ApprovalRequestDto approvalRequest = ApprovalRequestDto.builder()
-                .requestType(RequestType.VACATION)
+        VacationApprovalRequestCreateDto approvalRequest = VacationApprovalRequestCreateDto.builder()
+                .requestType(RequestType.VACATION.name())
                 .applicantId(userInfo.getEmployeeNo())
                 .reason(reason)
                 .vacationsId(vacationId)

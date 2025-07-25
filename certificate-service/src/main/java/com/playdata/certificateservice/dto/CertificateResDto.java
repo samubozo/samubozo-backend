@@ -21,4 +21,7 @@ public class CertificateResDto {
     private LocalDate approveDate;
     private Status status;
     private String purpose;
+    private String applicantName;
+    private String departmentName;
+    private String approverName;
 }

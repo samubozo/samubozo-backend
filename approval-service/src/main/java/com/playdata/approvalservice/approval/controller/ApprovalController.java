@@ -1,7 +1,8 @@
 package com.playdata.approvalservice.approval.controller;
 
-import com.playdata.approvalservice.approval.dto.ApprovalRequestCreateDto;
 import com.playdata.approvalservice.approval.dto.ApprovalRequestResponseDto;
+import com.playdata.approvalservice.approval.dto.CertificateApprovalRequestCreateDto;
+import com.playdata.approvalservice.approval.dto.VacationApprovalRequestCreateDto;
 import com.playdata.approvalservice.approval.service.ApprovalService;
 import com.playdata.approvalservice.common.auth.TokenUserInfo;
 import lombok.RequiredArgsConstructor;
@@ -42,17 +43,32 @@ public class ApprovalController {
     }
 
     /**
-     * 새로운 결재 요청을 생성합니다.
+     * 새로운 휴가 결재 요청을 생성합니다.
      *
-     * @param createDto 결재 요청 생성에 필요한 데이터를 담은 DTO
+     * @param createDto 휴가 결재 요청 생성에 필요한 데이터를 담은 DTO
      * @return 생성된 결재 요청의 응답 DTO와 HTTP 201 Created 상태
      */
-    @PostMapping
-    public ResponseEntity<ApprovalRequestResponseDto> createApprovalRequest(
+    @PostMapping("/vacation")
+    public ResponseEntity<ApprovalRequestResponseDto> createVacationApprovalRequest(
             @AuthenticationPrincipal TokenUserInfo userInfo,
-            @RequestBody ApprovalRequestCreateDto createDto) {
+            @RequestBody VacationApprovalRequestCreateDto createDto) {
         // 서비스 메서드 호출 시 userInfo도 함께 전달
-        ApprovalRequestResponseDto responseDto = approvalService.createApprovalRequest(userInfo, createDto);
+        ApprovalRequestResponseDto responseDto = approvalService.createVacationApprovalRequest(userInfo, createDto);
+        return buildCreatedResponse(responseDto);
+    }
+
+    /**
+     * 새로운 증명서 결재 요청을 생성합니다.
+     *
+     * @param createDto 증명서 결재 요청 생성에 필요한 데이터를 담은 DTO
+     * @return 생성된 결재 요청의 응답 DTO와 HTTP 201 Created 상태
+     */
+    @PostMapping("/certificate")
+    public ResponseEntity<ApprovalRequestResponseDto> createCertificateApprovalRequest(
+            @AuthenticationPrincipal TokenUserInfo userInfo,
+            @RequestBody CertificateApprovalRequestCreateDto createDto) {
+        // 서비스 메서드 호출 시 userInfo도 함께 전달
+        ApprovalRequestResponseDto responseDto = approvalService.createCertificateApprovalRequest(userInfo, createDto);
         return buildCreatedResponse(responseDto);
     }
 
@@ -103,8 +119,8 @@ public class ApprovalController {
     @PutMapping("/{id}/approve")
     public ResponseEntity<ApprovalRequestResponseDto> approveApprovalRequest(
             @PathVariable Long id,
-            @AuthenticationPrincipal TokenUserInfo userInfo) {
-        ApprovalRequestResponseDto responseDto = approvalService.approveApprovalRequest(id, userInfo);
+            @RequestHeader("X-User-Employee-No") Long employeeNo) {
+        ApprovalRequestResponseDto responseDto = approvalService.approveApprovalRequest(id, employeeNo);
         return buildOkResponse(responseDto);
     }
 
