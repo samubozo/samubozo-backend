@@ -62,8 +62,12 @@ public class ApprovalRequest {
     @Column(name = "end_date") // 추가
     private java.time.LocalDate endDate; // 추가
 
+    @Setter
+    @Column(name = "reject_comment")
+    private String rejectComment;
+
     @Builder
-    public ApprovalRequest(RequestType requestType, Long applicantId, Long approverId, ApprovalStatus status, LocalDateTime requestedAt, LocalDateTime processedAt, String reason, String title, Long vacationsId, String vacationType, Long certificatesId, java.time.LocalDate startDate, java.time.LocalDate endDate) {
+    public ApprovalRequest(RequestType requestType, Long applicantId, Long approverId, ApprovalStatus status, LocalDateTime requestedAt, LocalDateTime processedAt, String reason, String title, Long vacationsId, String vacationType, Long certificatesId, java.time.LocalDate startDate, java.time.LocalDate endDate, String rejectComment) {
         this.requestType = requestType;
         this.applicantId = applicantId;
         this.approverId = approverId;
@@ -77,6 +81,7 @@ public class ApprovalRequest {
         this.certificateId = certificatesId;
         this.startDate = startDate; // 빌더에 추가
         this.endDate = endDate; // 빌더에 추가
+        this.rejectComment = rejectComment;
     }
 
     // 결재 상태 변경 메소드
@@ -85,8 +90,9 @@ public class ApprovalRequest {
         this.processedAt = LocalDateTime.now();
     }
 
-    public void reject() {
+    public void reject(String rejectComment) {
         this.status = ApprovalStatus.REJECTED;
         this.processedAt = LocalDateTime.now(); // 반려 시점도 기록
+        this.rejectComment = rejectComment;
     }
 }

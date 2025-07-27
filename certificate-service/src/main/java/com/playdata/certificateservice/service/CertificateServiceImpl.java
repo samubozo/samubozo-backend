@@ -6,6 +6,7 @@ import com.playdata.certificateservice.client.dto.CertificateApprovalRequestCrea
 import com.playdata.certificateservice.client.dto.RequestType;
 import com.playdata.certificateservice.common.auth.TokenUserInfo;
 import com.playdata.certificateservice.common.dto.CommonResDto;
+import com.playdata.certificateservice.dto.CertificateRejectRequestDto; // 추가
 import com.playdata.certificateservice.dto.CertificateReqDto;
 import com.playdata.certificateservice.dto.CertificateResDto;
 import com.playdata.certificateservice.client.ApprovalServiceClient;
@@ -38,6 +39,7 @@ import org.springframework.http.HttpStatus;
 import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.time.LocalDateTime; // 추가
 import java.util.HashMap;
 import java.util.Objects;
 import java.util.List;
@@ -121,7 +123,7 @@ public class CertificateServiceImpl implements CertificateService {
             if (certificate.getApprovalRequestId() != null) {
                 try {
                     ApprovalRequestResponseDto approvalResponse = approvalServiceClient.getApprovalRequestById(certificate.getApprovalRequestId());
-                    log.info("ApprovalRequestResponseDto from approval-service: approverId={}, approverName={}", approvalResponse.getApproverId(), approvalResponse.getApproverName());
+                    log.info("ApprovalRequestResponseDto from approval-service (listMyCertificates): approverId={}, approverName={}", approvalResponse.getApproverId(), approvalResponse.getApproverName());
                     approverName = approvalResponse.getApproverName();
                 } catch (FeignException e) {
                     log.error("결재 서비스 통신 오류 (getApprovalRequestById) for approvalRequestId {}: {}", certificate.getApprovalRequestId(), e.getMessage());
@@ -134,11 +136,13 @@ public class CertificateServiceImpl implements CertificateService {
                     .type(Type.valueOf(certificate.getType().name()))
                     .requestDate(certificate.getRequestDate())
                     .approveDate(certificate.getApproveDate())
+                    .processedAt(certificate.getProcessedAt())
                     .status(Status.valueOf(certificate.getStatus().name()))
                     .purpose(certificate.getPurpose())
                     .applicantName(finalApplicantName)
                     .departmentName(finalDepartmentName)
-                    .approverName(approverName)
+                    .approverName(certificate.getApproverName())
+                    .rejectComment(certificate.getRejectComment())
                     .build();
         });
     }
@@ -441,31 +445,31 @@ public class CertificateServiceImpl implements CertificateService {
     // [내부호출] 증명서 승인 처리
     @Override
     @Transactional
-    public void approveCertificateInternal(Long id, Long approverId) {
+    public void approveCertificateInternal(Long id, Long approverId, String approverName) {
         Certificate certificate = certificateRepository.findById(id).orElseThrow(
                 () -> new EntityNotFoundException("Certificate not found with id: " + id)
         );
 
-        certificate.setStatus(Status.APPROVED);
+        certificate.approve(approverId, approverName);
         certificate.setApproveDate(java.time.LocalDate.now());
 
         certificateRepository.save(certificate);
-        log.info("Certificate {} has been approved.", id);
+        log.info("Certificate {} has been approved by {}.".formatted(id, approverName));
     }
 
     // [내부호출] 증명서 반려 처리
     @Override
     @Transactional
-    public void rejectCertificateInternal(Long id) {
+    public void rejectCertificateInternal(Long id, String rejectComment, String approverName) {
         Certificate certificate = certificateRepository.findById(id).orElseThrow(
                 () -> new EntityNotFoundException("Certificate not found with id: " + id)
         );
 
-        certificate.setStatus(Status.REJECTED);
-        certificate.setApproveDate(java.time.LocalDate.now()); // 반려 시점도 기록
+        // Certificate 엔티티의 reject 메서드 호출
+        certificate.reject(null, rejectComment, approverName); // 내부 호출이므로 approverId는 null로 전달
 
         certificateRepository.save(certificate);
-        log.info("Certificate {} has been rejected.", id);
+        log.info("Certificate {} has been rejected by {} with comment: {}.".formatted(id, approverName, rejectComment));
     }
 
     // 모든 증명서 조회 (HR 전용)
@@ -534,7 +538,11 @@ public class CertificateServiceImpl implements CertificateService {
                         UserResDto approverInfo = userMap.get(approvalResponse.getApproverId());
                         if (approverInfo != null) {
                             approverName = approverInfo.getUserName();
+                        } else {
+                            log.warn("HR 서비스에서 approverId {} 에 해당하는 사용자 정보를 찾을 수 없습니다.", approvalResponse.getApproverId());
                         }
+                    } else {
+                        log.warn("ApprovalRequestResponseDto에서 approverId가 null입니다. approvalRequestId: {}", certificate.getApprovalRequestId());
                     }
                 } catch (FeignException e) {
                     log.error("결재 서비스 통신 오류 (getApprovalRequestById) for approvalRequestId {}: {}", certificate.getApprovalRequestId(), e.getMessage());
@@ -547,11 +555,13 @@ public class CertificateServiceImpl implements CertificateService {
                     .type(Type.valueOf(certificate.getType().name()))
                     .requestDate(certificate.getRequestDate())
                     .approveDate(certificate.getApproveDate())
+                    .processedAt(certificate.getProcessedAt())
                     .status(Status.valueOf(certificate.getStatus().name()))
                     .purpose(certificate.getPurpose())
                     .applicantName(applicantName)
                     .departmentName(departmentName)
-                    .approverName(approverName)
+                    .approverName(certificate.getApproverName())
+                    .rejectComment(certificate.getRejectComment())
                     .build();
         });
     }
@@ -574,29 +584,13 @@ public class CertificateServiceImpl implements CertificateService {
             throw new IllegalStateException("Only requested certificates can be approved. Current status: " + certificate.getStatus() + ")");
         }
 
-        // approval-service의 approveApprovalRequest API 호출
+        // approval-service를 다시 호출하는 대신, approveCertificateInternal을 직접 호출
         try {
-            // Certificate 엔티티에 저장된 approvalRequestId를 사용
-            Long approvalRequestId = certificate.getApprovalRequestId();
-            if (approvalRequestId == null) {
-                throw new IllegalStateException("Approval request ID not found for certificate: " + id);
-            }
-
-            // approval-service의 approveApprovalRequest 호출
-            // 이 메소드는 ApprovalRequestResponseDto를 반환하며, 이 DTO에는 업데이트된 결재 상태가 포함됩니다.
-            ApprovalRequestResponseDto updatedApprovalRequest = approvalServiceClient.approveApprovalRequest(approvalRequestId, userInfo.getEmployeeNo());
-
-            // approval-service의 응답을 기반으로 Certificate 엔티티 업데이트
-            // approval-service에서 상태와 승인 날짜를 업데이트하므로, 여기서는 그 결과를 반영합니다.
-            certificate.setStatus(Status.valueOf(updatedApprovalRequest.getStatus()));
-            certificate.setApproveDate(updatedApprovalRequest.getProcessedAt()); // processedAt이 승인 날짜가 됩니다.
-
-            certificateRepository.save(certificate);
-            log.info("Certificate {} has been approved by HR user {}. Approval Request ID: {}", id, userInfo.getEmployeeNo(), approvalRequestId);
-
-        } catch (FeignException e) {
-            log.error("ApprovalService 결재 승인 요청 실패 (certificateId: {}, approverId: {}): {}", id, userInfo.getEmployeeNo(), e.getMessage());
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "결재 서비스 승인 처리 중 오류 발생", e);
+            // HR 서비스에서 승인자 이름 조회
+            String approverName = hrServiceClient.getUserById(userInfo.getEmployeeNo())
+                    .getResult().getUserName();
+            approveCertificateInternal(id, userInfo.getEmployeeNo(), approverName);
+            log.info("Certificate {} has been approved by HR user {}.", id, userInfo.getEmployeeNo());
         } catch (Exception e) {
             log.error("증명서 승인 처리 중 예상치 못한 오류 발생 (certificateId: {}): {}", id, e.getMessage());
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "증명서 승인 처리 중 오류 발생", e);
@@ -606,12 +600,12 @@ public class CertificateServiceImpl implements CertificateService {
     // 증명서 반려 (HR 전용)
     @Override
     @Transactional
-    public void rejectCertificate(Long id, TokenUserInfo userInfo) {
+    public void rejectCertificate(Long id, TokenUserInfo userInfo, CertificateRejectRequestDto rejectDto) {
         Certificate certificate = certificateRepository.findById(id).orElseThrow(
                 () -> new EntityNotFoundException("Certificate not found with id: " + id)
         );
 
-        // HR 역할 검증 (선택 사항: 컨트롤러나 서비스 상위에서 이미 검증될 수 있음)
+        // HR 역할 검증
         if (!"Y".equals(userInfo.getHrRole())) {
             throw new IllegalStateException("Only HR users can reject certificates.");
         }
@@ -621,11 +615,33 @@ public class CertificateServiceImpl implements CertificateService {
             throw new IllegalStateException("Only requested certificates can be rejected. Current status: " + certificate.getStatus() + ")");
         }
 
-        certificate.setStatus(Status.REJECTED);
-        certificate.setApproveDate(java.time.LocalDate.now()); // 반려 시점도 기록
+        try {
+            Long approvalRequestId = certificate.getApprovalRequestId();
+            if (approvalRequestId == null) {
+                throw new IllegalStateException("Approval request ID not found for certificate: " + id);
+            }
 
-        certificateRepository.save(certificate);
-        log.info("Certificate {} has been rejected by HR user {}.", id, userInfo.getEmployeeNo());
+            // approval-service의 rejectApprovalRequest API 호출
+            com.playdata.certificateservice.client.dto.ApprovalRejectRequestDto approvalRejectRequestDto = new com.playdata.certificateservice.client.dto.ApprovalRejectRequestDto();
+            approvalRejectRequestDto.setRejectComment(rejectDto.getRejectComment());
+            ApprovalRequestResponseDto updatedApprovalRequest = approvalServiceClient.rejectApprovalRequest(approvalRequestId, userInfo.getEmployeeNo(), approvalRejectRequestDto);
+
+            // Certificate 엔티티 업데이트
+            // HR 서비스에서 반려자 이름 조회
+            String approverName = hrServiceClient.getUserById(userInfo.getEmployeeNo())
+                    .getResult().getUserName();
+            certificate.reject(userInfo.getEmployeeNo(), rejectDto.getRejectComment(), approverName);
+
+            certificateRepository.save(certificate);
+            log.info("Certificate {} has been rejected by HR user {} with comment: {}. Approval Request ID: {}", id, userInfo.getEmployeeNo(), rejectDto.getRejectComment(), approvalRequestId);
+
+        } catch (FeignException e) {
+            log.error("ApprovalService 결재 반려 요청 실패 (certificateId: {}, approverId: {}): {}", id, userInfo.getEmployeeNo(), e.getMessage());
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "결재 서비스 반려 처리 중 오류 발생", e);
+        } catch (Exception e) {
+            log.error("증명서 반려 처리 중 예상치 못한 오류 발생 (certificateId: {}): {}", id, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "증명서 반려 처리 중 오류 발생", e);
+        }
     }
 
     @Override

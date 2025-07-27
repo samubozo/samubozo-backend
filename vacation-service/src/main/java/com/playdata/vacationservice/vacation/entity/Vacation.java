@@ -51,8 +51,12 @@ public class Vacation extends BaseEntity {
     @Setter // 추가된 필드에 대한 Setter
     private Long approvalRequestId;
 
+    @Setter
+    @Column(name = "reject_comment")
+    private String rejectComment;
+
     @Builder
-    public Vacation(Long userId, LocalDate startDate, LocalDate endDate, VacationType vacationType, VacationStatus vacationStatus, String reason, Long approvalRequestId) {
+    public Vacation(Long userId, LocalDate startDate, LocalDate endDate, VacationType vacationType, VacationStatus vacationStatus, String reason, Long approvalRequestId, String rejectComment) {
         this.userId = userId;
         this.startDate = startDate;
         this.endDate = endDate;
@@ -60,5 +64,6 @@ public class Vacation extends BaseEntity {
         this.vacationStatus = vacationStatus;
         this.reason = reason;
         this.approvalRequestId = approvalRequestId; // 빌더에 추가
+        this.rejectComment = rejectComment;
     }
 }

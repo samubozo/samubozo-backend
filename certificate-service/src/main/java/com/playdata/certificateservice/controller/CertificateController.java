@@ -2,6 +2,7 @@ package com.playdata.certificateservice.controller;
 
 import com.playdata.certificateservice.common.auth.TokenUserInfo;
 import com.playdata.certificateservice.common.dto.CommonResDto;
+import com.playdata.certificateservice.dto.CertificateRejectRequestDto;
 import com.playdata.certificateservice.dto.CertificateReqDto;
 import com.playdata.certificateservice.service.CertificateService;
 import com.playdata.certificateservice.entity.Certificate;
@@ -83,17 +84,18 @@ public class CertificateController {
 
     // [내부호출] 증명서 승인 처리 (approval-service 전용)
     @PutMapping("/internal/certificates/{id}/approve")
-    public ResponseEntity<Void> approveCertificateInternal(@PathVariable("id") Long id, @RequestParam("approverId") Long approverId) {
-        log.info("Internal approve certificate request for id={}, approverId={}", id, approverId);
-        certificateService.approveCertificateInternal(id, approverId);
+    public ResponseEntity<Void> approveCertificateInternal(@PathVariable("id") Long id, @RequestParam("approverId") Long approverId, @RequestParam("approverName") String approverName) {
+        log.info("Internal approve certificate request for id={}, approverId={}, approverName={}", id, approverId, approverName);
+        certificateService.approveCertificateInternal(id, approverId, approverName);
         return ResponseEntity.ok().build();
     }
 
     // [내부호출] 증명서 반려 처리 (approval-service 전용)
     @PutMapping("/internal/certificates/{id}/reject")
-    public ResponseEntity<Void> rejectCertificateInternal(@PathVariable("id") Long id) {
-        log.info("Internal reject certificate request for id={}", id);
-        certificateService.rejectCertificateInternal(id);
+    public ResponseEntity<Void> rejectCertificateInternal(@PathVariable("id") Long id, @RequestParam("approverName") String approverName) {
+        log.info("Internal reject certificate request for id={}, approverName={}", id, approverName);
+        // rejectComment는 내부 호출에서 필요하지 않으므로, 서비스 계층에서 처리
+        certificateService.rejectCertificateInternal(id, null, approverName); // rejectComment는 내부 호출에서 필요하지 않으므로 null 전달
         return ResponseEntity.ok().build();
     }
 
@@ -116,9 +118,9 @@ public class CertificateController {
 
     // 증명서 반려 (HR 전용)
     @PutMapping("/{id}/reject")
-    public ResponseEntity<?> rejectCertificate(@AuthenticationPrincipal TokenUserInfo userInfo, @PathVariable("id") Long id) {
-        log.info("Reject certificate request by HR user {}: id={}", userInfo.getEmployeeNo(), id);
-        certificateService.rejectCertificate(id, userInfo);
+    public ResponseEntity<?> rejectCertificate(@AuthenticationPrincipal TokenUserInfo userInfo, @PathVariable("id") Long id, @RequestBody CertificateRejectRequestDto rejectDto) {
+        log.info("Reject certificate request by HR user {}: id={}, rejectComment={}", userInfo.getEmployeeNo(), id, rejectDto.getRejectComment());
+        certificateService.rejectCertificate(id, userInfo, rejectDto);
         CommonResDto resDto = new CommonResDto(HttpStatus.OK, "증명서가 반려되었습니다.", null);
         return ResponseEntity.ok().body(resDto);
     }
@@ -132,7 +134,6 @@ public class CertificateController {
         // HR 서비스에서 신청자 및 결재자 정보 조회
         String applicantName = null;
         String departmentName = null;
-        String approverName = null;
 
         try {
             // 신청자 정보 조회
@@ -144,20 +145,8 @@ public class CertificateController {
                     departmentName = applicantInfo.getDepartment().getName();
                 }
             }
-
-            // 결재자 정보 조회 (approvalRequestId가 있고, 결재 서비스에서 approverId를 가져올 수 있는 경우)
-            if (certificate.getApprovalRequestId() != null) {
-                ApprovalRequestResponseDto approvalResponse = approvalServiceClient.getApprovalRequestById(certificate.getApprovalRequestId());
-                log.info("ApprovalRequestResponseDto from approval-service (getCertificateById): approverId={}, approverName={}", approvalResponse.getApproverId(), approvalResponse.getApproverName());
-                if (approvalResponse != null && approvalResponse.getApproverId() != null) {
-                    CommonResDto<UserFeignResDto> approverHrResponse = hrServiceClient.getUserById(approvalResponse.getApproverId());
-                    if (approverHrResponse != null && approverHrResponse.getResult() != null) {
-                        approverName = approverHrResponse.getResult().getUserName();
-                    }
-                }
-            }
         } catch (FeignException e) {
-            log.error("HR 또는 Approval 서비스 통신 오류: {}", e.getMessage());
+            log.error("HR 서비스 통신 오류: {}", e.getMessage());
             // 통신 오류 발생 시 이름 정보 없이 진행
         }
 
@@ -167,11 +156,13 @@ public class CertificateController {
                 .type(certificate.getType())
                 .requestDate(certificate.getRequestDate())
                 .approveDate(certificate.getApproveDate())
+                .processedAt(certificate.getProcessedAt())
                 .status(certificate.getStatus())
                 .purpose(certificate.getPurpose())
                 .applicantName(applicantName)
                 .departmentName(departmentName)
-                .approverName(approverName)
+                .approverName(certificate.getApproverName())
+                .rejectComment(certificate.getRejectComment())
                 .build();
 
         return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "Success", resDto), HttpStatus.OK);

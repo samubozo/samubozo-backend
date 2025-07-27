@@ -1,6 +1,7 @@
 package com.playdata.certificateservice.service;
 
 import com.playdata.certificateservice.common.auth.TokenUserInfo;
+import com.playdata.certificateservice.dto.CertificateRejectRequestDto; // 추가
 import com.playdata.certificateservice.dto.CertificateReqDto;
 import com.playdata.certificateservice.dto.CertificateResDto;
 import com.playdata.certificateservice.client.hr.dto.UserFeignResDto;
@@ -40,10 +41,10 @@ public interface CertificateService {
     String safe(String value);
 
     // [내부호출] 증명서 승인 처리
-    void approveCertificateInternal(Long id, Long approverId);
+    void approveCertificateInternal(Long id, Long approverId, String approverName);
 
     // [내부호출] 증명서 반려 처리
-    void rejectCertificateInternal(Long id);
+    void rejectCertificateInternal(Long id, String rejectComment, String approverName); // 변경
 
     // 모든 증명서 조회 (HR 전용)
     Page<CertificateResDto> listAllCertificates(TokenUserInfo userInfo, Long employeeNo, Pageable pageable);
@@ -52,7 +53,7 @@ public interface CertificateService {
     void approveCertificate(Long id, TokenUserInfo userInfo);
 
     // 증명서 반려 (HR 전용)
-    void rejectCertificate(Long id, TokenUserInfo userInfo);
+    void rejectCertificate(Long id, TokenUserInfo userInfo, CertificateRejectRequestDto rejectDto); // 변경
 
     // 증명서 ID로 조회
     Certificate getCertificateById(Long id);

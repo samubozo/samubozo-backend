@@ -10,10 +10,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 public interface CertificateServiceClient {
 
     @PutMapping("/certificate/internal/certificates/{id}/approve")
-    void approveCertificate(@PathVariable("id") Long id, @RequestParam("approverId") Long approverId);
+    void approveCertificate(@PathVariable("id") Long id, @RequestParam("approverId") Long approverId, @RequestParam("approverName") String approverName);
 
     @PutMapping("/certificate/internal/certificates/{id}/reject")
-    void rejectCertificateInternal(@PathVariable("id") Long id);
+    void rejectCertificateInternal(@PathVariable("id") Long id, @RequestParam("approverName") String approverName);
 
     @GetMapping("/certificate/{id}")
     com.playdata.approvalservice.client.dto.Certificate getCertificateById(@PathVariable("id") Long id);

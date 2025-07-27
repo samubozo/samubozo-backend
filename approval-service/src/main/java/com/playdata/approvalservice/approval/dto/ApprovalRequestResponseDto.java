@@ -30,6 +30,7 @@ public class ApprovalRequestResponseDto implements Serializable {
     private Long certificatesId;
     private LocalDate startDate; // 추가
     private LocalDate endDate; // 추가
+    private String rejectComment; // 추가
 
     public static ApprovalRequestResponseDto fromEntity(ApprovalRequest approvalRequest, String applicantName, String approverName) {
         return ApprovalRequestResponseDto.builder()
@@ -49,6 +50,7 @@ public class ApprovalRequestResponseDto implements Serializable {
                 .certificatesId(approvalRequest.getCertificateId())
                 .startDate(approvalRequest.getStartDate()) // 추가
                 .endDate(approvalRequest.getEndDate()) // 추가
+                .rejectComment(approvalRequest.getRejectComment()) // 추가
                 .build();
     }
 }

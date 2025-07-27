@@ -5,6 +5,7 @@ import lombok.*;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime; // LocalDateTime import 추가
 
 import static com.playdata.certificateservice.entity.Status.PENDING;
 
@@ -47,4 +48,33 @@ public class Certificate {
     @Column(name = "approval_request_id")
     private Long approvalRequestId;
 
+    @Column(name = "reject_comment", columnDefinition = "TEXT")
+    private String rejectComment;
+
+    @Column(name = "approver_id")
+    private Long approverId; // 추가: 결재자 ID
+
+    @Column(name = "approver_name")
+    private String approverName; // 추가: 결재자 이름
+
+    @Column(name = "processed_at")
+    private LocalDateTime processedAt; // 추가: 처리 일시
+
+    // 결재 처리 시 필드 업데이트 메서드
+    public void approve(Long approverId, String approverName) {
+        this.status = Status.APPROVED;
+        this.approverId = approverId;
+        this.approverName = approverName;
+        this.processedAt = LocalDateTime.now();
+        this.approveDate = LocalDate.now(); // 승인일자도 업데이트
+    }
+
+    // 반려 처리 시 필드 업데이트 메서드
+    public void reject(Long approverId, String rejectComment, String approverName) {
+        this.status = Status.REJECTED;
+        this.approverId = approverId;
+        this.rejectComment = rejectComment;
+        this.approverName = approverName;
+        this.processedAt = LocalDateTime.now();
+    }
 }

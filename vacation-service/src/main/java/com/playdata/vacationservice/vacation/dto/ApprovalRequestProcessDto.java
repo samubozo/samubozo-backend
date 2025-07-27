@@ -9,5 +9,5 @@ import lombok.Setter;
 @Getter
 @Setter
 public class ApprovalRequestProcessDto {
-    private String comment; // 반려 시 사유
+    private String rejectComment; // 반려 시 사유
 }

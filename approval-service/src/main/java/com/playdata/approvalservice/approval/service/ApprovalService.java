@@ -4,6 +4,7 @@ import com.playdata.approvalservice.client.CertificateServiceClient;
 import com.playdata.approvalservice.client.HrServiceClient;
 import com.playdata.approvalservice.client.VacationServiceClient;
 import com.playdata.approvalservice.client.dto.UserResDto;
+import com.playdata.approvalservice.approval.dto.ApprovalRejectRequestDto;
 import com.playdata.approvalservice.approval.dto.ApprovalRequestCreateDto;
 import com.playdata.approvalservice.approval.dto.ApprovalRequestResponseDto;
 import com.playdata.approvalservice.approval.entity.ApprovalRequest;
@@ -63,14 +64,18 @@ public class ApprovalService {
                         try {
                             // certificate-service에서 증명서 상세 정보 조회
                             com.playdata.approvalservice.client.dto.Certificate certificate = certificateServiceClient.getCertificateById(existingRequest.getCertificateId());
-                            if (certificate != null && certificate.getType().equals(createDto.getCertificateType())) {
+                            if (certificate != null && certificate.getType() != null && certificate.getType().equals(createDto.getCertificateType())) {
                                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                                         String.format("이미 해당 기간에 동일한 유형 (%s)의 증명서 신청이 존재합니다.", createDto.getCertificateType()));
                             }
                         } catch (feign.FeignException e) {
+                            if (e.status() == HttpStatus.NOT_FOUND.value()) {
+                                log.warn("CertificateService에서 증명서를 찾을 수 없습니다 (certificateId: {}). 증명서가 아직 생성되지 않았을 수 있습니다. 중복 검사를 건너뜁니다.", existingRequest.getCertificateId());
+                                // 404 에러는 무시하고 다음 로직으로 진행
+                                continue;
+                            }
                             log.error("CertificateService 통신 오류 (getCertificateById) for certificateId {}: {}", existingRequest.getCertificateId(), e.getMessage());
-                            // 통신 오류 발생 시, 일단 중복으로 간주하여 신청을 막음 (안전한 처리)
-                            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "증명서 정보 조회 중 오류 발생");
+                            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "증명서 정보 조회 중 오류 발생", e);
                         }
                     }
                 }
@@ -137,22 +142,42 @@ public class ApprovalService {
     @Transactional
     @CacheEvict(value = "approvalRequests", allEntries = true)
     public ApprovalRequestResponseDto approveApprovalRequest(Long id, @RequestHeader("X-User-Employee-No") Long employeeNo) {
+        log.info("1. approveApprovalRequest 메서드 시작. 요청 ID: {}, 승인자 EmployeeNo: {}", id, employeeNo); // 추가된 로그
+
         ApprovalRequest approvalRequest = approvalRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Approval request not found with id: " + id));
+                .orElseThrow(() -> {
+                    log.error("Approval request not found with id: {}", id); // 추가된 로그
+                    return new ResponseStatusException(HttpStatus.NOT_FOUND, "Approval request not found with id: " + id);
+                });
+        log.info("2. 결재 요청 엔티티 조회 성공. 현재 상태: {}", approvalRequest.getStatus()); // 추가된 로그
 
         if (approvalRequest.getStatus() != ApprovalStatus.PENDING) {
+            log.error("3. 결재 요청 상태 오류: PENDING 상태가 아님. 현재 상태: {}", approvalRequest.getStatus()); // 추가된 로그
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Approval request is not in PENDING status.");
         }
+        log.info("4. 결재 요청 상태 PENDING 확인."); // 추가된 로그
 
-        approvalRequest.setApproverId(employeeNo); // userInfo.getEmployeeNo() 대신 직접 employeeNo 사용
-        log.info("Approver ID set to: {}", approvalRequest.getApproverId());
+        approvalRequest.setApproverId(employeeNo);
+        log.info("5. Approver ID 설정 완료: {}", approvalRequest.getApproverId()); // 기존 로그 유지
         approvalRequest.approve();
-        log.info("결재 요청 승인 후 상태: {}", approvalRequest.getStatus());
+        log.info("6. 결재 요청 승인 처리 완료. 상태: {}", approvalRequest.getStatus()); // 기존 로그 유지
 
         ApprovalRequest updatedRequest = approvalRepository.save(approvalRequest);
-        log.info("Saved ApprovalRequest approverId: {}", updatedRequest.getApproverId());
+        log.info("7. ApprovalRequest 엔티티 저장 완료. 저장된 Approver ID: {}", updatedRequest.getApproverId()); // 기존 로그 유지
+
+        String approverName = null; // 여기에 선언
+        if (updatedRequest.getApproverId() != null) {
+            log.info("16. 결재자 ID 존재. HR 서비스에서 결재자 이름 조회 시도. Approver ID: {}", updatedRequest.getApproverId());
+            List<UserResDto> approverUsersInfo = hrServiceClient.getUsersInfo(List.of(updatedRequest.getApproverId()));
+            log.info("17. HR 서비스로부터 받은 결재자 정보 (approverUsersInfo): {}", approverUsersInfo);
+            approverName = approverUsersInfo.stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음");
+            log.info("18. 설정된 approverName: {}", approverName);
+        } else {
+            log.warn("19. updatedRequest.getApproverId()가 null입니다. 결재자 이름을 가져올 수 없습니다.");
+        }
 
         if (updatedRequest.getRequestType() == RequestType.VACATION && updatedRequest.getVacationsId() != null) {
+            log.info("8. 휴가 요청 처리 시작.");
             try {
                 vacationServiceClient.updateVacationBalanceOnApproval(
                         updatedRequest.getVacationsId(),
@@ -160,43 +185,38 @@ public class ApprovalService {
                         updatedRequest.getApplicantId(),
                         updatedRequest.getVacationType(),
                         updatedRequest.getStartDate().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE),
-                        updatedRequest.getEndDate().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+                        updatedRequest.getEndDate().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE),
+                        null
                 );
+                log.info("9. VacationService 연차 차감 요청 성공.");
             } catch (Exception e) {
-                log.error("VacationService 연차 차감 요청 실패: {}", e.getMessage());
+                log.error("10. VacationService 연차 차감 요청 실패: {}", e.getMessage(), e);
                 throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "연차 차감 처리 중 오류 발생");
             }
         } else if (updatedRequest.getRequestType() == RequestType.CERTIFICATE && updatedRequest.getCertificateId() != null) {
+            log.info("11. 증명서 요청 처리 시작.");
             try {
-                certificateServiceClient.approveCertificate(updatedRequest.getCertificateId(), updatedRequest.getApproverId());
-                log.info("Successfully sent approval to certificate-service for certificateId: {}", updatedRequest.getCertificateId());
+                certificateServiceClient.approveCertificate(updatedRequest.getCertificateId(), updatedRequest.getApproverId(), approverName);
+                log.info("12. CertificateService 증명서 승인 요청 성공. certificateId: {}", updatedRequest.getCertificateId());
             } catch (Exception e) {
-                log.error("CertificateService 증명서 승인 요청 실패: {}", e.getMessage());
+                log.error("13. CertificateService 증명서 승인 요청 실패: {}", e.getMessage(), e);
                 throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "증명서 승인 처리 중 오류 발생");
             }
         }
+        log.info("14. 서비스별 후처리 완료."); // 추가된 로그
 
         String applicantName = hrServiceClient.getUsersInfo(List.of(updatedRequest.getApplicantId()))
                 .stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음");
+        log.info("15. 신청자 이름 조회 완료: {}", applicantName); // 추가된 로그
 
-
-        String approverName = null;
-        if (updatedRequest.getApproverId() != null) {
-            List<UserResDto> approverUsersInfo = hrServiceClient.getUsersInfo(List.of(updatedRequest.getApproverId()));
-            log.info("HR 서비스로부터 받은 결재자 정보 (approverUsersInfo): {}", approverUsersInfo);
-            approverName =
-            approverUsersInfo.stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음");
-            log.info("설정된 approverName: {}", approverName);
-        } else {
-            log.warn("updatedRequest.getApproverId()가 null입니다. 결재자 이름을 가져올 수 없습니다.");
-        }
+        log.info("20. 최종 approverId for response: {}, approverName for response: {}", updatedRequest.getApproverId(), approverName); // 기존 로그 유지
 
         return ApprovalRequestResponseDto.fromEntity(updatedRequest, applicantName, approverName);
     }
 
     @Transactional
     @CacheEvict(value = "approvalRequests", allEntries = true)
-    public ApprovalRequestResponseDto rejectApprovalRequest(Long id, TokenUserInfo userInfo) {
+    public ApprovalRequestResponseDto rejectApprovalRequest(Long id, TokenUserInfo userInfo, ApprovalRejectRequestDto rejectRequestDto) {
         ApprovalRequest approvalRequest = approvalRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Approval request not found with id: " + id));
 
@@ -205,10 +225,19 @@ public class ApprovalService {
         }
 
         approvalRequest.setApproverId(userInfo.getEmployeeNo());
-        approvalRequest.reject();
-        log.info("결재 요청 반려 후 상태: {}", approvalRequest.getStatus());
+        approvalRequest.reject(rejectRequestDto.getRejectComment()); // 반려 및 사유 저장
+        log.info("결재 요청 반려 후 상태: {}, 반려 사유: {}", approvalRequest.getStatus(), approvalRequest.getRejectComment());
 
         ApprovalRequest updatedRequest = approvalRepository.save(approvalRequest);
+
+        String approverName = null;
+        if (updatedRequest.getApproverId() != null) {
+            approverName = hrServiceClient.getUsersInfo(List.of(updatedRequest.getApproverId()))
+                    .stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음");
+            log.info("설정된 approverName: {}", approverName);
+        } else {
+            log.warn("updatedRequest.getApproverId()가 null입니다. 결재자 이름을 가져올 수 없습니다.");
+        }
 
         if (updatedRequest.getRequestType() == RequestType.VACATION && updatedRequest.getVacationsId() != null) {
             try {
@@ -218,7 +247,8 @@ public class ApprovalService {
                         updatedRequest.getApplicantId(),
                         updatedRequest.getVacationType(),
                         updatedRequest.getStartDate().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE),
-                        updatedRequest.getEndDate().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+                        updatedRequest.getEndDate().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE),
+                        updatedRequest.getRejectComment()
                 );
             } catch (Exception e) {
                 log.error("VacationService 연차 복구 요청 실패: {}", e.getMessage());
@@ -226,7 +256,7 @@ public class ApprovalService {
             }
         } else if (updatedRequest.getRequestType() == RequestType.CERTIFICATE && updatedRequest.getCertificateId() != null) {
             try {
-                certificateServiceClient.rejectCertificateInternal(updatedRequest.getCertificateId());
+                certificateServiceClient.rejectCertificateInternal(updatedRequest.getCertificateId(), approverName);
                 log.info("Successfully sent rejection to certificate-service for certificateId: {}", updatedRequest.getCertificateId());
             } catch (Exception e) {
                 log.error("CertificateService 증명서 반려 요청 실패: {}", e.getMessage());
@@ -237,11 +267,7 @@ public class ApprovalService {
         String applicantName = hrServiceClient.getUsersInfo(List.of(updatedRequest.getApplicantId()))
                 .stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음");
 
-        String approverName = null;
-        if (updatedRequest.getApproverId() != null) {
-            approverName = hrServiceClient.getUsersInfo(List.of(updatedRequest.getApproverId()))
-                    .stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음");
-        }
+        log.info("설정된 approverName: {}", approverName);
 
         return ApprovalRequestResponseDto.fromEntity(updatedRequest, applicantName, approverName);
     }
@@ -308,6 +334,64 @@ public class ApprovalService {
                 .collect(Collectors.toMap(UserResDto::getEmployeeNo, Function.identity()));
 
         return allRequests.stream()
+                .map(req -> {
+                    String applicantName = Optional.ofNullable(userMap.get(req.getApplicantId()))
+                            .map(UserResDto::getUserName).orElse("알 수 없음");
+                    String approverName = Optional.ofNullable(req.getApproverId())
+                            .map(userMap::get)
+                            .map(UserResDto::getUserName).orElse(null);
+                    return ApprovalRequestResponseDto.fromEntity(req, applicantName, approverName);
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 특정 요청 유형에 해당하는 모든 결재 요청을 조회합니다.
+     *
+     * @param requestType 조회할 결재 요청의 유형 (예: VACATION, CERTIFICATE)
+     * @return 지정된 유형의 결재 요청 목록 (ApprovalRequestResponseDto 형태로 변환)
+     */
+    @Transactional(readOnly = true)
+    @Cacheable(value = "approvalRequests", key = "#requestType")
+    public List<ApprovalRequestResponseDto> getAllApprovalRequests(RequestType requestType) {
+        log.info("getAllApprovalRequests 메서드 진입 (requestType 필터링). 요청 유형: {}", requestType);
+        List<ApprovalRequest> filteredRequests = approvalRepository.findByRequestType(requestType);
+
+        if (filteredRequests.isEmpty()) {
+            log.info("요청 유형 {}에 해당하는 결재 요청이 없습니다.", requestType);
+            return List.of();
+        }
+
+        List<Long> allUserIds = filteredRequests.stream()
+                .map(ApprovalRequest::getApplicantId)
+                .collect(Collectors.toList());
+        filteredRequests.stream()
+                .filter(req -> req.getApproverId() != null)
+                .map(ApprovalRequest::getApproverId)
+                .forEach(allUserIds::add);
+
+        allUserIds = allUserIds.stream().distinct().collect(Collectors.toList());
+
+        List<UserResDto> usersInfo;
+        try {
+            usersInfo = hrServiceClient.getUsersInfo(allUserIds);
+            if (usersInfo == null || usersInfo.isEmpty()) {
+                log.warn("HR 서비스로부터 사용자 정보를 가져오지 못했습니다. userIds: {}", allUserIds);
+                return filteredRequests.stream()
+                        .map(req -> ApprovalRequestResponseDto.fromEntity(req, "알 수 없음", "알 수 없음"))
+                        .collect(Collectors.toList());
+            }
+        } catch (Exception e) {
+            log.error("HR 서비스 통신 오류 (getAllApprovalRequests - requestType 필터링): {}", e.getMessage());
+            return filteredRequests.stream()
+                    .map(req -> ApprovalRequestResponseDto.fromEntity(req, "통신 오류", "통신 오류"))
+                    .collect(Collectors.toList());
+        }
+
+        Map<Long, UserResDto> userMap = usersInfo.stream()
+                .collect(Collectors.toMap(UserResDto::getEmployeeNo, Function.identity()));
+
+        return filteredRequests.stream()
                 .map(req -> {
                     String applicantName = Optional.ofNullable(userMap.get(req.getApplicantId()))
                             .map(UserResDto::getUserName).orElse("알 수 없음");

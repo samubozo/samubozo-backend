@@ -1,5 +1,6 @@
 package com.playdata.approvalservice.approval.controller;
 
+import com.playdata.approvalservice.approval.dto.ApprovalRejectRequestDto;
 import com.playdata.approvalservice.approval.dto.ApprovalRequestResponseDto;
 import com.playdata.approvalservice.approval.dto.CertificateApprovalRequestCreateDto;
 import com.playdata.approvalservice.approval.dto.VacationApprovalRequestCreateDto;
@@ -73,13 +74,25 @@ public class ApprovalController {
     }
 
     /**
-     * 모든 결재 요청 목록을 조회합니다.
+     * 모든 결재 요청 목록을 조회합니다. 선택적으로 요청 유형(requestType)으로 필터링할 수 있습니다.
      *
-     * @return 모든 결재 요청 목록과 HTTP 200 OK 상태
+     * @param requestType 조회할 결재 요청의 유형 (VACATION, CERTIFICATE 등). 선택 사항입니다.
+     * @return 필터링된 또는 모든 결재 요청 목록과 HTTP 200 OK 상태
      */
     @GetMapping
-    public ResponseEntity<List<ApprovalRequestResponseDto>> getAllApprovalRequests() {
-        List<ApprovalRequestResponseDto> allRequests = approvalService.getAllApprovalRequests();
+    public ResponseEntity<List<ApprovalRequestResponseDto>> getAllApprovalRequests(
+            @RequestParam(value = "requestType", required = false) String requestTypeStr) {
+        List<ApprovalRequestResponseDto> allRequests;
+        if (requestTypeStr != null && !requestTypeStr.isEmpty()) {
+            try {
+                com.playdata.approvalservice.approval.entity.RequestType requestType = com.playdata.approvalservice.approval.entity.RequestType.valueOf(requestTypeStr.toUpperCase());
+                allRequests = approvalService.getAllApprovalRequests(requestType);
+            } catch (IllegalArgumentException e) {
+                return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+            }
+        } else {
+            allRequests = approvalService.getAllApprovalRequests();
+        }
         return ResponseEntity.ok(allRequests);
     }
 
@@ -134,8 +147,9 @@ public class ApprovalController {
     @PutMapping("/{id}/reject")
     public ResponseEntity<ApprovalRequestResponseDto> rejectApprovalRequest(
             @PathVariable Long id,
-            @AuthenticationPrincipal TokenUserInfo userInfo) {
-        ApprovalRequestResponseDto responseDto = approvalService.rejectApprovalRequest(id, userInfo);
+            @AuthenticationPrincipal TokenUserInfo userInfo,
+            @RequestBody ApprovalRejectRequestDto rejectRequestDto) {
+        ApprovalRequestResponseDto responseDto = approvalService.rejectApprovalRequest(id, userInfo, rejectRequestDto);
         return buildOkResponse(responseDto);
     }
 
