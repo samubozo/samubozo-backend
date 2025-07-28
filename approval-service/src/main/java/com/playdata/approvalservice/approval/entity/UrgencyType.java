@@ -5,10 +5,9 @@ import lombok.RequiredArgsConstructor;
 
 @Getter
 @RequiredArgsConstructor
-public enum RequestType {
-    VACATION("연차/반차"),
-    CERTIFICATE("증명서"),
-    ABSENCE("부재");// 부재 추가
+public enum UrgencyType {
+    URGENT("긴급"),
+    NORMAL("일반");
 
     private final String description;
 }

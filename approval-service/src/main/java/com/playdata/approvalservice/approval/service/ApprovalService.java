@@ -1,8 +1,12 @@
 package com.playdata.approvalservice.approval.service;
 
+import com.playdata.approvalservice.approval.dto.AbsenceApprovalStatisticsDto;
+import com.playdata.approvalservice.approval.dto.AbsenceApprovalRequestCreateDto;
+import com.playdata.approvalservice.client.AbsenceServiceClient;
 import com.playdata.approvalservice.client.CertificateServiceClient;
 import com.playdata.approvalservice.client.HrServiceClient;
 import com.playdata.approvalservice.client.VacationServiceClient;
+import com.playdata.approvalservice.client.dto.DepartmentResDto;
 import com.playdata.approvalservice.client.dto.UserResDto;
 import com.playdata.approvalservice.approval.dto.ApprovalRejectRequestDto;
 import com.playdata.approvalservice.approval.dto.ApprovalRequestCreateDto;
@@ -10,10 +14,17 @@ import com.playdata.approvalservice.approval.dto.ApprovalRequestResponseDto;
 import com.playdata.approvalservice.approval.entity.ApprovalRequest;
 import com.playdata.approvalservice.approval.entity.ApprovalStatus;
 import com.playdata.approvalservice.approval.entity.RequestType;
+import com.playdata.approvalservice.approval.entity.AbsenceType;
+import com.playdata.approvalservice.approval.entity.UrgencyType;
 import com.playdata.approvalservice.approval.repository.ApprovalRepository;
 import com.playdata.approvalservice.common.auth.TokenUserInfo;
+import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +51,9 @@ public class ApprovalService {
     private final HrServiceClient hrServiceClient;
     private final VacationServiceClient vacationServiceClient;
     private final CertificateServiceClient certificateServiceClient;
+    private final AbsenceServiceClient absenceServiceClient;
+
+    // ===== 기존 메서드들 =====
 
     @Transactional
     @CacheEvict(value = "approvalRequests", allEntries = true)
@@ -94,7 +108,7 @@ public class ApprovalService {
                 .title(createDto.getTitle())
                 .vacationsId(createDto.getVacationsId())
                 .vacationType(createDto.getVacationType())
-                .certificatesId(createDto.getCertificateId())
+                .certificateId(createDto.getCertificateId())
                 .startDate(createDto.getStartDate())
                 .endDate(createDto.getEndDate())
                 .status(ApprovalStatus.PENDING)
@@ -115,7 +129,13 @@ public class ApprovalService {
         String applicantName = hrServiceClient.getUsersInfo(List.of(savedRequest.getApplicantId()))
                 .stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음");
 
-        ApprovalRequestResponseDto responseDto = ApprovalRequestResponseDto.fromEntity(savedRequest, applicantName, null);
+        String applicantDepartment = hrServiceClient.getUsersInfo(List.of(savedRequest.getApplicantId()))
+                .stream().findFirst()
+                .map(UserResDto::getDepartment)
+                .map(DepartmentResDto::getName)
+                .orElse("");
+
+        ApprovalRequestResponseDto responseDto = ApprovalRequestResponseDto.fromEntity(savedRequest, applicantName, null, applicantDepartment);
         log.info("createApprovalRequest 메서드 종료. 응답 DTO: {}", responseDto);
         return responseDto;
     }
@@ -128,6 +148,12 @@ public class ApprovalService {
         String applicantName = hrServiceClient.getUsersInfo(List.of(approvalRequest.getApplicantId()))
                 .stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음");
 
+        String applicantDepartment = hrServiceClient.getUsersInfo(List.of(approvalRequest.getApplicantId()))
+                .stream().findFirst()
+                .map(UserResDto::getDepartment)
+                .map(DepartmentResDto::getName)
+                .orElse("");
+
         String approverName = null;
         if (approvalRequest.getApproverId() != null) {
             log.info("Attempting to get approver name for approverId: {}", approvalRequest.getApproverId());
@@ -136,36 +162,36 @@ public class ApprovalService {
             log.info("Approver name retrieved: {}", approverName);
         }
 
-        return ApprovalRequestResponseDto.fromEntity(approvalRequest, applicantName, approverName);
+        return ApprovalRequestResponseDto.fromEntity(approvalRequest, applicantName, approverName, applicantDepartment);
     }
 
     @Transactional
     @CacheEvict(value = "approvalRequests", allEntries = true)
     public ApprovalRequestResponseDto approveApprovalRequest(Long id, @RequestHeader("X-User-Employee-No") Long employeeNo) {
-        log.info("1. approveApprovalRequest 메서드 시작. 요청 ID: {}, 승인자 EmployeeNo: {}", id, employeeNo); // 추가된 로그
+        log.info("1. approveApprovalRequest 메서드 시작. 요청 ID: {}, 승인자 EmployeeNo: {}", id, employeeNo);
 
         ApprovalRequest approvalRequest = approvalRepository.findById(id)
                 .orElseThrow(() -> {
-                    log.error("Approval request not found with id: {}", id); // 추가된 로그
+                    log.error("Approval request not found with id: {}", id);
                     return new ResponseStatusException(HttpStatus.NOT_FOUND, "Approval request not found with id: " + id);
                 });
-        log.info("2. 결재 요청 엔티티 조회 성공. 현재 상태: {}", approvalRequest.getStatus()); // 추가된 로그
+        log.info("2. 결재 요청 엔티티 조회 성공. 현재 상태: {}", approvalRequest.getStatus());
 
         if (approvalRequest.getStatus() != ApprovalStatus.PENDING) {
-            log.error("3. 결재 요청 상태 오류: PENDING 상태가 아님. 현재 상태: {}", approvalRequest.getStatus()); // 추가된 로그
+            log.error("3. 결재 요청 상태 오류: PENDING 상태가 아님. 현재 상태: {}", approvalRequest.getStatus());
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Approval request is not in PENDING status.");
         }
-        log.info("4. 결재 요청 상태 PENDING 확인."); // 추가된 로그
+        log.info("4. 결재 요청 상태 PENDING 확인.");
 
         approvalRequest.setApproverId(employeeNo);
-        log.info("5. Approver ID 설정 완료: {}", approvalRequest.getApproverId()); // 기존 로그 유지
+        log.info("5. Approver ID 설정 완료: {}", approvalRequest.getApproverId());
         approvalRequest.approve();
-        log.info("6. 결재 요청 승인 처리 완료. 상태: {}", approvalRequest.getStatus()); // 기존 로그 유지
+        log.info("6. 결재 요청 승인 처리 완료. 상태: {}", approvalRequest.getStatus());
 
         ApprovalRequest updatedRequest = approvalRepository.save(approvalRequest);
-        log.info("7. ApprovalRequest 엔티티 저장 완료. 저장된 Approver ID: {}", updatedRequest.getApproverId()); // 기존 로그 유지
+        log.info("7. ApprovalRequest 엔티티 저장 완료. 저장된 Approver ID: {}", updatedRequest.getApproverId());
 
-        String approverName = null; // 여기에 선언
+        String approverName = null;
         if (updatedRequest.getApproverId() != null) {
             log.info("16. 결재자 ID 존재. HR 서비스에서 결재자 이름 조회 시도. Approver ID: {}", updatedRequest.getApproverId());
             List<UserResDto> approverUsersInfo = hrServiceClient.getUsersInfo(List.of(updatedRequest.getApproverId()));
@@ -203,15 +229,21 @@ public class ApprovalService {
                 throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "증명서 승인 처리 중 오류 발생");
             }
         }
-        log.info("14. 서비스별 후처리 완료."); // 추가된 로그
+        log.info("14. 서비스별 후처리 완료.");
 
         String applicantName = hrServiceClient.getUsersInfo(List.of(updatedRequest.getApplicantId()))
                 .stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음");
-        log.info("15. 신청자 이름 조회 완료: {}", applicantName); // 추가된 로그
+        log.info("15. 신청자 이름 조회 완료: {}", applicantName);
 
-        log.info("20. 최종 approverId for response: {}, approverName for response: {}", updatedRequest.getApproverId(), approverName); // 기존 로그 유지
+        String applicantDepartment = hrServiceClient.getUsersInfo(List.of(updatedRequest.getApplicantId()))
+                .stream().findFirst()
+                .map(UserResDto::getDepartment)
+                .map(DepartmentResDto::getName)
+                .orElse("");
 
-        return ApprovalRequestResponseDto.fromEntity(updatedRequest, applicantName, approverName);
+        log.info("20. 최종 approverId for response: {}, approverName for response: {}", updatedRequest.getApproverId(), approverName);
+
+        return ApprovalRequestResponseDto.fromEntity(updatedRequest, applicantName, approverName, applicantDepartment);
     }
 
     @Transactional
@@ -225,7 +257,7 @@ public class ApprovalService {
         }
 
         approvalRequest.setApproverId(userInfo.getEmployeeNo());
-        approvalRequest.reject(rejectRequestDto.getRejectComment()); // 반려 및 사유 저장
+        approvalRequest.reject(rejectRequestDto.getRejectComment());
         log.info("결재 요청 반려 후 상태: {}, 반려 사유: {}", approvalRequest.getStatus(), approvalRequest.getRejectComment());
 
         ApprovalRequest updatedRequest = approvalRepository.save(approvalRequest);
@@ -267,9 +299,15 @@ public class ApprovalService {
         String applicantName = hrServiceClient.getUsersInfo(List.of(updatedRequest.getApplicantId()))
                 .stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음");
 
+        String applicantDepartment = hrServiceClient.getUsersInfo(List.of(updatedRequest.getApplicantId()))
+                .stream().findFirst()
+                .map(UserResDto::getDepartment)
+                .map(DepartmentResDto::getName)
+                .orElse("");
+
         log.info("설정된 approverName: {}", approverName);
 
-        return ApprovalRequestResponseDto.fromEntity(updatedRequest, applicantName, approverName);
+        return ApprovalRequestResponseDto.fromEntity(updatedRequest, applicantName, approverName, applicantDepartment);
     }
 
     public boolean hasApprovedLeave(Long userId, LocalDate date) {
@@ -320,13 +358,13 @@ public class ApprovalService {
             usersInfo = hrServiceClient.getUsersInfo(allUserIds);
             if (usersInfo == null || usersInfo.isEmpty()) {
                 return allRequests.stream()
-                        .map(req -> ApprovalRequestResponseDto.fromEntity(req, "알 수 없음", "알 수 없음"))
+                        .map(req -> ApprovalRequestResponseDto.fromEntity(req, "알 수 없음", "알 수 없음", ""))
                         .collect(Collectors.toList());
             }
         } catch (Exception e) {
             log.error("HR 서비스 통신 오류 (getAllApprovalRequests): {}", e.getMessage());
             return allRequests.stream()
-                    .map(req -> ApprovalRequestResponseDto.fromEntity(req, "통신 오류", "통신 오류"))
+                    .map(req -> ApprovalRequestResponseDto.fromEntity(req, "통신 오류", "통신 오류", ""))
                     .collect(Collectors.toList());
         }
 
@@ -337,20 +375,18 @@ public class ApprovalService {
                 .map(req -> {
                     String applicantName = Optional.ofNullable(userMap.get(req.getApplicantId()))
                             .map(UserResDto::getUserName).orElse("알 수 없음");
+                    String applicantDepartment = Optional.ofNullable(userMap.get(req.getApplicantId()))
+                            .map(UserResDto::getDepartment)
+                            .map(DepartmentResDto::getName)
+                            .orElse("");
                     String approverName = Optional.ofNullable(req.getApproverId())
                             .map(userMap::get)
                             .map(UserResDto::getUserName).orElse(null);
-                    return ApprovalRequestResponseDto.fromEntity(req, applicantName, approverName);
+                    return ApprovalRequestResponseDto.fromEntity(req, applicantName, approverName, applicantDepartment);
                 })
                 .collect(Collectors.toList());
     }
 
-    /**
-     * 특정 요청 유형에 해당하는 모든 결재 요청을 조회합니다.
-     *
-     * @param requestType 조회할 결재 요청의 유형 (예: VACATION, CERTIFICATE)
-     * @return 지정된 유형의 결재 요청 목록 (ApprovalRequestResponseDto 형태로 변환)
-     */
     @Transactional(readOnly = true)
     @Cacheable(value = "approvalRequests", key = "#requestType")
     public List<ApprovalRequestResponseDto> getAllApprovalRequests(RequestType requestType) {
@@ -378,13 +414,13 @@ public class ApprovalService {
             if (usersInfo == null || usersInfo.isEmpty()) {
                 log.warn("HR 서비스로부터 사용자 정보를 가져오지 못했습니다. userIds: {}", allUserIds);
                 return filteredRequests.stream()
-                        .map(req -> ApprovalRequestResponseDto.fromEntity(req, "알 수 없음", "알 수 없음"))
+                        .map(req -> ApprovalRequestResponseDto.fromEntity(req, "알 수 없음", "알 수 없음", ""))
                         .collect(Collectors.toList());
             }
         } catch (Exception e) {
             log.error("HR 서비스 통신 오류 (getAllApprovalRequests - requestType 필터링): {}", e.getMessage());
             return filteredRequests.stream()
-                    .map(req -> ApprovalRequestResponseDto.fromEntity(req, "통신 오류", "통신 오류"))
+                    .map(req -> ApprovalRequestResponseDto.fromEntity(req, "통신 오류", "통신 오류", ""))
                     .collect(Collectors.toList());
         }
 
@@ -393,12 +429,17 @@ public class ApprovalService {
 
         return filteredRequests.stream()
                 .map(req -> {
-                    String applicantName = Optional.ofNullable(userMap.get(req.getApplicantId()))
+                    UserResDto applicant = userMap.get(req.getApplicantId());
+                    String applicantName = Optional.ofNullable(applicant)
                             .map(UserResDto::getUserName).orElse("알 수 없음");
+                    String applicantDepartment = Optional.ofNullable(applicant)
+                            .map(UserResDto::getDepartment)
+                            .map(DepartmentResDto::getName) // DepartmentResDto에서 부서명 가져오기
+                            .orElse("");
                     String approverName = Optional.ofNullable(req.getApproverId())
                             .map(userMap::get)
                             .map(UserResDto::getUserName).orElse(null);
-                    return ApprovalRequestResponseDto.fromEntity(req, applicantName, approverName);
+                    return ApprovalRequestResponseDto.fromEntity(req, applicantName, approverName, applicantDepartment);
                 })
                 .collect(Collectors.toList());
     }
@@ -426,13 +467,13 @@ public class ApprovalService {
             if (usersInfo == null || usersInfo.isEmpty()) {
                 log.warn("HR 서비스로부터 신청자 정보를 가져오지 못했습니다. applicantIds: {}", applicantIds);
                 return pendingRequests.stream()
-                        .map(req -> ApprovalRequestResponseDto.fromEntity(req, "알 수 없음", null))
+                        .map(req -> ApprovalRequestResponseDto.fromEntity(req, "알 수 없음", null, ""))
                         .collect(Collectors.toList());
             }
         } catch (Exception e) {
             log.error("HR 서비스 통신 오류 (getPendingApprovalRequests): {}", e.getMessage());
             return pendingRequests.stream()
-                    .map(req -> ApprovalRequestResponseDto.fromEntity(req, "통신 오류", null))
+                    .map(req -> ApprovalRequestResponseDto.fromEntity(req, "통신 오류", null, ""))
                     .collect(Collectors.toList());
         }
 
@@ -443,7 +484,11 @@ public class ApprovalService {
                 .map(req -> {
                     String applicantName = Optional.ofNullable(userMap.get(req.getApplicantId()))
                             .map(UserResDto::getUserName).orElse("알 수 없음");
-                    return ApprovalRequestResponseDto.fromEntity(req, applicantName, null);
+                    String applicantDepartment = Optional.ofNullable(userMap.get(req.getApplicantId()))
+                            .map(UserResDto::getDepartment)
+                            .map(DepartmentResDto::getName)
+                            .orElse("");
+                    return ApprovalRequestResponseDto.fromEntity(req, applicantName, null, applicantDepartment);
                 })
                 .collect(Collectors.toList());
     }
@@ -476,13 +521,13 @@ public class ApprovalService {
             if (usersInfo == null || usersInfo.isEmpty()) {
                 log.warn("HR 서비스로부터 사용자 정보를 가져오지 못했습니다. userIds: {}", allUserIds);
                 return processedRequests.stream()
-                        .map(req -> ApprovalRequestResponseDto.fromEntity(req, "알 수 없음", "알 수 없음"))
+                        .map(req -> ApprovalRequestResponseDto.fromEntity(req, "알 수 없음", "알 수 없음", ""))
                         .collect(Collectors.toList());
             }
         } catch (Exception e) {
             log.error("HR 서비스 통신 오류 (getProcessedApprovalRequestsByApproverId): {}", e.getMessage());
             return processedRequests.stream()
-                    .map(req -> ApprovalRequestResponseDto.fromEntity(req, "통신 오류", "통신 오류"))
+                    .map(req -> ApprovalRequestResponseDto.fromEntity(req, "통신 오류", "통신 오류", ""))
                     .collect(Collectors.toList());
         }
 
@@ -493,9 +538,13 @@ public class ApprovalService {
                 .map(req -> {
                     String applicantName = Optional.ofNullable(userMap.get(req.getApplicantId()))
                             .map(UserResDto::getUserName).orElse("알 수 없음");
+                    String applicantDepartment = Optional.ofNullable(userMap.get(req.getApplicantId()))
+                            .map(UserResDto::getDepartment)
+                            .map(DepartmentResDto::getName)
+                            .orElse("");
                     String approverName = Optional.ofNullable(userMap.get(req.getApproverId()))
                             .map(UserResDto::getUserName).orElse("알 수 없음");
-                    return ApprovalRequestResponseDto.fromEntity(req, applicantName, approverName);
+                    return ApprovalRequestResponseDto.fromEntity(req, applicantName, approverName, applicantDepartment);
                 })
                 .collect(Collectors.toList());
     }
@@ -527,5 +576,314 @@ public class ApprovalService {
                 .endDate(createDto.getEndDate())
                 .build();
         return createApprovalRequest(userInfo, generalDto);
+    }
+
+    // ===== 부재 관련 메서드들 추가 =====
+
+    /**
+     * 부재 결재 요청을 생성합니다.
+     */
+    @Transactional
+    @CacheEvict(value = "approvalRequests", allEntries = true)
+    public ApprovalRequestResponseDto createAbsenceApprovalRequest(TokenUserInfo userInfo, AbsenceApprovalRequestCreateDto createDto) {
+        log.info("createAbsenceApprovalRequest 메서드 진입. userInfo: {}, createDto: {}", userInfo, createDto);
+
+        // 중복 검증
+        LocalDateTime startOfDay = createDto.getStartDate().atStartOfDay();
+        LocalDateTime endOfDay = createDto.getEndDate().atTime(23, 59, 59, 999999999);
+        List<ApprovalRequest> existingRequests = approvalRepository.findByApplicantIdAndRequestTypeAndRequestedAtBetweenAndStatusIn(
+                userInfo.getEmployeeNo(), RequestType.ABSENCE, startOfDay, endOfDay, List.of(ApprovalStatus.PENDING, ApprovalStatus.APPROVED));
+
+        if (!existingRequests.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "이미 해당 기간에 처리 중이거나 승인된 부재 결재 요청이 존재합니다.");
+        }
+
+        ApprovalRequest approvalRequest = ApprovalRequest.builder()
+                .requestType(RequestType.ABSENCE)
+                .applicantId(userInfo.getEmployeeNo())
+                .reason(createDto.getReason())
+                .title("부재 신청 - " + createDto.getAbsenceType().getDescription())
+                .absencesId(null) // absence-service에서 생성될 ID
+                .absenceType(createDto.getAbsenceType())
+                .urgency(createDto.getUrgency())
+                .startDate(createDto.getStartDate())
+                .endDate(createDto.getEndDate())
+                .startTime(createDto.getStartTime())
+                .endTime(createDto.getEndTime())
+                .status(ApprovalStatus.PENDING)
+                .requestedAt(LocalDateTime.now())
+                .build();
+
+        ApprovalRequest savedRequest = approvalRepository.save(approvalRequest);
+        log.info("부재 결재 요청 저장 완료. ID: {}", savedRequest.getId());
+
+        String applicantName = hrServiceClient.getUsersInfo(List.of(savedRequest.getApplicantId()))
+                .stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음");
+
+        String applicantDepartment = hrServiceClient.getUsersInfo(List.of(savedRequest.getApplicantId()))
+                .stream().findFirst()
+                .map(UserResDto::getDepartment)
+                .map(DepartmentResDto::getName)
+                .orElse("");
+
+        return ApprovalRequestResponseDto.fromEntity(savedRequest, applicantName, null, applicantDepartment);
+    }
+
+    /**
+     * 부재 결재 요청을 승인 처리합니다.
+     */
+    @Transactional
+    @CacheEvict(value = "approvalRequests", allEntries = true)
+    public ApprovalRequestResponseDto approveAbsenceApprovalRequest(Long id, Long employeeNo) {
+        log.info("부재 결재 요청 승인 처리 시작. 요청 ID: {}, 승인자: {}", id, employeeNo);
+
+        ApprovalRequest approvalRequest = approvalRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "부재 결재 요청을 찾을 수 없습니다."));
+
+        if (approvalRequest.getStatus() != ApprovalStatus.PENDING) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "승인 대기 상태가 아닙니다.");
+        }
+
+        if (approvalRequest.getRequestType() != RequestType.ABSENCE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "부재 결재 요청이 아닙니다.");
+        }
+
+        approvalRequest.setApproverId(employeeNo);
+        approvalRequest.approve();
+
+        ApprovalRequest updatedRequest = approvalRepository.save(approvalRequest);
+
+        // absence-service에 승인 처리 요청
+        if (updatedRequest.getAbsencesId() != null) {
+            try {
+                absenceServiceClient.approveAbsence(updatedRequest.getAbsencesId(), employeeNo);
+                log.info("absence-service에 부재 승인 처리 완료. absenceId: {}", updatedRequest.getAbsencesId());
+            } catch (Exception e) {
+                log.error("absence-service 부재 승인 처리 실패: {}", e.getMessage(), e);
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "부재 승인 처리 중 오류 발생");
+            }
+        }
+
+        String applicantName = hrServiceClient.getUsersInfo(List.of(updatedRequest.getApplicantId()))
+                .stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음");
+
+        String applicantDepartment = hrServiceClient.getUsersInfo(List.of(updatedRequest.getApplicantId()))
+                .stream().findFirst()
+                .map(UserResDto::getDepartment)
+                .map(DepartmentResDto::getName)
+                .orElse("");
+
+        String approverName = hrServiceClient.getUsersInfo(List.of(updatedRequest.getApproverId()))
+                .stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음");
+
+        return ApprovalRequestResponseDto.fromEntity(updatedRequest, applicantName, approverName, applicantDepartment);
+    }
+
+    /**
+     * 부재 결재 요청을 반려 처리합니다.
+     */
+    @Transactional
+    @CacheEvict(value = "approvalRequests", allEntries = true)
+    public ApprovalRequestResponseDto rejectAbsenceApprovalRequest(Long id, TokenUserInfo userInfo, ApprovalRejectRequestDto rejectRequestDto) {
+        log.info("부재 결재 요청 반려 처리 시작. 요청 ID: {}, 반려자: {}", id, userInfo.getEmployeeNo());
+
+        ApprovalRequest approvalRequest = approvalRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "부재 결재 요청을 찾을 수 없습니다."));
+
+        if (approvalRequest.getStatus() != ApprovalStatus.PENDING) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "승인 대기 상태가 아닙니다.");
+        }
+
+        if (approvalRequest.getRequestType() != RequestType.ABSENCE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "부재 결재 요청이 아닙니다.");
+        }
+
+        approvalRequest.setApproverId(userInfo.getEmployeeNo());
+        approvalRequest.reject(rejectRequestDto.getRejectComment());
+
+        ApprovalRequest updatedRequest = approvalRepository.save(approvalRequest);
+
+        // absence-service에 반려 처리 요청
+        if (updatedRequest.getAbsencesId() != null) {
+            try {
+                absenceServiceClient.rejectAbsence(updatedRequest.getAbsencesId(), userInfo.getEmployeeNo(), rejectRequestDto.getRejectComment());
+                log.info("absence-service에 부재 반려 처리 완료. absenceId: {}", updatedRequest.getAbsencesId());
+            } catch (Exception e) {
+                log.error("absence-service 부재 반려 처리 실패: {}", e.getMessage(), e);
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "부재 반려 처리 중 오류 발생");
+            }
+        }
+
+        String applicantName = hrServiceClient.getUsersInfo(List.of(updatedRequest.getApplicantId()))
+                .stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음");
+
+        String applicantDepartment = hrServiceClient.getUsersInfo(List.of(updatedRequest.getApplicantId()))
+                .stream().findFirst()
+                .map(UserResDto::getDepartment)
+                .map(DepartmentResDto::getName)
+                .orElse("");
+
+        String approverName = hrServiceClient.getUsersInfo(List.of(updatedRequest.getApproverId()))
+                .stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음");
+
+        return ApprovalRequestResponseDto.fromEntity(updatedRequest, applicantName, approverName, applicantDepartment);
+    }
+
+    /**
+     * 부재 결재 통계를 조회합니다.
+     */
+    @Transactional(readOnly = true)
+    public AbsenceApprovalStatisticsDto getAbsenceApprovalStatistics() {
+        long totalAbsenceRequests = approvalRepository.countAbsenceApprovalRequests();
+        long pendingAbsenceRequests = approvalRepository.countPendingAbsenceApprovalRequests();
+        long approvedAbsenceRequests = approvalRepository.countApprovedAbsenceApprovalRequests();
+        long rejectedAbsenceRequests = approvalRepository.countRejectedAbsenceApprovalRequests();
+
+        return AbsenceApprovalStatisticsDto.builder()
+                .totalAbsenceRequests(totalAbsenceRequests)
+                .pendingAbsenceRequests(pendingAbsenceRequests)
+                .approvedAbsenceRequests(approvedAbsenceRequests)
+                .rejectedAbsenceRequests(rejectedAbsenceRequests)
+                .build();
+    }
+
+    /**
+     * 부재 결재 요청 목록을 페이징하여 조회합니다.
+     */
+    @Transactional(readOnly = true)
+    public Page<ApprovalRequestResponseDto> getAbsenceApprovalRequests(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        // 기존 Repository의 메서드 사용
+        List<ApprovalRequest> absenceRequests = approvalRepository.findByRequestTypeOrderByRequestedAtDesc(RequestType.ABSENCE);
+
+        // 페이징을 수동으로 처리
+        int start = page * size;
+        int end = Math.min(start + size, absenceRequests.size());
+        List<ApprovalRequest> pagedRequests = absenceRequests.subList(start, end);
+
+        return new PageImpl<>(pagedRequests.stream()
+                .map(request -> {
+                    String applicantName = hrServiceClient.getUsersInfo(List.of(request.getApplicantId()))
+                            .stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음");
+                    String applicantDepartment = hrServiceClient.getUsersInfo(List.of(request.getApplicantId()))
+                            .stream().findFirst()
+                            .map(UserResDto::getDepartment)
+                            .map(DepartmentResDto::getName)
+                            .orElse("");
+                    String approverName = request.getApproverId() != null ?
+                            hrServiceClient.getUsersInfo(List.of(request.getApproverId()))
+                                    .stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음") : null;
+                    return ApprovalRequestResponseDto.fromEntity(request, applicantName, approverName, applicantDepartment);
+                })
+                .collect(Collectors.toList()), pageable, absenceRequests.size());
+    }
+
+    /**
+     * 대기 중인 부재 결재 요청 목록을 페이징하여 조회합니다. (HR용)
+     */
+    @Transactional(readOnly = true)
+    public Page<ApprovalRequestResponseDto> getPendingAbsenceApprovalRequests(TokenUserInfo userInfo, int page, int size) {
+        if (!"Y".equals(userInfo.getHrRole())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "HR 권한이 필요합니다.");
+        }
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<ApprovalRequest> pendingAbsenceRequests = approvalRepository.findByRequestTypeAndStatusOrderByRequestedAtDesc(
+                RequestType.ABSENCE, ApprovalStatus.PENDING, pageable);
+
+        return pendingAbsenceRequests.map(request -> {
+            String applicantName = hrServiceClient.getUsersInfo(List.of(request.getApplicantId()))
+                    .stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음");
+            String applicantDepartment = hrServiceClient.getUsersInfo(List.of(request.getApplicantId()))
+                    .stream().findFirst()
+                    .map(UserResDto::getDepartment)
+                    .map(DepartmentResDto::getName)
+                    .orElse("");
+            return ApprovalRequestResponseDto.fromEntity(request, applicantName, null, applicantDepartment);
+        });
+    }
+
+    /**
+     * 처리된 부재 결재 요청 목록을 페이징하여 조회합니다.
+     */
+    @Transactional(readOnly = true)
+    public Page<ApprovalRequestResponseDto> getProcessedAbsenceApprovalRequests(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<ApprovalRequest> processedAbsenceRequests = approvalRepository.findProcessedAbsenceApprovalRequests(pageable);
+
+        return processedAbsenceRequests.map(request -> {
+            String applicantName = hrServiceClient.getUsersInfo(List.of(request.getApplicantId()))
+                    .stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음");
+            String applicantDepartment = hrServiceClient.getUsersInfo(List.of(request.getApplicantId()))
+                    .stream().findFirst()
+                    .map(UserResDto::getDepartment)
+                    .map(DepartmentResDto::getName)
+                    .orElse("");
+            String approverName = request.getApproverId() != null ?
+                    hrServiceClient.getUsersInfo(List.of(request.getApproverId()))
+                            .stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음") : null;
+            return ApprovalRequestResponseDto.fromEntity(request, applicantName, approverName, applicantDepartment);
+        });
+    }
+
+    /**
+     * 특정 사용자의 부재 결재 요청 목록을 페이징하여 조회합니다.
+     */
+    @Transactional(readOnly = true)
+    public Page<ApprovalRequestResponseDto> getMyAbsenceApprovalRequests(TokenUserInfo userInfo, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        List<ApprovalRequest> myAbsenceRequests = approvalRepository.findByRequestTypeAndApplicantIdOrderByRequestedAtDesc(
+                RequestType.ABSENCE, userInfo.getEmployeeNo());
+
+        // 페이징을 수동으로 처리
+        int start = page * size;
+        int end = Math.min(start + size, myAbsenceRequests.size());
+        List<ApprovalRequest> pagedRequests = myAbsenceRequests.subList(start, end);
+
+        return new PageImpl<>(pagedRequests.stream()
+                .map(request -> {
+                    String applicantName = hrServiceClient.getUsersInfo(List.of(request.getApplicantId()))
+                            .stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음");
+                    String applicantDepartment = hrServiceClient.getUsersInfo(List.of(request.getApplicantId()))
+                            .stream().findFirst()
+                            .map(UserResDto::getDepartment)
+                            .map(DepartmentResDto::getName)
+                            .orElse("");
+                    String approverName = request.getApproverId() != null ?
+                            hrServiceClient.getUsersInfo(List.of(request.getApproverId()))
+                                    .stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음") : null;
+                    return ApprovalRequestResponseDto.fromEntity(request, applicantName, approverName, applicantDepartment);
+                })
+                .collect(Collectors.toList()), pageable, myAbsenceRequests.size());
+    }
+
+    /**
+     * 특정 결재자가 처리한 부재 결재 요청 목록을 페이징하여 조회합니다.
+     */
+    @Transactional(readOnly = true)
+    public Page<ApprovalRequestResponseDto> getAbsenceApprovalRequestsProcessedByMe(TokenUserInfo userInfo, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        List<ApprovalRequest> processedByMeRequests = approvalRepository.findByRequestTypeAndApproverIdOrderByProcessedAtDesc(
+                RequestType.ABSENCE, userInfo.getEmployeeNo());
+
+        // 페이징을 수동으로 처리
+        int start = page * size;
+        int end = Math.min(start + size, processedByMeRequests.size());
+        List<ApprovalRequest> pagedRequests = processedByMeRequests.subList(start, end);
+
+        return new PageImpl<>(pagedRequests.stream()
+                .map(request -> {
+                    String applicantName = hrServiceClient.getUsersInfo(List.of(request.getApplicantId()))
+                            .stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음");
+                    String applicantDepartment = hrServiceClient.getUsersInfo(List.of(request.getApplicantId()))
+                            .stream().findFirst()
+                            .map(UserResDto::getDepartment)
+                            .map(DepartmentResDto::getName)
+                            .orElse("");
+                    String approverName = hrServiceClient.getUsersInfo(List.of(request.getApproverId()))
+                            .stream().findFirst().map(UserResDto::getUserName).orElse("알 수 없음");
+                    return ApprovalRequestResponseDto.fromEntity(request, applicantName, approverName, applicantDepartment);
+                })
+                .collect(Collectors.toList()), pageable, processedByMeRequests.size());
     }
 }
