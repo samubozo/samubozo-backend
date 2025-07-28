@@ -46,6 +46,14 @@ public class Payroll {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
+    @Column(name = "total_work_minutes")
+    private Long totalWorkMinutes;
+
+    @Column(name = "final_pay_amount")
+    private Long finalPayAmount;
+
+    @Column(name = "overtime_pay")
+    private Integer overtimePay;
 
 
 
