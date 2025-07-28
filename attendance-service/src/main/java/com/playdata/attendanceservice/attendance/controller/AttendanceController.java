@@ -244,6 +244,17 @@ public class AttendanceController {
         }
     }
 
+    // payroll-service에서 호출할 수 있도록 userId를 직접 받는 API
+    @GetMapping("/feign/monthly")
+    public ResponseEntity<List<AttendanceResDto>> getMonthlyAttendanceForFeign(
+            @RequestParam Long userId,
+            @RequestParam int year,
+            @RequestParam int month) {
+        List<AttendanceResDto> result = attendanceService.getMonthlyAttendances(userId, year, month);
+        return ResponseEntity.ok(result);
+    }
+
+
     /**
      * API 요청 성공 시 공통 응답 객체를 생성하여 반환하는 헬퍼 메소드입니다.
      * 이 메소드는 컨트롤러의 다른 메소드들에서 반복적으로 사용되는 성공 응답 생성을 표준화하고,
