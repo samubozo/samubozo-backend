@@ -30,13 +30,23 @@ public class PayrollController {
             @RequestBody PayrollRequestDto requestDto,
             @RequestAttribute("userInfo") TokenUserInfo userInfo
     ) {
-        if (!userInfo.isHrAdmin()) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("HR만 접근 가능");
+        Long requestUserId = requestDto.getUserId();      // 요청한 userId
+        Long loginUserId = userInfo.getEmployeeNo();      // 로그인한 사용자
+        boolean isHR = userInfo.isHrAdmin();
+
+        log.info("✅ savePayroll() 진입 - 선택한 직원 ID: {}, 로그인 사용자 ID: {}, HR 여부: {}",
+                requestUserId, loginUserId, isHR);
+
+        // ✅ HR이 아니면서 남의 정보 수정하려는 경우 → 거부
+        if (!isHR && !requestUserId.equals(loginUserId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("본인 정보만 수정할 수 있습니다.");
         }
 
-        PayrollResponseDto saved = payrollService.savePayroll(requestDto);
+        PayrollResponseDto saved = payrollService.savePayroll(requestDto, userInfo);
         return ResponseEntity.ok(new CommonResDto<>(HttpStatus.OK, "급여 정보 등록 성공!", saved));
     }
+
 
     // 2. 특정 직원 급여 정보 조회 (HR만 가능)
     @GetMapping("/admin/monthly")

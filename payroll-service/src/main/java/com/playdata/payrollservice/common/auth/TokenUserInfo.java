@@ -19,4 +19,7 @@ public class TokenUserInfo {
     }
 
 
+    public String getHrRole() {
+        return role == Role.HR ? "Y" : "N";
+    }
 }

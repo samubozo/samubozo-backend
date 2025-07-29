@@ -6,6 +6,7 @@ import com.playdata.payrollservice.payroll.dto.AttendanceResDto;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
@@ -13,11 +14,14 @@ import java.util.List;
 @FeignClient(name = "attendance-service")
 public interface AttendanceClient {
 
-    @GetMapping("/attendance/monthly/{year}/{month}")
+    @GetMapping("/attendance/feign/monthly/{year}/{month}")
     CommonResDto<List<AttendanceResDto>> getMonthlyAttendanceForFeign(
             @RequestParam("userId") Long userId,
             @PathVariable("year") int year,
-            @PathVariable("month") int month
+            @PathVariable("month") int month,
+            @RequestHeader("X-User-Email") String userEmail,
+            @RequestHeader("X-User-Role") String userRole,
+            @RequestHeader("X-User-Employee-No") Long employeeNo
     );
 }
 
