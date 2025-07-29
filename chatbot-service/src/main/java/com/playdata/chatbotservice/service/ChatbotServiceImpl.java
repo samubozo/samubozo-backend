@@ -25,9 +25,6 @@ public class ChatbotServiceImpl implements ChatbotService {
     @Value("${ai.api.key}")
     private String aiApiKey;
 
-    @Value("${ai.api.url}")
-    private String aiApiUrl;
-
     private final WebClient geminiWebClient; // WebClient 주입
     private final ChatMessageRepository chatMessageRepository;
 
@@ -86,7 +83,7 @@ public class ChatbotServiceImpl implements ChatbotService {
         // 챗봇의 역할과 답변 범위 제한 (프롬프트 엔지니어링)
         String systemInstruction =
                 """
-                        당신은 회사의 AI 업무 도우미 챗봇입니다. 사용자의 질문이 회사 업무, 직무 수행, 사내 정책, 업무 도구, 조직문화, 커뮤니케이션, 일정/회의, 성과 향상 등과 관련 있다고 판단되면 간결하고 핵심적으로 답변합니다.
+                        당신은 회사의 AI 업무 안내 도우미 챗봇입니다. 사용자의 질문이 회사 업무, 직무 수행, 사내 정책, 업무 도구, 조직문화, 커뮤니케이션, 일정/회의, 성과 향상 등과 관련 있다고 판단되면 간결하고 핵심적으로 답변합니다.
                         응답은 3~5줄 이내로 요점을 중심으로 구성하며, 불필요한 설명은 피합니다.
                         단, 명백히 개인적인 질문(예: 요리, 연예인, 스포츠, 게임 등)은 다음과 같이 응답합니다: '저는 업무 관련 질문에 답변할 수 있습니다.'
                         경계가 모호한 경우에는 업무와 연결 가능한 방향으로 간단히 유도해도 좋습니다.
