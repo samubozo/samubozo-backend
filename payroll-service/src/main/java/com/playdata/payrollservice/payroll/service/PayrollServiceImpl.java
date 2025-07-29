@@ -2,6 +2,7 @@ package com.playdata.payrollservice.payroll.service;
 
 import com.playdata.payrollservice.client.AttendanceClient;
 import com.playdata.payrollservice.client.HrClient;
+import com.playdata.payrollservice.common.auth.TokenUserInfo;
 import com.playdata.payrollservice.common.dto.CommonResDto;
 import com.playdata.payrollservice.payroll.dto.AttendanceResDto;
 import com.playdata.payrollservice.payroll.dto.PayrollRequestDto;
@@ -26,20 +27,28 @@ public class PayrollServiceImpl implements PayrollService {
     private final PayrollRepository payrollRepository;
 
     @Override
-    public PayrollResponseDto savePayroll(PayrollRequestDto requestDto) {
+    public PayrollResponseDto savePayroll(PayrollRequestDto requestDto, TokenUserInfo userInfo) {
         Long userId = requestDto.getUserId();
         int payYear = requestDto.getPayYear();
         int payMonth = requestDto.getPayMonth();
         int positionAllowance = Optional.ofNullable(requestDto.getPositionAllowance()).orElse(0);
         int mealAllowance = Optional.ofNullable(requestDto.getMealAllowance()).orElse(0);
         int bonus = Optional.ofNullable(requestDto.getBonus()).orElse(0);
+        log.info("🧾 Attendance 조회 요청 - 대상 userId={}, 로그인한 userId={}, HR 여부={}",
+                userId, userInfo.getEmployeeNo(), userInfo.isHrAdmin());
+
 
         log.info("🚀 급여 저장 요청: userId={}, year={}, month={}", userId, payYear, payMonth);
 
 
         // 근무시간 조회
         CommonResDto<List<AttendanceResDto>> res =
-                attendanceClient.getMonthlyAttendanceForFeign(userId, payYear, payMonth);
+                attendanceClient.getMonthlyAttendanceForFeign(
+                        userId, payYear, payMonth,
+                        userInfo.getEmail(),
+                        userInfo.getHrRole(), // "HR" 또는 "USER"
+                        userInfo.getEmployeeNo()
+                );
         List<AttendanceResDto> attendanceList = res.getResult();
 
         long totalWorkMinutes = attendanceList.stream()
@@ -52,6 +61,10 @@ public class PayrollServiceImpl implements PayrollService {
         String positionName = requestDto.getPositionName();
         if (positionName == null || !POSITION_BASE_PAY_MAP.containsKey(positionName)) {
             positionName = getUserPosition(userId); // 🔥 HR 연동으로 조회
+        }
+        log.info("✅ 근태 조회 결과 건수: {}", attendanceList.size());
+        if (!attendanceList.isEmpty()) {
+            log.info("⏱ 첫번째 근무일 totalWorkTime = {}", attendanceList.get(0).getTotalWorkTime());
         }
 
         log.info("🔍 결정된 positionName: {}", positionName); // 직급 결정 결과
@@ -118,6 +131,8 @@ public class PayrollServiceImpl implements PayrollService {
         payroll.setFinalPayAmount(finalPay);
 
         payroll.setOvertimePay((int) overtimePay); // ✅ 누락되었을 가능성 높음
+
+        payroll.setTotalWorkMinutes(totalWorkMinutes);
 
         log.info("⏰ 총 야근 시간: {}분", totalOvertimeMinutes);
 
