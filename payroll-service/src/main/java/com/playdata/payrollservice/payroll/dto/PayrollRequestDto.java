@@ -15,6 +15,10 @@ public class PayrollRequestDto {
     private Integer mealAllowance;
     private Integer bonus;
 
+    private String positionName;
+
+    private Integer overtimePay;
+
     private Integer payYear;
     private Integer payMonth;
 }

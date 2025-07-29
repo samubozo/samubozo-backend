@@ -13,6 +13,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 public interface CertificateService {
     // 증명서 신청
@@ -31,7 +32,7 @@ public interface CertificateService {
     // 내 증명서 인쇄
     byte[] generateMyCertificatePdf(TokenUserInfo userInfo, Long id);
 
-    byte[] generatePdf(Certificate certificate, UserFeignResDto userInfo) throws IOException;
+    byte[] generatePdf(Certificate certificate, UserFeignResDto userInfo, InputStream fontStream) throws IOException;
 
     // 텍스트를 셀 중앙에 그리는 함수
     void drawCellText(PDPageContentStream cs, String text, PDFont font, int fontSize,

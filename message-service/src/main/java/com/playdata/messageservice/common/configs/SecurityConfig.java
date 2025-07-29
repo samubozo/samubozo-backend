@@ -26,7 +26,6 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(authorize ->
                         authorize
-                                .requestMatchers("/notifications/subscribe/**").authenticated()
                                 .anyRequest().authenticated()
 
                 )

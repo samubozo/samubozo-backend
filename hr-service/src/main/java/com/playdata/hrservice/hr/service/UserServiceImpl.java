@@ -32,14 +32,12 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
-    //필요한 객체 생성하여 주입
     private final UserRepository userRepository;
     private final DepartmentRepository departmentRepository;
     private final PositionRepository positionRepository;
     private final PasswordEncoder encoder;
     private final AwsS3Config awsS3Config;
 
-    // 회원가입
     @Transactional
     @Override
     public UserResDto createUser(UserSaveReqDto dto, String hrRole) {
@@ -47,17 +45,14 @@ public class UserServiceImpl implements UserService {
             throw new BadRequestException("계정 생성 권한이 없습니다.");
         }
 
-        // 이메일 중복 확인 (신규 가입)
         if (userRepository.findByEmail(dto.getEmail()).isPresent()) {
             throw new IllegalArgumentException("이미 존재하는 이메일 입니다!");
         }
 
-        // 일반 회원가입 사용자: 비밀번호가 필수로 존재해야 함
-        if (!StringUtils.hasText(dto.getPassword())) { // 비밀번호가 null이거나 빈 문자열인지 확인
+        if (!StringUtils.hasText(dto.getPassword())) {
             throw new IllegalArgumentException("비밀번호는 필수입니다.");
         }
 
-        // 비밀번호 길이 검사 (패턴 검사도 필요하다면 여기에 추가)
         if (dto.getPassword().length() < 8) {
             throw new IllegalArgumentException("비밀번호는 최소 8자 이상이어야 합니다.");
         }
@@ -70,7 +65,6 @@ public class UserServiceImpl implements UserService {
         Position foundPos = positionRepository.findById(positionId)
                 .orElseThrow(() -> new EntityNotFoundException("Position not found with ID: " + positionId));
 
-        // User Entity 생성 및 저장
         User newUser = User.builder()
                 .userName(dto.getUserName())
                 .email(dto.getEmail())
@@ -81,7 +75,7 @@ public class UserServiceImpl implements UserService {
                 .gender(dto.getGender())
                 .department(foundDept)
                 .position(foundPos)
-                .hireDate(dto.getHireDate() != null ? dto.getHireDate() : LocalDate.now()) // 입사일이 없으면 오늘
+                .hireDate(dto.getHireDate() != null ? dto.getHireDate() : LocalDate.now())
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -89,20 +83,17 @@ public class UserServiceImpl implements UserService {
         return savedUser.fromEntity();
     }
 
-    // 프로필
     @Override
     public String uploadProfile(UserRequestDto dto) throws Exception{
         User user = userRepository.findById(dto.getEmployeeNo()).orElseThrow(
                 () -> new EntityNotFoundException("User not found!")
         );
 
-        // 1. 이전 프로필이 기본 url이 아니고, null도 아니라면 삭제
         String oldUrl = user.getProfileImage();
         if (oldUrl != null && !oldUrl.isBlank()) {
             awsS3Config.deleteFromS3Bucket(oldUrl);
         }
 
-        // 2. 새 파일 업로드
         MultipartFile profileImage = dto.getProfileImage();
         String uniqueFileName = UUID.randomUUID() + "_" + profileImage.getOriginalFilename();
         String imageUrl = awsS3Config.uploadToS3Bucket(profileImage.getBytes(), uniqueFileName);
@@ -112,7 +103,6 @@ public class UserServiceImpl implements UserService {
         return imageUrl;
     }
 
-    // 사용자 정보 수정
     @Transactional
     @Override
     public void updateUser(Long employeeNo, UserUpdateRequestDto dto, String hrRole) throws Exception {
@@ -135,7 +125,6 @@ public class UserServiceImpl implements UserService {
         user.setBankName(dto.getBankName());
         user.setAccountNumber(dto.getAccountNumber());
         user.setAccountHolder(dto.getAccountHolder());
-//        user.setDepartment(departmentRepository.findByName(dto.getDepartmentName()));
         user.setDepartment(departmentRepository.findById(dto.getDepartmentId()).orElseThrow(
                 () -> new EntityNotFoundException("Department not found with ID: " + dto.getDepartmentId())
         ));
@@ -151,7 +140,6 @@ public class UserServiceImpl implements UserService {
         userRepository.save(user);
     }
 
-    // 직원 상세 조회
     @Override
     public UserResDto getUserByEmployeeNo(Long employeeNo) {
         return userRepository.findByEmployeeNo(employeeNo).orElseThrow(
@@ -159,7 +147,6 @@ public class UserServiceImpl implements UserService {
         ).fromEntity();
     }
 
-    // 로그인을 위한 Feign
     @Override
     public UserLoginFeignResDto getUserByEmail(String email) {
         User user = userRepository.findByEmail(email).orElse(null);
@@ -169,7 +156,6 @@ public class UserServiceImpl implements UserService {
         return null;
     }
 
-    // Feign client용: employeeNo로 사용자 정보 조회
     @Transactional(readOnly = true)
     @Override
     public UserFeignResDto getEmployeeByEmployeeNo(Long employeeNo) {
@@ -178,7 +164,6 @@ public class UserServiceImpl implements UserService {
         return user.toUserFeignResDto();
     }
 
-    // Feign client용: userName으로 사용자 정보 조회
     @Override
     public List<UserFeignResDto> getEmployeeByUserName(String userName) {
         List<User> users = userRepository.findByUserNameContaining(userName);
@@ -187,7 +172,6 @@ public class UserServiceImpl implements UserService {
                 .collect(Collectors.toList());
     }
 
-    // 모든 서비스를 위한 Feign
     @Override
     public UserFeignResDto getEmployeeByEmail(String email) {
         User user = userRepository.findByEmail(email).orElse(null);
@@ -197,17 +181,18 @@ public class UserServiceImpl implements UserService {
         return null;
     }
 
-    // 모든 서비스를 위한 Feign (id로 조회)
     @Override
     public UserFeignResDto getEmployeeById(Long employeeNo) {
         User user = userRepository.findByEmployeeNo(employeeNo).orElse(null);
         if (user != null) {
-            return user.toUserFeignResDto();
+            log.info("Found user in DB: {}", user);
+            UserFeignResDto dto = user.toUserFeignResDto();
+            log.info("Converted UserFeignResDto: {}", dto);
+            return dto;
         }
         return null;
     }
 
-    // 비밀번호를 위한 Feign
     @Override
     public void updatePassword(UserPwUpdateDto dto) {
         User user = userRepository.findByEmployeeNo(dto.getEmployeeNo()).orElseThrow(
@@ -217,7 +202,6 @@ public class UserServiceImpl implements UserService {
         userRepository.save(user);
     }
 
-    // 직원 조회
     @Override
     public Page<UserResDto> listUsers(Pageable pageable, String hrRole) {
         Page<User> users = userRepository.findAll(pageable);
@@ -226,7 +210,7 @@ public class UserServiceImpl implements UserService {
                 .employeeNo(user.getEmployeeNo())
                 .userName(user.getUserName())
                 .positionName(user.getPosition().getPositionName())
-                .department(new DepartmentResDto(user.getDepartment())) // DepartmentResDto 객체로 변경
+                .department(new DepartmentResDto(user.getDepartment()))
                 .hireDate(user.getHireDate())
                 .phone(user.getPhone())
                 .email(user.getEmail())
@@ -237,11 +221,9 @@ public class UserServiceImpl implements UserService {
                 .build());
     }
 
-    // 사용자 검색 (조건에 따라 페이징 또는 전체 리스트 반환)
     @Override
     public Object searchUsers(String userName, String departmentName, String hrRole, Pageable pageable) {
         if (StringUtils.hasText(userName) || StringUtils.hasText(departmentName) || StringUtils.hasText(hrRole)) {
-            // 검색 조건이 있을 경우, 페이징 없이 전체 리스트 반환
             List<User> users;
             if (StringUtils.hasText(userName) && StringUtils.hasText(departmentName) && StringUtils.hasText(hrRole)) {
                 users = userRepository.findByUserNameContainingAndDepartmentNameContainingAndPositionHrRole(userName, departmentName, hrRole);
@@ -255,14 +237,14 @@ public class UserServiceImpl implements UserService {
                 users = userRepository.findByUserNameContaining(userName);
             } else if (StringUtils.hasText(departmentName)) {
                 users = userRepository.findByDepartmentNameContaining(departmentName);
-            } else { // hrRole만 있을 경우
+            } else {
                 users = userRepository.findByPositionHrRole(hrRole);
             }
             return users.stream().map(user -> UserResDto.builder()
                     .employeeNo(user.getEmployeeNo())
                     .userName(user.getUserName())
                     .positionName(user.getPosition().getPositionName())
-                    .department(new DepartmentResDto(user.getDepartment())) // DepartmentResDto 객체로 변경
+                    .department(new DepartmentResDto(user.getDepartment()))
                     .hireDate(user.getHireDate())
                     .phone(user.getPhone())
                     .email(user.getEmail())
@@ -272,13 +254,12 @@ public class UserServiceImpl implements UserService {
                     .hrRole(user.getPosition().getHrRole())
                     .build()).collect(Collectors.toList());
         } else {
-            // 검색 조건이 없을 경우, 페이징 적용
             Page<User> users = userRepository.findAll(pageable);
             return users.map(user -> UserResDto.builder()
                     .employeeNo(user.getEmployeeNo())
                     .userName(user.getUserName())
                     .positionName(user.getPosition().getPositionName())
-                    .department(new DepartmentResDto(user.getDepartment())) // DepartmentResDto 객체로 변경
+                    .department(new DepartmentResDto(user.getDepartment()))
                     .hireDate(user.getHireDate())
                     .phone(user.getPhone())
                     .email(user.getEmail())
@@ -290,7 +271,6 @@ public class UserServiceImpl implements UserService {
         }
     }
 
-    // 퇴사 처리
     @Override
     public void retireUser(Long employeeNo, String hrRole) {
         if (!"Y".equals(hrRole)) {
@@ -304,26 +284,16 @@ public class UserServiceImpl implements UserService {
         userRepository.save(user);
     }
 
-    // 특정 사용자가 특정 날짜에 승인된 외부 일정(출장, 연수 등)이 있는지 확인
     @Override
     public boolean hasApprovedExternalSchedule(Long userId, LocalDate date) {
-        // 현재는 항상 false 반환 (임시)
         return false;
     }
 
-    // 특정 사용자가 특정 날짜에 승인된 외부 일정의 종류를 조회
     @Override
     public String getApprovedExternalScheduleType(Long userId, LocalDate date) {
-        // 현재는 항상 null 반환 (임시)
         return null;
     }
 
-    /**
-     * 주어진 ID 목록에 해당하는 사용자 정보를 조회합니다.
-     *
-     * @param employeeNos 조회할 사용자 ID 목록
-     * @return 사용자 정보 DTO 목록
-     */
     @Transactional(readOnly = true)
     @Override
     public List<UserResDto> getUsersByIds(List<Long> employeeNos) {
@@ -333,13 +303,6 @@ public class UserServiceImpl implements UserService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * 특정 연도와 월에 입사 1주년을 맞이하는 사용자 목록을 조회합니다.
-     *
-     * @param year 조회할 연도 (입사일 기준)
-     * @param month 조회할 월 (입사일 기준)
-     * @return 해당 월에 입사 1주년을 맞이하는 사용자 정보 DTO 목록
-     */
     @Transactional(readOnly = true)
     @Override
     public List<UserResDto> getUsersWithFirstAnniversaryInMonth(int year, int month) {
@@ -348,6 +311,7 @@ public class UserServiceImpl implements UserService {
                 .map(User::fromEntity)
                 .collect(Collectors.toList());
     }
+
 }
 
 

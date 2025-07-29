@@ -101,6 +101,47 @@ public class ApprovalService {
 
         log.info("보안 검증 통과. ApprovalRequest 엔티티 빌드 시작.");
 
+        // approverId와 approverName 설정
+        Long approverId = null;
+        String approverName = null;
+
+        // 증명서 신청인 경우 HR 담당자를 approver로 설정
+        if (createDto.getRequestType() == RequestType.CERTIFICATE) {
+            // HR 담당자 정보 가져오기 (예: 1번 사용자가 HR 담당자라고 가정)
+            try {
+                List<Long> hrUserIds = List.of(1L); // HR 담당자 ID (실제로는 HR 담당자 ID들을 설정)
+                List<UserResDto> hrUsers = hrServiceClient.getUsersInfo(hrUserIds);
+                if (!hrUsers.isEmpty()) {
+                    approverId = hrUsers.get(0).getEmployeeNo();
+                    approverName = hrUsers.get(0).getUserName();
+                    log.info("HR 담당자 정보 설정 완료. ID: {}, 이름: {}", approverId, approverName);
+                } else {
+                    log.warn("HR 담당자 정보를 가져올 수 없습니다. 기본값을 사용합니다.");
+                    approverId = 1L;
+                    approverName = "HR 담당자";
+                }
+            } catch (Exception e) {
+                log.warn("HR 담당자 정보 조회 중 오류 발생. 기본값을 사용합니다.", e);
+                approverId = 1L;
+                approverName = "HR 담당자";
+            }
+        } else {
+            // 다른 결재 유형의 경우 기존 로직 사용
+            approverId = createDto.getApproverId();
+            if (approverId != null) {
+                try {
+                    List<UserResDto> approverUsers = hrServiceClient.getUsersInfo(List.of(approverId));
+                    approverName = approverUsers.stream()
+                            .findFirst()
+                            .map(UserResDto::getUserName)
+                            .orElse("알 수 없음");
+                } catch (Exception e) {
+                    log.warn("승인자 정보 조회 중 오류 발생.", e);
+                    approverName = "알 수 없음";
+                }
+            }
+        }
+
         ApprovalRequest approvalRequest = ApprovalRequest.builder()
                 .requestType(createDto.getRequestType())
                 .applicantId(createDto.getApplicantId())
@@ -113,6 +154,7 @@ public class ApprovalService {
                 .endDate(createDto.getEndDate())
                 .status(ApprovalStatus.PENDING)
                 .requestedAt(LocalDateTime.now())
+                .approverId(approverId) // 설정된 approverId 사용
                 .build();
 
         log.info("ApprovalRequest 엔티티 빌드 완료: {}", approvalRequest);
@@ -135,7 +177,7 @@ public class ApprovalService {
                 .map(DepartmentResDto::getName)
                 .orElse("");
 
-        ApprovalRequestResponseDto responseDto = ApprovalRequestResponseDto.fromEntity(savedRequest, applicantName, null, applicantDepartment);
+        ApprovalRequestResponseDto responseDto = ApprovalRequestResponseDto.fromEntity(savedRequest, applicantName, approverName, applicantDepartment);
         log.info("createApprovalRequest 메서드 종료. 응답 DTO: {}", responseDto);
         return responseDto;
     }

@@ -4,6 +4,7 @@ import com.playdata.certificateservice.common.auth.TokenUserInfo;
 import com.playdata.certificateservice.common.dto.CommonResDto;
 import com.playdata.certificateservice.dto.CertificateRejectRequestDto;
 import com.playdata.certificateservice.dto.CertificateReqDto;
+import com.playdata.certificateservice.entity.Status;
 import com.playdata.certificateservice.service.CertificateService;
 import com.playdata.certificateservice.entity.Certificate;
 import com.playdata.certificateservice.client.hr.dto.UserFeignResDto;
@@ -69,17 +70,49 @@ public class CertificateController {
         return ResponseEntity.ok().body(resDto);
     }
 
-    // 내 증명서 인쇄 (사용자)
+    // 내 증명서 인쇄 (사용자 + HR)
     @GetMapping("/my-print/{id}")
     public ResponseEntity<byte[]> printMyCertificatePdf(@AuthenticationPrincipal TokenUserInfo userInfo, @PathVariable Long id) {
-        log.info("Print certificate request by user {}: id={}", userInfo.getEmployeeNo(), id);
-        byte[] pdfBytes = certificateService.generateMyCertificatePdf(userInfo, id);
+        log.info("=== 증명서 인쇄 컨트롤러 호출 ===");
+        log.info("사용자: {}, 증명서 ID: {}", userInfo.getEmployeeNo(), id);
+        log.info("HR 권한: {}", userInfo.getHrRole());
 
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=certificate_" + id + ".pdf")
-                .contentType(MediaType.APPLICATION_PDF)
-                .contentLength(pdfBytes.length)
-                .body(pdfBytes);
+        try {
+            Certificate certificate = certificateService.getCertificateById(id);
+            log.info("증명서 조회 성공: {}", certificate);
+
+            // 1. 소유권 확인 또는 HR 권한 확인
+            boolean isOwner = certificate.getEmployeeNo().equals(userInfo.getEmployeeNo());
+            boolean isHR = "Y".equals(userInfo.getHrRole());
+
+            log.info("권한 확인: 소유자={}, HR={}", isOwner, isHR);
+
+            if (!isOwner && !isHR) {
+                log.error("권한 없음: 사용자={}, 증명서 소유자={}", userInfo.getEmployeeNo(), certificate.getEmployeeNo());
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+
+            // 2. 승인된 증명서만 출력 가능
+            log.info("증명서 상태: {}", certificate.getStatus());
+            if (certificate.getStatus() != Status.APPROVED) {
+                log.error("승인되지 않은 증명서: 상태={}", certificate.getStatus());
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("승인되지 않은 증명서는 출력할 수 없습니다.".getBytes());
+            }
+
+            log.info("PDF 생성 시작");
+            byte[] pdfBytes = certificateService.generateMyCertificatePdf(userInfo, id);
+            log.info("PDF 생성 완료: 크기={} bytes", pdfBytes.length);
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=certificate_" + id + ".pdf")
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .contentLength(pdfBytes.length)
+                    .body(pdfBytes);
+
+        } catch (Exception e) {
+            log.error("증명서 인쇄 실패: {}", e.getMessage(), e);
+            throw e;
+        }
     }
 
     // [내부호출] 증명서 승인 처리 (approval-service 전용)

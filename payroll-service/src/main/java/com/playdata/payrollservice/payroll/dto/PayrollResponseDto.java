@@ -21,6 +21,11 @@ public class PayrollResponseDto {
     private Integer payYear;
     private Integer payMonth;
 
+    private Long totalWorkMinutes;
+    private Long finalPayAmount;
+
+    private Integer overtimePay;
+
     private LocalDateTime updatedAt;
 
 }

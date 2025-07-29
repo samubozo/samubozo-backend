@@ -13,7 +13,7 @@ public interface ApprovalServiceClient {
      * @param absence 부재 엔티티
      * @return 결재 요청 생성 결과
      */
-    @PostMapping("/approval-service/absence-requests")
+    @PostMapping("/absence-requests")
     CommonResDto<Void> createAbsenceApprovalRequest(@RequestBody Absence absence);
 
     /**
@@ -22,7 +22,7 @@ public interface ApprovalServiceClient {
      * @param approverId 결재자 ID
      * @return 승인 처리 결과
      */
-    @PostMapping("/approval-service/absence-requests/{absenceId}/approve")
+    @PostMapping("/absence-requests/{absenceId}/approve")
     CommonResDto<Void> approveAbsenceApproval(@PathVariable Long absenceId, @RequestParam String approverId);
 
     /**
@@ -32,7 +32,7 @@ public interface ApprovalServiceClient {
      * @param rejectComment 반려 사유
      * @return 반려 처리 결과
      */
-    @PostMapping("/approval-service/absence-requests/{absenceId}/reject")
+    @PostMapping("/absence-requests/{absenceId}/reject")
     CommonResDto<Void> rejectAbsenceApproval(@PathVariable Long absenceId,
                                              @RequestParam String approverId,
                                              @RequestParam String rejectComment);
@@ -43,7 +43,7 @@ public interface ApprovalServiceClient {
      * @param date 확인할 날짜
      * @return 승인된 휴가가 있으면 true, 없으면 false
      */
-    @GetMapping("/approval-service/approvals/leaves/approved")
+    @GetMapping("/approvals/leaves/approved")
     boolean hasApprovedLeave(@RequestParam("userId") Long userId, @RequestParam("date") String date);
 
     /**
@@ -52,6 +52,6 @@ public interface ApprovalServiceClient {
      * @param date 확인할 날짜
      * @return 승인된 휴가 종류
      */
-    @GetMapping("/approval-service/approvals/leaves/approved-type")
+    @GetMapping("/approvals/leaves/approved-type")
     String getApprovedLeaveType(@RequestParam("userId") Long userId, @RequestParam("date") String date);
 }

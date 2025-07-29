@@ -17,6 +17,6 @@ public interface HrServiceClient {
     List<UserFeignResDto> getUserByUserName(@PathVariable("userName") String userName);
 
     // 필요하다면 employeeNo로 조회하는 엔드포인트도 추가
-    // @GetMapping("/hr/user/feign/employeeNo/{employeeNo}")
-    // UserFeignResDto getUserByEmployeeNo(@PathVariable Long employeeNo);
+    @GetMapping("/hr/user/feign/employeeNo/{employeeNo}")
+    UserFeignResDto getUserByEmployeeNo(@PathVariable Long employeeNo);
 }

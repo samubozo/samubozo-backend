@@ -17,4 +17,5 @@ public class ApprovalRequestCreateDto {
     private String certificateType; // 추가: CERTIFICATE 요청 타입의 구체적인 유형 (재직, 경력 등)
     private java.time.LocalDate startDate; // 추가
     private java.time.LocalDate endDate; // 추가
+    private Long approverId; // 추가
 }
