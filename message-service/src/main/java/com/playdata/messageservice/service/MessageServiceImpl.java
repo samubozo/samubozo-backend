@@ -1,6 +1,9 @@
 package com.playdata.messageservice.service;
 
 import com.playdata.messageservice.client.HrServiceClient;
+import com.playdata.messageservice.client.NotificationServiceClient;
+import com.playdata.messageservice.client.NotificationServiceClient.NotificationCreateRequest;
+import com.playdata.messageservice.common.auth.TokenUserInfo;
 import com.playdata.messageservice.common.configs.AwsS3Config;
 import com.playdata.messageservice.dto.AttachmentResponse;
 import com.playdata.messageservice.dto.MessageRequest;
@@ -15,6 +18,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -35,7 +40,7 @@ import java.util.stream.Collectors;
 public class MessageServiceImpl implements MessageService {
 
     private final MessageRepository messageRepository;
-    private final NotificationServiceImpl notificationService;
+    private final NotificationServiceClient notificationServiceClient;
     private final AwsS3Config awsS3Config;
     private final HrServiceClient hrServiceClient;
     private final AttachmentRepository attachmentRepository;
@@ -43,14 +48,24 @@ public class MessageServiceImpl implements MessageService {
     @Transactional
     @Override
     public MessageResponse sendMessage(Long senderId, MessageRequest request, MultipartFile[] attachments) {
-        Message message = Message.builder()
+        Message.MessageBuilder messageBuilder = Message.builder()
                 .senderId(senderId)
-                .receiverId(request.getReceiverId())
                 .subject(request.getSubject())
                 .content(request.getContent())
                 .isRead(false)
                 .sentAt(LocalDateTime.now())
-                .build();
+                .isNotice(request.getIsNotice() != null && request.getIsNotice());
+
+        if (request.getIsNotice() != null && request.getIsNotice()) {
+            messageBuilder.receiverId(null); // 공지사항일 경우 receiverId를 null로 설정
+        } else {
+            if (request.getReceiverId() == null) {
+                throw new IllegalArgumentException("일반 쪽지는 수신자 ID가 필수입니다.");
+            }
+            messageBuilder.receiverId(request.getReceiverId());
+        }
+
+        Message message = messageBuilder.build();
 
         Message savedMessage = messageRepository.save(message);
 
@@ -77,18 +92,29 @@ public class MessageServiceImpl implements MessageService {
             });
         }
 
-        // 쪽지 발송 시 알림 생성
-        notificationService.createNotification(
-            String.valueOf(request.getReceiverId()), // employeeNo는 String
-            NotificationType.MESSAGE, // "NEW_MESSAGE" -> NotificationType.MESSAGE로 변경
-            "새 쪽지가 도착했습니다: " + request.getSubject(),
-            savedMessage.getMessageId()
-        );
+        // 쪽지 발송 시 알림 생성 (공지사항이 아닌 경우에만)
+        if ((request.getIsNotice() == null || !request.getIsNotice()) && request.getReceiverId() != null) {
+            TokenUserInfo userInfo = getAuthenticatedUserInfo();
+            if (userInfo != null) {
+                notificationServiceClient.createNotification(
+                        String.valueOf(senderId),
+                        userInfo.getEmail(), // 수정: getUserEmail() -> getEmail()
+                        userInfo.getHrRole(), // 수정: getUserRole() -> getHrRole()
+                        NotificationCreateRequest.builder()
+                                .employeeNo(String.valueOf(request.getReceiverId()))
+                                .type(NotificationType.MESSAGE)
+                                .message("새 쪽지가 도착했습니다: " + request.getSubject())
+                                .messageId(savedMessage.getMessageId())
+                                .build()
+                );
+            } else {
+                log.warn("인증된 사용자 정보가 없어 알림을 생성할 수 없습니다. senderId: {}", senderId);
+            }
+        }
 
         return convertToDto(savedMessage);
     }
 
-    // 받은 쪽지함 검색/필터/페이징
     @Override
     public Page<MessageResponse> getReceivedMessages(Long receiverId, String searchType, String searchValue, String period, Boolean unreadOnly, Pageable pageable) {
         LocalDateTime[] dateRange = getDateRange(period);
@@ -102,7 +128,6 @@ public class MessageServiceImpl implements MessageService {
         return messages.map(this::convertToDto);
     }
 
-    // 보낸 쪽지함 검색/필터/페이징
     @Override
     public Page<MessageResponse> getSentMessages(Long senderId, String searchType, String searchValue, String period, Pageable pageable) {
         LocalDateTime[] dateRange = getDateRange(period);
@@ -122,19 +147,28 @@ public class MessageServiceImpl implements MessageService {
         Message message = messageRepository.findById(messageId)
                 .orElseThrow(() -> new IllegalArgumentException("Message not found"));
 
-        // 메시지 수신자 또는 발신자가 맞는지 확인
-        if (!message.getReceiverId().equals(authenticatedEmployeeNo) && !message.getSenderId().equals(authenticatedEmployeeNo)) {
+        // 공지사항이 아니고, 수신자나 발신자가 아니면 접근 불가
+        if (!(message.getIsNotice() != null && message.getIsNotice()) && !message.getReceiverId().equals(authenticatedEmployeeNo) && !message.getSenderId().equals(authenticatedEmployeeNo)) {
             throw new IllegalArgumentException("Unauthorized access to message");
         }
 
-        // 현재 로그인한 사용자가 쪽지의 수신자이고, 아직 읽지 않은 경우에만 읽음 처리
-        if (message.getReceiverId().equals(authenticatedEmployeeNo) && !message.getIsRead()) {
+        // 수신자가 본인이고 아직 읽지 않은 경우에만 읽음 처리
+        if (message.getReceiverId() != null && message.getReceiverId().equals(authenticatedEmployeeNo) && !message.getIsRead()) {
             message.setIsRead(true);
             message.setReadAt(LocalDateTime.now());
             messageRepository.save(message);
 
-            // 알림 서비스에서 해당 쪽지 관련 알림을 읽음 처리
-            notificationService.markNotificationAsReadByMessageId(messageId);
+            TokenUserInfo userInfo = getAuthenticatedUserInfo();
+            if (userInfo != null) {
+                notificationServiceClient.markNotificationAsReadByMessageId(
+                        String.valueOf(authenticatedEmployeeNo),
+                        userInfo.getEmail(), // 수정: getUserEmail() -> getEmail()
+                        userInfo.getHrRole(), // 수정: getUserRole() -> getHrRole()
+                        messageId
+                );
+            } else {
+                log.warn("인증된 사용자 정보가 없어 알림을 읽음 처리할 수 없습니다. employeeNo: {}", authenticatedEmployeeNo);
+            }
         }
         return convertToDto(message);
     }
@@ -150,26 +184,41 @@ public class MessageServiceImpl implements MessageService {
         Message message = messageRepository.findById(messageId)
                 .orElseThrow(() -> new IllegalArgumentException("Message not found with id: " + messageId));
 
-        // 메시지를 보낸 사람 또는 받은 사람만 삭제 가능하도록 검증
-        if (!message.getSenderId().equals(employeeNo) && !message.getReceiverId().equals(employeeNo)) {
-            throw new IllegalArgumentException("Unauthorized to delete this message.");
+        // 공지사항인 경우 작성자만 삭제 가능
+        if (message.getIsNotice() != null && message.getIsNotice()) {
+            if (!message.getSenderId().equals(employeeNo)) {
+                throw new IllegalArgumentException("공지사항은 작성자만 삭제할 수 있습니다.");
+            }
+        } else {
+            // 일반 쪽지는 수신자 또는 발신자가 삭제 가능
+            if (!message.getSenderId().equals(employeeNo) && !message.getReceiverId().equals(employeeNo)) {
+                throw new IllegalArgumentException("Unauthorized to delete this message.");
+            }
         }
 
-        // S3에 첨부된 파일이 있다면 삭제
         if (message.getAttachments() != null && !message.getAttachments().isEmpty()) {
             message.getAttachments().forEach(attachment -> {
                 try {
                     awsS3Config.deleteFromS3Bucket(attachment.getAttachmentUrl());
                 } catch (IOException e) {
                     log.error("Failed to delete attachment from S3: {}", attachment.getAttachmentUrl(), e);
-                    // 파일 삭제 실패 시에도 메시지 삭제는 진행
                 }
             });
         }
 
         messageRepository.delete(message);
-        // 알림 서비스에서 해당 쪽지 관련 알림도 삭제
-        notificationService.deleteNotificationsByMessageId(messageId);
+
+        TokenUserInfo userInfo = getAuthenticatedUserInfo();
+        if (userInfo != null) {
+            notificationServiceClient.deleteNotificationsByMessageId(
+                    String.valueOf(employeeNo),
+                    userInfo.getEmail(), // 수정: getUserEmail() -> getEmail()
+                    userInfo.getHrRole(), // 수정: getUserRole() -> getHrRole()
+                    messageId
+            );
+        } else {
+            log.warn("인증된 사용자 정보가 없어 알림을 삭제할 수 없습니다. employeeNo: {}", employeeNo);
+        }
     }
 
     @Transactional
@@ -178,21 +227,24 @@ public class MessageServiceImpl implements MessageService {
         Message message = messageRepository.findById(messageId)
                 .orElseThrow(() -> new IllegalArgumentException("Message not found with id: " + messageId));
 
-        // 발신자만 발신 취소 가능
         if (!message.getSenderId().equals(senderEmployeeNo)) {
             throw new IllegalArgumentException("Only the sender can recall this message.");
         }
 
-        // 쪽지가 읽지 않은 상태인지 확인
         if (message.getIsRead()) {
             throw new IllegalArgumentException("Cannot recall a message that has already been read.");
         }
 
-        // 첨부파일 및 알림 삭제는 deleteMessage 로직을 재활용
         deleteMessage(messageId, senderEmployeeNo);
     }
 
-    
+    private TokenUserInfo getAuthenticatedUserInfo() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof TokenUserInfo) {
+            return (TokenUserInfo) authentication.getPrincipal();
+        }
+        return null;
+    }
 
     @Override
     public List<Long> getEmployeeNosFromSearch(String searchType, String searchValue, String targetType) {
@@ -221,20 +273,28 @@ public class MessageServiceImpl implements MessageService {
             attachmentResponses = Collections.emptyList();
         }
 
+        UserFeignResDto sender = hrServiceClient.getUserByEmployeeNo(message.getSenderId());
+        UserFeignResDto receiver = null;
+        if (message.getReceiverId() != null) {
+            receiver = hrServiceClient.getUserByEmployeeNo(message.getReceiverId());
+        }
+
         return MessageResponse.builder()
                 .messageId(message.getMessageId())
                 .senderId(message.getSenderId())
+                .senderName(sender != null ? sender.getUserName() : "알 수 없음")
                 .receiverId(message.getReceiverId())
+                .receiverName(receiver != null ? receiver.getUserName() : "전사공지")
                 .subject(message.getSubject())
                 .content(message.getContent())
                 .sentAt(message.getSentAt())
                 .isRead(message.getIsRead())
                 .readAt(message.getReadAt())
+                .isNotice(message.getIsNotice())
                 .attachments(attachmentResponses)
                 .build();
     }
 
-    // 기간 필터링을 위한 날짜 범위 계산 유틸리티 메서드
     @Override
     public LocalDateTime[] getDateRange(String period) {
         LocalDateTime endDate = LocalDateTime.now();
@@ -252,7 +312,6 @@ public class MessageServiceImpl implements MessageService {
                 break;
             case "all":
             default:
-                // startDate는 null로 유지하여 전체 기간 조회
                 break;
         }
         return new LocalDateTime[]{startDate, endDate};

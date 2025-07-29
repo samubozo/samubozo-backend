@@ -12,4 +12,5 @@ public class MessageRequest {
     private String subject;
     private String content;
     private MultipartFile[] attachments;
+    private Boolean isNotice;
 }

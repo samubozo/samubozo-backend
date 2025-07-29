@@ -39,6 +39,7 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
             ,"/auth/find-password"
             ,"/auth/reset-password"
             ,"/auth/refresh"
+            ,"/notifications/mark-read-by-message-id"
     );
 
     @Override

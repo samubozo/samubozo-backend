@@ -26,7 +26,7 @@ public class Message {
     @Column(name = "sender_id", nullable = false)
     private Long senderId;
 
-    @Column(name = "receiver_id", nullable = false)
+    @Column(name = "receiver_id", nullable = true)
     private Long receiverId;
 
     @Column(name = "subject", length = 255)
@@ -44,6 +44,9 @@ public class Message {
 
     @Column(name = "read_at")
     private LocalDateTime readAt;
+
+    @Column(name = "is_notice", nullable = false)
+    private Boolean isNotice;
 
     @OneToMany(mappedBy = "message", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
