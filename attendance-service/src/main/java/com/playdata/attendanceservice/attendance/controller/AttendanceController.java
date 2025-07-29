@@ -245,14 +245,29 @@ public class AttendanceController {
     }
 
     // payroll-service에서 호출할 수 있도록 userId를 직접 받는 API
-    @GetMapping("/feign/monthly")
-    public ResponseEntity<List<AttendanceResDto>> getMonthlyAttendanceForFeign(
+    @GetMapping("/feign/monthly/{year}/{month}")
+    public ResponseEntity<CommonResDto<List<AttendanceResDto>>> getMonthlyAttendance(
             @RequestParam Long userId,
-            @RequestParam int year,
-            @RequestParam int month) {
+            @PathVariable int year,
+            @PathVariable int month,
+            @RequestHeader("X-User-Email") String userEmail,
+            @RequestHeader("X-User-Role") String userRole,
+            @RequestHeader("X-User-Employee-No") Long employeeNo
+    ) {
+        log.info("🎯 권한 체크: userRole={}, employeeNo={}, userId={}", userRole, employeeNo, userId);
+
+        // ✅ HR이 아니고, 본인도 아니라면 차단
+        boolean isHR = "Y".equalsIgnoreCase(userRole);
+        if (!isHR && !userId.equals(employeeNo)) {
+            log.warn("⛔ 접근 차단 - 요청자={}, 대상={}, 권한={}", employeeNo, userId, userRole);
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new CommonResDto<>(HttpStatus.FORBIDDEN, "권한이 없습니다.", null));
+        }
+
         List<AttendanceResDto> result = attendanceService.getMonthlyAttendances(userId, year, month);
-        return ResponseEntity.ok(result);
+        return buildSuccessResponse(result, "월별 근태 조회 성공");
     }
+
 
 
     /**
