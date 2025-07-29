@@ -133,6 +133,16 @@ spring:
             - RewritePath=/message-service/(?<segment>.*), /$\{segment}
             - AuthorizationHeaderFilter
 
+        #알림 서비스
+        - id: notification-service
+          uri: lb://NOTIFICATION-SERVICE
+          predicates:
+            - Path=/notification-service/**
+          filters:
+            - RemoveRequestHeader=Cookie
+            - RewritePath=/notification-service/(?<segment>.*), /$\{segment}
+            - AuthorizationHeaderFilter
+
         #결재 서비스
         - id: approval-service
           uri: lb://APPROVAL-SERVICE

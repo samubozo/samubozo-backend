@@ -29,8 +29,13 @@ public class MessageRepositoryImpl implements MessageRepositoryCustom {
         CriteriaQuery<Message> cq = cb.createQuery(Message.class);
         Root<Message> message = cq.from(Message.class);
 
+        // 받은 편지함 또는 공지사항
+        Predicate receiverPredicate = cb.equal(message.get("receiverId"), receiverId);
+        Predicate noticePredicate = cb.isTrue(message.get("isNotice"));
+        Predicate mainPredicate = cb.or(receiverPredicate, noticePredicate);
+
         List<Predicate> predicates = new ArrayList<>();
-        predicates.add(cb.equal(message.get("receiverId"), receiverId));
+        predicates.add(mainPredicate);
 
         if (searchEmployeeNos != null && !searchEmployeeNos.isEmpty()) {
             if ("sender".equals(searchType)) {
@@ -62,8 +67,14 @@ public class MessageRepositoryImpl implements MessageRepositoryCustom {
         // count 쿼리 수정
         CriteriaQuery<Long> countCq = cb.createQuery(Long.class);
         Root<Message> countMessage = countCq.from(Message.class);
+
+        // 받은 편지함 또는 공지사항 (count 쿼리에도 동일하게 적용)
+        Predicate countReceiverPredicate = cb.equal(countMessage.get("receiverId"), receiverId);
+        Predicate countNoticePredicate = cb.isTrue(countMessage.get("isNotice"));
+        Predicate countMainPredicate = cb.or(countReceiverPredicate, countNoticePredicate);
+
         List<Predicate> countPredicates = new ArrayList<>();
-        countPredicates.add(cb.equal(countMessage.get("receiverId"), receiverId));
+        countPredicates.add(countMainPredicate);
 
         if (searchEmployeeNos != null && !searchEmployeeNos.isEmpty()) {
             if ("sender".equals(searchType)) {
