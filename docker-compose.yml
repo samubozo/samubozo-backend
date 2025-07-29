@@ -1,0 +1,102 @@
+# Docker Compose 파일 포맷의 버전을 지정합니다.
+version: '3.8'
+services:
+  config-service:
+    image: 940791490007.dkr.ecr.ap-northeast-2.amazonaws.com/config-service:latest
+    container_name: config-service
+    networks:
+      - msa-network
+    ports:
+      - "8888:8888"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://config-service:8888/actuator/health" ]
+      interval: 15s # 15초마다 한번씩 체크
+      timeout: 5s # 5초 안에 완료되어야 한다.
+      retries: 3 # 3번까지 재시도 하기
+      start_period: 30s # 컨테이너 시작 후 60초 동안은 health check 실패를 무시.
+    restart: always # 컨테이너가 모종의 이유로 중지되면 무조건 재시작 시도.
+
+  discovery-service:
+    image: 940791490007.dkr.ecr.ap-northeast-2.amazonaws.com/discovery-service:latest
+    container_name: discovery-service
+    networks:
+      - msa-network
+    ports:
+      - "8761:8761"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://discovery-service:8761" ]
+      interval: 15s # 15초마다 한번씩 체크
+      timeout: 5s # 5초 안에 완료되어야 한다.
+      retries: 3 # 3번까지 재시도 하기
+      start_period: 30s # 컨테이너 시작 후 60초 동안은 health check 실패를 무시.
+    restart: always # 컨테이너가 모종의 이유로 중지되면 무조건 재시작 시도.
+
+  gateway-service:
+    image: 940791490007.dkr.ecr.ap-northeast-2.amazonaws.com/gateway-service:latest
+    container_name: gateway-service
+    networks:
+      - msa-network
+    ports:
+      - "8000:8000"
+    depends_on:
+      # gateway는 discovery와 config가 건강해야지만 컨테이너가 시작됩니다.
+      discovery-service:
+        condition: service_healthy
+      config-service:
+        condition: service_healthy
+    restart: always
+
+  user-service:
+    image: 940791490007.dkr.ecr.ap-northeast-2.amazonaws.com/user-service:latest
+    container_name: user-service
+    networks:
+      - msa-network
+    depends_on:
+      # gateway는 discovery와 config가 건강해야지만 컨테이너가 시작됩니다.
+      discovery-service:
+        condition: service_healthy
+      config-service:
+        condition: service_healthy
+    restart: always
+
+  ordering-service:
+    image: 940791490007.dkr.ecr.ap-northeast-2.amazonaws.com/ordering-service:latest
+    container_name: order-service
+    networks:
+      - msa-network
+    depends_on:
+      # gateway는 discovery와 config가 건강해야지만 컨테이너가 시작됩니다.
+      discovery-service:
+        condition: service_healthy
+      config-service:
+        condition: service_healthy
+    restart: always
+
+  product-service:
+    image: 940791490007.dkr.ecr.ap-northeast-2.amazonaws.com/product-service:latest
+    container_name: product-service
+    networks:
+      - msa-network
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      config-service:
+        condition: service_healthy
+    restart: always
+
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    networks:
+      - msa-network
+
+
+# 서비스들이 연결될 Docker 네트워크를 정의할 수 있습니다.
+# 동일한 호스트 내에서 서로 통신할 수 있도록 해 주는 Docker의 네트워크 드라이버.
+networks:
+  msa-network:
+    driver: bridge
+
+volumes:
+  db-data: # mysql 컨테이너가 사용하는 db-data 볼륨을 docker-compose도 기억해 줌.
