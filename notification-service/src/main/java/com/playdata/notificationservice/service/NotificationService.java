@@ -1,8 +1,8 @@
-package com.playdata.messageservice.service;
+package com.playdata.notificationservice.service;
 
-import com.playdata.messageservice.dto.NotificationResponse;
-import com.playdata.messageservice.entity.Notification;
-import com.playdata.messageservice.type.NotificationType;
+import com.playdata.notificationservice.dto.NotificationResponse;
+import com.playdata.notificationservice.entity.Notification;
+import com.playdata.notificationservice.type.NotificationType;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -13,7 +13,7 @@ public interface NotificationService {
     SseEmitter subscribe(String employeeNo);
 
     @Transactional
-    void createNotification(String employeeNo, NotificationType type, String message, Long messageId);
+    NotificationResponse createNotification(String employeeNo, NotificationType type, String message, Long messageId);
 
     // 클라이언트에게 알림 전송
     void sendNotificationToClient(Notification notification);

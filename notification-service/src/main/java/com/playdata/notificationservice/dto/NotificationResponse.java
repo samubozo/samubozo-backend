@@ -1,6 +1,6 @@
-package com.playdata.messageservice.dto;
+package com.playdata.notificationservice.dto;
 
-import com.playdata.messageservice.type.NotificationType; // NotificationType import 추가
+import com.playdata.notificationservice.type.NotificationType; // NotificationType import 추가
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;

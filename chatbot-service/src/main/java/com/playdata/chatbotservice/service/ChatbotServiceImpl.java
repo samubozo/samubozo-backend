@@ -12,7 +12,7 @@ import com.playdata.chatbotservice.repository.ChatMessageRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -28,11 +28,11 @@ public class ChatbotServiceImpl implements ChatbotService {
     @Value("${ai.api.url}")
     private String aiApiUrl;
 
-    private final RestTemplate restTemplate; // RestTemplate 주입
+    private final WebClient geminiWebClient; // WebClient 주입
     private final ChatMessageRepository chatMessageRepository;
 
-    public ChatbotServiceImpl(ChatMessageRepository chatMessageRepository) {
-        this.restTemplate = new RestTemplate(); // RestTemplate 인스턴스 생성
+    public ChatbotServiceImpl(WebClient geminiWebClient, ChatMessageRepository chatMessageRepository) {
+        this.geminiWebClient = geminiWebClient;
         this.chatMessageRepository = chatMessageRepository;
     }
 
@@ -56,12 +56,13 @@ public class ChatbotServiceImpl implements ChatbotService {
 
         String botResponseContent;
         try {
-            // Gemini API 호출 (동기식)
-            GeminiResponse geminiResponse = restTemplate.postForObject(
-                    aiApiUrl + "?key=" + aiApiKey,
-                    geminiRequest,
-                    GeminiResponse.class
-            );
+            // Gemini API 호출 (비동기식)
+            GeminiResponse geminiResponse = geminiWebClient.post()
+                    .uri(uriBuilder -> uriBuilder.path("/").queryParam("key", aiApiKey).build())
+                    .bodyValue(geminiRequest)
+                    .retrieve()
+                    .bodyToMono(GeminiResponse.class)
+                    .block(); // 동기적으로 처리하기 위해 block() 사용
             botResponseContent = extractGeminiResponseContent(geminiResponse);
         } catch (HttpClientErrorException e) {
             System.err.println("AI API 호출 실패: " + e.getMessage());

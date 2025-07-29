@@ -1,9 +1,9 @@
-package com.playdata.messageservice.service;
+package com.playdata.notificationservice.service;
 
-import com.playdata.messageservice.dto.NotificationResponse;
-import com.playdata.messageservice.entity.Notification;
-import com.playdata.messageservice.repository.NotificationRepository;
-import com.playdata.messageservice.type.NotificationType; // NotificationType import 추가
+import com.playdata.notificationservice.dto.NotificationResponse;
+import com.playdata.notificationservice.entity.Notification;
+import com.playdata.notificationservice.repository.NotificationRepository;
+import com.playdata.notificationservice.type.NotificationType; // NotificationType import 추가
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -65,7 +65,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Transactional
     @Override
-    public void createNotification(String employeeNo, NotificationType type, String message, Long messageId) { // String -> NotificationType 변경
+    public NotificationResponse createNotification(String employeeNo, NotificationType type, String message, Long messageId) { // String -> NotificationType 변경
         // 1. 알림을 데이터베이스에 저장
         Notification notification = Notification.builder()
                 .employeeNo(employeeNo)
@@ -80,6 +80,7 @@ public class NotificationServiceImpl implements NotificationService {
 
         // 2. 알림 생성 후 해당 사용자에게 SSE 이벤트 전송 (온라인 사용자만)
         sendNotificationToClient(savedNotification);
+        return convertToDto(savedNotification);
     }
 
     // 클라이언트에게 알림 전송

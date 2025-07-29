@@ -1,6 +1,7 @@
-package com.playdata.messageservice.common.configs;
+package com.playdata.notificationservice.common.configs;
 
-import com.playdata.messageservice.common.auth.JwtAuthFilter;
+
+import com.playdata.notificationservice.common.auth.JwtAuthFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,6 +27,7 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(authorize ->
                         authorize
+                                .requestMatchers("/notifications/subscribe/**").authenticated()
                                 .anyRequest().authenticated()
 
                 )

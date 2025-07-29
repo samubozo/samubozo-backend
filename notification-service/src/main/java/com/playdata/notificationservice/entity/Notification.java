@@ -1,6 +1,6 @@
-package com.playdata.messageservice.entity;
+package com.playdata.notificationservice.entity;
 
-import com.playdata.messageservice.type.NotificationType; // NotificationType import 추가
+import com.playdata.notificationservice.type.NotificationType; // NotificationType import 추가
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
