@@ -56,12 +56,17 @@ public class PayrollServiceImpl implements PayrollService {
         int payYear = requestDto.getPayYear();
         int payMonth = requestDto.getPayMonth();
 
-        // ✅ 이미 존재하면 아무 작업도 하지 않음
+        //  이미 존재하면 아무 작업도 하지 않음
         Optional<Payroll> existing = payrollRepository.findByUserIdAndPayYearAndPayMonth(userId, payYear, payMonth);
-        if (existing.isPresent() && existing.get().getBasePayroll() != null && existing.get().getBasePayroll() != 0) {
-            log.info("⏩ 이미 생성된 급여가 존재하여 스킵: userId={}, {}/{}", userId, payYear, payMonth);
+        boolean isSystemCall = "system@s.com".equalsIgnoreCase(userInfo.getEmail());
+        if (isSystemCall && existing.isPresent() && existing.get().getBasePayroll() != null && existing.get().getBasePayroll() != 0) {
+            log.info("⏩ 시스템 호출: 이미 생성된 급여가 존재하여 스킵: userId={}, {}/{}", userId, payYear, payMonth);
             return toDto(existing.get());
         }
+        if (!isSystemCall && existing.isPresent()) {
+            log.info("✅ 사용자 요청: 기존 급여 정보가 존재 → 수정/덮어쓰기 진행: userId={}, {}/{}", userId, payYear, payMonth);
+        }
+
 
         String positionName = Optional.ofNullable(requestDto.getPositionName())
                 .filter(POSITION_BASE_PAY_MAP::containsKey)
@@ -113,16 +118,9 @@ public class PayrollServiceImpl implements PayrollService {
         payroll.setPayMonth(payMonth);
         payroll.setBasePayroll(basePayroll);
 
-        if (existing.isPresent()) {
-            Payroll old = existing.get();
-            payroll.setPositionAllowance(requestDto.getPositionAllowance() != null ? requestDto.getPositionAllowance() : old.getPositionAllowance());
-            payroll.setMealAllowance(requestDto.getMealAllowance() != null ? requestDto.getMealAllowance() : old.getMealAllowance());
-            payroll.setBonus(requestDto.getBonus() != null ? requestDto.getBonus() : old.getBonus());
-        } else {
-            payroll.setPositionAllowance(positionAllowance);
-            payroll.setMealAllowance(mealAllowance);
-            payroll.setBonus(bonus);
-        }
+        payroll.setPositionAllowance(Optional.ofNullable(requestDto.getPositionAllowance()).orElse(positionAllowance));
+        payroll.setMealAllowance(Optional.ofNullable(requestDto.getMealAllowance()).orElse(mealAllowance));
+        payroll.setBonus(Optional.ofNullable(requestDto.getBonus()).orElse(bonus));
 
         long finalPay = basePayroll + positionAllowance + mealAllowance + bonus + overtimePay;
 
