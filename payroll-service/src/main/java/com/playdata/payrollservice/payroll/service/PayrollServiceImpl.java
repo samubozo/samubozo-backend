@@ -9,8 +9,11 @@ import com.playdata.payrollservice.payroll.entity.Payroll;
 import com.playdata.payrollservice.payroll.repository.PayrollRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -31,14 +34,46 @@ public class PayrollServiceImpl implements PayrollService {
             "선임", 4500000,
             "사원", 3000000
     );
+    private static final Map<String, Integer> POSITION_ALLOWANCE_MAP = Map.of(
+            "사장", 1000000,
+            "부장", 800000,
+            "책임", 600000,
+            "선임", 400000,
+            "사원", 300000
+    );
+    private static final Map<String, Integer> POSITION_MEAL_ALLOWANCE_MAP = Map.of(
+            "사장", 300000,
+            "부장", 260000,
+            "책임", 260000,
+            "선임", 260000,
+            "사원", 260000
+    );
 
     @Override
     public PayrollResponseDto savePayroll(PayrollRequestDto requestDto, TokenUserInfo userInfo) {
+
         Long userId = requestDto.getUserId();
         int payYear = requestDto.getPayYear();
         int payMonth = requestDto.getPayMonth();
-        int positionAllowance = Optional.ofNullable(requestDto.getPositionAllowance()).orElse(0);
-        int mealAllowance = Optional.ofNullable(requestDto.getMealAllowance()).orElse(0);
+
+        // ✅ 이미 존재하면 아무 작업도 하지 않음
+        Optional<Payroll> existing = payrollRepository.findByUserIdAndPayYearAndPayMonth(userId, payYear, payMonth);
+        if (existing.isPresent() && existing.get().getBasePayroll() != null && existing.get().getBasePayroll() != 0) {
+            log.info("⏩ 이미 생성된 급여가 존재하여 스킵: userId={}, {}/{}", userId, payYear, payMonth);
+            return toDto(existing.get());
+        }
+
+        String positionName = Optional.ofNullable(requestDto.getPositionName())
+                .filter(POSITION_BASE_PAY_MAP::containsKey)
+                .orElseGet(() -> getUserPosition(userId));
+        int positionAllowance = Optional.ofNullable(requestDto.getPositionAllowance())
+                .filter(p -> p != 0) // 0이면 무시
+                .orElse(POSITION_ALLOWANCE_MAP.getOrDefault(positionName, 0)); // 직급에 맞는 수당
+
+        int mealAllowance = Optional.ofNullable(requestDto.getMealAllowance())
+                .filter(m -> m != 0)
+                .orElse(POSITION_MEAL_ALLOWANCE_MAP.getOrDefault(positionName, 0)); // 식대도 고정값 적용
+
         int bonus = Optional.ofNullable(requestDto.getBonus()).orElse(0);
 
         log.info("🪾 Attendance 조회 요청 - 대상 userId={}, 로그인한 userId={}, HR 여부={}",
@@ -57,10 +92,6 @@ public class PayrollServiceImpl implements PayrollService {
                 .mapToLong(dto -> parseToMinutes(dto.getTotalWorkTime()))
                 .sum();
 
-        String positionName = Optional.ofNullable(requestDto.getPositionName())
-                .filter(POSITION_BASE_PAY_MAP::containsKey)
-                .orElseGet(() -> getUserPosition(userId));
-
         log.info("🔍 결정된 positionName: {}", positionName);
 
         Integer defaultBasePayroll = POSITION_BASE_PAY_MAP.get(positionName);
@@ -75,7 +106,6 @@ public class PayrollServiceImpl implements PayrollService {
         long overtimePay = (totalOvertimeMinutes >= 60)
                 ? Math.round((totalOvertimeMinutes / 60.0) * hourlyWage * 1.5) : 0;
 
-        Optional<Payroll> existing = payrollRepository.findByUserIdAndPayYearAndPayMonth(userId, payYear, payMonth);
         Payroll payroll = existing.orElseGet(Payroll::new);
 
         payroll.setUserId(userId);
@@ -167,6 +197,60 @@ public class PayrollServiceImpl implements PayrollService {
             return 0;
         }
     }
+
+    private List<UserResDto> getAllActiveUsersFromHR() {
+        List<UserResDto> allUsers = new ArrayList<>();
+        int page = 0, size = 100;
+
+        while (true) {
+            CommonResDto<HrClient.PageWrapper<UserResDto>> res = hrClient.getUserList(page, size);
+            HrClient.PageWrapper<UserResDto> pageData = res.getResult();
+
+            if (pageData == null || pageData.getContent().isEmpty()) break;
+
+            List<UserResDto> active = pageData.getContent().stream()
+                    .filter(u -> "Y".equals(u.getActivate()))
+                    .toList();
+
+            allUsers.addAll(active);
+
+            if (page >= pageData.getTotalPages() - 1) break;
+            page++;
+        }
+
+        return allUsers;
+    }
+
+    public void generateMonthlyPayrollForAll() {
+        int currentYear = LocalDate.now().getYear();
+        int currentMonth = LocalDate.now().getMonthValue();
+
+        log.info("📌 스케줄러: {}년 {}월 전체 재직자 급여 자동 생성 시작 (System 계정 사용)", currentYear, currentMonth);
+
+        List<UserResDto> users = getAllActiveUsersFromHR();
+
+        for (UserResDto user : users) {
+            try {
+                log.info("💼 {} ({}) 급여 생성 시도 중...", user.getUserName(), user.getPositionName());
+                PayrollRequestDto dto = PayrollRequestDto.builder()
+                        .userId(user.getEmployeeNo())
+                        .payYear(currentYear)
+                        .payMonth(currentMonth)
+                        .positionName(user.getPositionName())
+                        .build();
+
+                // 시스템 권한으로 처리
+                savePayroll(dto, TokenUserInfo.system());
+
+            } catch (Exception e) {
+                log.warn("급여 생성 실패 - userId={}: {}", user.getEmployeeNo(), e.getMessage());
+            }
+        }
+
+        log.info("✅ {}년 {}월 전체 재직자 급여 자동 생성 완료", currentYear, currentMonth);
+    }
+
+
 
     private String getUserPosition(Long userId) {
         try {

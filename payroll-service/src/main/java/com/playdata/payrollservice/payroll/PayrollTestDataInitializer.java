@@ -17,27 +17,22 @@ public class PayrollTestDataInitializer implements CommandLineRunner {
     @Override
     public void run(String... args) {
         // userId 1
-        createPayroll(1L, 2025, 7, null, 300000, 220000, 1000000);
-        createPayroll(1L, 2025, 6, 8800000, 350000, 300000);
+        createPayroll(1L, 2025, 6, null, 350000, 280000);
         createPayroll(1L, 2025, 5, 7700000, 300000, 280000);
 
         // userId 2
-        createPayroll(2L, 2025, 7, null, 280000, 110000, 800000);
         createPayroll(2L, 2025, 6, 7700000, 230000, 130000, 1000000);
         createPayroll(2L, 2025, 5, 7500000, 200000, 130000);
 
         // userId 3
-        createPayroll(3L, 2025, 7, null, 160000, 105000, 500000);
         createPayroll(3L, 2025, 6, 5600000, 120000, 105000);
         createPayroll(3L, 2025, 5, 5400000, 100000, 115000);
 
         // userId 4
-        createPayroll(4L, 2025, 7, null, 120000, 110000, 500000);
         createPayroll(4L, 2025, 6, 3300000, 150000, 105000);
         createPayroll(4L, 2025, 5, 3400000, 160000, 115000, 200000);
 
         // userId 5
-        createPayroll(5L, 2025, 7, 2900000, 150000, 105000, 500000);
         createPayroll(5L, 2025, 6, 2600000, 120000, 105000);
         createPayroll(5L, 2025, 5, 2500000, 100000, 100000, 300000);
     }
