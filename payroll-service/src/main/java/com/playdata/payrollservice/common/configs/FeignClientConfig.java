@@ -17,14 +17,21 @@ public class FeignClientConfig {
     public RequestInterceptor userHeaderForwardingInterceptor() {
         return template -> {
             ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            if (attributes == null) return;
 
-            HttpServletRequest request = attributes.getRequest();
-            copyHeader(request, template, "X-User-Email");
-            copyHeader(request, template, "X-User-Employee-No");
-            copyHeader(request, template, "X-User-Role");
+            if (attributes != null) {
+                HttpServletRequest request = attributes.getRequest();
+                copyHeader(request, template, "X-User-Email");
+                copyHeader(request, template, "X-User-Employee-No");
+                copyHeader(request, template, "X-User-Role");
+            } else {
+                template.header("X-User-Email", "system@s.com");
+                template.header("X-User-Employee-No", "-1");
+                template.header("X-User-Role", "Y");
+            }
         };
     }
+
+
 
     private void copyHeader(HttpServletRequest request, RequestTemplate template, String headerName) {
         String value = request.getHeader(headerName);

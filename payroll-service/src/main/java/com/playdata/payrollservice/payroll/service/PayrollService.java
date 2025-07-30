@@ -18,4 +18,6 @@ public interface PayrollService {
 
     // 특정 연 /월 급여 조회
     PayrollResponseDto getPayrollByMonth(Long userId, int year, int month);
+
+    void generateMonthlyPayrollForAll();
 }
