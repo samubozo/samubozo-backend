@@ -14,13 +14,10 @@ import java.time.LocalDate;
 @AllArgsConstructor
 @Builder
 public class CertificateReqDto {
-
     private Long certificateId;
-    private Long employeeNo;
     private Type type;
-    private Status status;
-    private String purpose;
     private LocalDate requestDate;
     private LocalDate approveDate;
-
+    private Status status;
+    private String purpose;
 }

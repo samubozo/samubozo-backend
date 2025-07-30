@@ -17,5 +17,6 @@ public interface VacationServiceClient {
             @RequestParam("userId") Long userId,
             @RequestParam("vacationType") String vacationType,
             @RequestParam("startDate") String startDate,
-            @RequestParam("endDate") String endDate);
+            @RequestParam("endDate") String endDate,
+            @RequestParam(value = "rejectComment", required = false) String rejectComment);
 }

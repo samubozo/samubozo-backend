@@ -1,0 +1,3266 @@
+diff --git a/attendance-service/src/main/java/com/playdata/attendanceservice/attendance/controller/AttendanceController.java b/attendance-service/src/main/java/com/playdata/attendanceservice/attendance/controller/AttendanceController.java
+index 4e529d1..7be7b7f 100644
+--- a/attendance-service/src/main/java/com/playdata/attendanceservice/attendance/controller/AttendanceController.java
++++ b/attendance-service/src/main/java/com/playdata/attendanceservice/attendance/controller/AttendanceController.java
+@@ -244,6 +244,17 @@ public class AttendanceController {
+         }
+     }
+ 
++    // payroll-service에서 호출할 수 있도록 userId를 직접 받는 API
++    @GetMapping("/feign/monthly")
++    public ResponseEntity<List<AttendanceResDto>> getMonthlyAttendanceForFeign(
++            @RequestParam Long userId,
++            @RequestParam int year,
++            @RequestParam int month) {
++        List<AttendanceResDto> result = attendanceService.getMonthlyAttendances(userId, year, month);
++        return ResponseEntity.ok(result);
++    }
++
++
+     /**
+      * API 요청 성공 시 공통 응답 객체를 생성하여 반환하는 헬퍼 메소드입니다.
+      * 이 메소드는 컨트롤러의 다른 메소드들에서 반복적으로 사용되는 성공 응답 생성을 표준화하고,
+diff --git a/auth-service/src/main/java/com/playdata/authservice/auth/controller/AuthController.java b/auth-service/src/main/java/com/playdata/authservice/auth/controller/AuthController.java
+index 61b7a23..86d2af3 100644
+--- a/auth-service/src/main/java/com/playdata/authservice/auth/controller/AuthController.java
++++ b/auth-service/src/main/java/com/playdata/authservice/auth/controller/AuthController.java
+@@ -27,14 +27,13 @@ import java.util.concurrent.TimeUnit;
+ @RequestMapping("/auth")
+ @RequiredArgsConstructor
+ @Slf4j
+-@RefreshScope // spring cloud config가 관리하는 파일의 데이터가 변경되면 빈들을 새로고침해주는 어노테이션
++@RefreshScope
+ public class AuthController {
+ 
+     private final AuthService authService;
+     private final JwtTokenProvider jwtTokenProvider;
+     private final RedisTemplate<String, Object> redisTemplate;
+ 
+-    // 로그인
+     @PostMapping("/login")
+     public ResponseEntity<?> login(@RequestBody UserLoginReqDto dto) {
+         UserLoginFeignResDto user = authService.login(dto);
+@@ -57,7 +56,6 @@ public class AuthController {
+         return new ResponseEntity<>(resDto, HttpStatus.OK);
+     }
+ 
+-    // 토큰 재발급
+     @PostMapping("/refresh")
+     public ResponseEntity<?> refreshToken(@RequestBody TokenRefreshRequestDto requestDto) {
+         try {
+@@ -83,14 +81,12 @@ public class AuthController {
+         }
+     }
+ 
+-    // 비밀번호 찾기
+     @PostMapping("/find-password")
+     public ResponseEntity<Void> sendVerificationCode(@Valid @RequestBody FindPwDto dto) {
+         authService.sendPasswordResetCode(dto.getEmail());
+         return ResponseEntity.ok().build();
+     }
+ 
+-    // 인증코드 검증
+     @PostMapping("/verify-code")
+     public ResponseEntity<CommonResDto<String>> verifyCode(@Valid @RequestBody VerifyCodeDto dto) {
+         try {
+@@ -113,7 +109,6 @@ public class AuthController {
+         }
+     }
+ 
+-    // 비밀번호 재설정
+     @PostMapping("/reset-password")
+     public ResponseEntity<CommonResDto<String>> resetPassword(@Valid @RequestBody ResetPasswordDto dto) {
+         try {
+@@ -144,14 +139,12 @@ public class AuthController {
+         }
+     }
+ 
+-    // 유요한 이메일인지 검증 요청
+     @PostMapping("/email-valid")
+     public ResponseEntity<?> emailValid(@RequestBody Map<String, String> map) {
+         String email = map.get("email");
+-        log.info("이메일 인증 요청! email: {}", email);
++
+         try {
+             String authNum = authService.mailCheck(email);
+-            // 성공: 200 + 인증번호
+             return ResponseEntity.ok(
+                     new CommonResDto<>(
+                             HttpStatus.OK,
+@@ -160,7 +153,6 @@ public class AuthController {
+                     )
+             );
+         } catch (IllegalArgumentException e) {
+-            // 중복 이메일 또는 차단 상태
+             return ResponseEntity
+                     .badRequest()
+                     .body(new CommonResDto<>(
+@@ -169,7 +161,6 @@ public class AuthController {
+                             null
+                     ));
+         } catch (RuntimeException e) {
+-            // 메일 전송 실패 등
+             return ResponseEntity
+                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                     .body(new CommonResDto<>(
+diff --git a/auth-service/src/main/java/com/playdata/authservice/auth/service/AuthService.java b/auth-service/src/main/java/com/playdata/authservice/auth/service/AuthService.java
+index c12016e..87061f4 100644
+--- a/auth-service/src/main/java/com/playdata/authservice/auth/service/AuthService.java
++++ b/auth-service/src/main/java/com/playdata/authservice/auth/service/AuthService.java
+@@ -5,29 +5,23 @@ import com.playdata.authservice.auth.dto.UserLoginReqDto;
+ import jakarta.validation.constraints.NotBlank;
+ 
+ public interface AuthService {
+-    // 로그인 인증
++
+     UserLoginFeignResDto login(UserLoginReqDto dto);
+ 
+-    // 비밀번호 찾기(인증코드 발송)
+     void sendPasswordResetCode(@NotBlank(message = "이메일을 입력해 주세요.") String email);
+ 
+     String makeAlphanumericCode(int length);
+ 
+-    // 비밀번호 재설정 인증코드 검증
+     void verifyResetCode(@NotBlank String email, @NotBlank String code);
+ 
+-    // 비밀번호 재설정(최종 적용)
+     void resetPassword(@NotBlank String email, @NotBlank String code, @NotBlank String newPassword);
+ 
+-    // 이메일 인증코드 발송
+     String mailCheck(String email);
+ 
+-    // 인증 차단 여부 (이메일 인증용)
+     boolean isBlocked(String email);
+ 
+-    // 인증 차단 (이메일 인증용)
+     void blockUser(String email);
+ 
+-    // 인증 시도 횟수 관리 (이메일 인증용)
+     int incrementAttemptCount(String email);
++
+ }
+diff --git a/auth-service/src/main/java/com/playdata/authservice/auth/service/AuthServiceImpl.java b/auth-service/src/main/java/com/playdata/authservice/auth/service/AuthServiceImpl.java
+index 0a9818e..e82c51d 100644
+--- a/auth-service/src/main/java/com/playdata/authservice/auth/service/AuthServiceImpl.java
++++ b/auth-service/src/main/java/com/playdata/authservice/auth/service/AuthServiceImpl.java
+@@ -23,7 +23,6 @@ import java.time.Duration;
+ @RequiredArgsConstructor
+ public class AuthServiceImpl implements AuthService {
+ 
+-    //필요한 객체 생성하여 주입
+     private final PasswordEncoder encoder;
+     private final RedisTemplate<String, Object>  redisTemplate;
+     private final MailSenderService mailSenderService;
+@@ -34,14 +33,12 @@ public class AuthServiceImpl implements AuthService {
+             "0123456789" + "ABCDEFGHIJKLMNOPQRSTUVWXYZ" + "abcdefghijklmnopqrstuvwxyz";
+     private static final SecureRandom random = new SecureRandom();
+ 
+-    // Redis Key 상수
+     private static final String VERIFICATION_CODE_KEY = "email_verify:code:";
+     private static final String VERIFICATION_ATTEMPT_KEY = "email_verify:attempt:";
+     private static final String VERIFICATION_BLOCK_KEY = "email_verify:block:";
+     private static final String RESET_KEY_PREFIX = "pw-reset:";
+     private static final Duration RESET_CODE_TTL = Duration.ofMinutes(5);
+ 
+-    // 로그인 인증
+     @Override
+     public UserLoginFeignResDto login(UserLoginReqDto dto) {
+ 
+@@ -59,24 +56,19 @@ public class AuthServiceImpl implements AuthService {
+         return userLoginFeignResDto;
+     }
+ 
+-    // 비밀번호 찾기(인증코드 발송)
+     @Override
+     public void sendPasswordResetCode(@NotBlank(message = "이메일을 입력해 주세요.") String email) {
+-        // 1. 회원 존재 확인
+         UserLoginFeignResDto userLoginFeignResDto = hrServiceClient.getLoginUser(email);
+         if (userLoginFeignResDto == null) {
+             throw new EntityNotFoundException("해당 이메일의 사용자를 찾을 수 없습니다.");
+         }
+ 
+-        // 2. 인증 코드 생성
+         String code = makeAlphanumericCode(9);
+ 
+-        // 3. Rediss에 저장
+         String redisKey = RESET_KEY_PREFIX + email;
+         redisTemplate.opsForValue()
+                 .set(redisKey, code, RESET_CODE_TTL);
+ 
+-        // 4. 비밀번호 재설정 메일 발송
+         try {
+             mailSenderService.sendPasswordResetMail(email, userLoginFeignResDto.getUserName(), code);
+         } catch (MessagingException e) {
+@@ -100,25 +92,20 @@ public class AuthServiceImpl implements AuthService {
+         return code;
+     }
+ 
+-    // 비밀번호 재설정 인증코드 검증
+     @Override
+     public void verifyResetCode(@NotBlank String email, @NotBlank String code) {
+-        // 1. 사용자 재확인 (옵션)
+         UserLoginFeignResDto userLoginFeignResDto = hrServiceClient.getLoginUser(email);
+         if (userLoginFeignResDto == null) {
+             throw new EntityNotFoundException("해당 이메일의 사용자를 찾을 수 없습니다.");
+         }
+ 
+-        // 인증 시도 횟수 증가
+         int attemptCount = incrementAttemptCount(email);
+ 
+-        //최대 시도 횟수 초과시 차단
+         if(attemptCount >= 5){
+             blockUser(email);
+             throw new IllegalArgumentException("너무 많이 시도하셨습니다. 30분 후에 다시 시도해주세요.");
+         }
+ 
+-        // 2. Redis에서 코드 조회
+         String key = RESET_KEY_PREFIX + email;
+         Object savedCode = redisTemplate.opsForValue().get(key);
+         if (savedCode == null) {
+@@ -129,18 +116,15 @@ public class AuthServiceImpl implements AuthService {
+         }
+     }
+ 
+-    // 비밀번호 재설정(최종 적용)
+     @Override
+     public void resetPassword(@NotBlank String email, @NotBlank String code, @NotBlank String newPassword) {
+         verifyResetCode(email, code);
+ 
+-        // 사용자 조회
+         UserLoginFeignResDto userLoginFeignResDto = hrServiceClient.getLoginUser(email);
+         if (userLoginFeignResDto == null) {
+             throw new EntityNotFoundException("해당 이메일의 사용자를 찾을 수 없습니다.");
+         }
+ 
+-        // 비밀번호 해시 후 저장
+         String encoded = encoder.encode(newPassword);
+         UserPwUpdateDto userPwUpdateDto = UserPwUpdateDto.builder()
+                 .employeeNo(userLoginFeignResDto.getEmployeeNo())
+@@ -148,15 +132,12 @@ public class AuthServiceImpl implements AuthService {
+                 .build();
+         hrServiceClient.setPassword(userPwUpdateDto);
+ 
+-        // 사용한 코드 삭제
+         redisTemplate.delete(RESET_KEY_PREFIX + email);
+     }
+ 
+-    // 이메일 인증코드 발송
+     @Override
+     public String mailCheck(String email) {
+ 
+-        // 차단 상태 확인
+         if(isBlocked(email)){
+             throw new IllegalArgumentException("잘못된 요청 횟수가 과다하여 임시 차단 중입니다. 잠시 후에 시도해주세요.");
+         }
+@@ -167,36 +148,30 @@ public class AuthServiceImpl implements AuthService {
+         }
+ 
+         String authNum;
+-        //이메일 전송만을 담당하는 객체를 이용해서 이메일 로직 작성.
+         try {
+             authNum = mailSenderService.joinMail(email);
+         } catch (MessagingException e) {
+             throw new RuntimeException("이메일 전송 과정 중 문제 발생!");
+         }
+ 
+-        //인증 코드 redis 에 저장
+         String key = VERIFICATION_CODE_KEY + email;
+         redisTemplate.opsForValue().set(key, authNum, Duration.ofMinutes(1));
+         return authNum;
+     }
+ 
+ 
+-
+-    // 인증 차단 여부 (이메일 인증용)
+     @Override
+     public boolean isBlocked(String email){
+         String key = VERIFICATION_BLOCK_KEY + email;
+         return redisTemplate.hasKey(key);
+     }
+ 
+-    // 인증 차단 (이메일 인증용)
+     @Override
+     public void blockUser(String email) {
+         String key = VERIFICATION_BLOCK_KEY + email;
+         redisTemplate.opsForValue().set(key, "blocked", Duration.ofMinutes(30));
+     }
+ 
+-    // 인증 시도 횟수 관리 (이메일 인증용)
+     @Override
+     public int incrementAttemptCount(String email){
+         String key = VERIFICATION_ATTEMPT_KEY + email;
+diff --git a/auth-service/src/main/java/com/playdata/authservice/auth/service/MailSenderService.java b/auth-service/src/main/java/com/playdata/authservice/auth/service/MailSenderService.java
+index a0f4d8a..8040cd4 100644
+--- a/auth-service/src/main/java/com/playdata/authservice/auth/service/MailSenderService.java
++++ b/auth-service/src/main/java/com/playdata/authservice/auth/service/MailSenderService.java
+@@ -4,14 +4,13 @@ import jakarta.mail.MessagingException;
+ import jakarta.validation.constraints.NotBlank;
+ 
+ public interface MailSenderService {
+-    //가입할 회원에게 전송할 이메일 양식 준비
+-    // userService 가 호출할 메서드
++
+     String joinMail(String email) throws MessagingException;
+ 
+-    // 여기서 실제 이메일이 전송
+     void mailSend(String setFrom, String toMail, String title, String content) throws MessagingException;
+ 
+     int makeRandomNumber();
+ 
+     void sendPasswordResetMail(@NotBlank(message = "이메일을 입력해 주세요.") String email, String userName, String code) throws MessagingException;
++
+ }
+diff --git a/auth-service/src/main/java/com/playdata/authservice/auth/service/MailSenderServiceImpl.java b/auth-service/src/main/java/com/playdata/authservice/auth/service/MailSenderServiceImpl.java
+index 6c7260c..a18083b 100644
+--- a/auth-service/src/main/java/com/playdata/authservice/auth/service/MailSenderServiceImpl.java
++++ b/auth-service/src/main/java/com/playdata/authservice/auth/service/MailSenderServiceImpl.java
+@@ -14,15 +14,12 @@ import org.springframework.stereotype.Component;
+ @Slf4j
+ public class MailSenderServiceImpl implements MailSenderService {
+ 
+-    // EmailConfig 에 선언한 메일 전송 핵심객체 주입받기
+     private final JavaMailSender mailSender;
+ 
+-    //가입할 회원에게 전송할 이메일 양식 준비
+-    // userService 가 호출할 메서드
+     @Override
+     public String joinMail(String email) throws MessagingException {
+         int authNum = makeRandomNumber();
+-        String setFrom = "gh939@naver.com"; // 발신용 이메일 주소 (yml과 동일하게)
++        String setFrom = "gh939@naver.com";
+         String title = "SAMUBOZO ERP 비밀번호 재설정 인증 코드 안내";
+         String content = "<strong>[사무보조 ERP 회원가입 인증번호 안내]</strong><br><br>" +
+                         "안녕하세요.<br>" +
+@@ -31,35 +28,27 @@ public class MailSenderServiceImpl implements MailSenderService {
+                         "<strong>인증번호: " + authNum + "</strong><br><br>" +
+                         "- 이 코드는 발송 시점부터 5분간 유효합니다.<br>" +
+                         "- 본 메일은 사내 ERP 비밀번호 찾기 신청 시 자동 발송됩니다.<br><br>" +
+-                        "사무보조 ERP 시스템 드림"; // 이메일에 삽입할 내용 (더 꾸며보세요)
++                        "사무보조 ERP 시스템 드림";
+         mailSend(setFrom, email, title, content);
+ 
+         return Integer.toString(authNum);
+     }
+ 
+-    // 여기서 실제 이메일이 전송
+     @Override
+     public void mailSend(String setFrom, String toMail, String title, String content) throws MessagingException {
+-        // MimeMessage란 JavaMail 라이브러리에서 이메일 메세지를 나타내는 클래스. (생성, 설정, 수정, 전송 담당)
+         MimeMessage mimeMessage = mailSender.createMimeMessage();
+-        /*
+-            기타 설정들을 담당할 MimeMessageHelper 객체를 생성
+-            생성자의 매개값으로 MimeMessage 객체, bool, 문자 인코딩 설정
+-            true 매개값을 전달하면 MultiPart 형식의 메세지 전달이 가능 (첨부 파일)
+-        */
++
+         MimeMessageHelper mimeMessageHelper = new MimeMessageHelper(mimeMessage, false, "utf-8");
+         mimeMessageHelper.setFrom(setFrom);
+         mimeMessageHelper.setTo(toMail);
+         mimeMessageHelper.setSubject(title);
+-        // 내용 채우기 true안하면 단순텍스트로 감
+         mimeMessageHelper.setText(content, true);
+-        //메일 전
++
+         mailSender.send(mimeMessage);
+     }
+ 
+     @Override
+     public int makeRandomNumber() {
+-        //난수의 범위: 111111~999999
+         int v =(int) ((Math.random() * 999999) + 111111);
+         log.info("check number is {}", v);
+         return v;
+diff --git a/certificate-service/src/main/java/com/playdata/certificateservice/service/CertificateService.java b/certificate-service/src/main/java/com/playdata/certificateservice/service/CertificateService.java
+index 2514509..3706e6a 100644
+--- a/certificate-service/src/main/java/com/playdata/certificateservice/service/CertificateService.java
++++ b/certificate-service/src/main/java/com/playdata/certificateservice/service/CertificateService.java
+@@ -13,6 +13,7 @@ import org.springframework.data.domain.Pageable;
+ import org.springframework.transaction.annotation.Transactional;
+ 
+ import java.io.IOException;
++import java.io.InputStream;
+ 
+ public interface CertificateService {
+     // 증명서 신청
+@@ -31,7 +32,7 @@ public interface CertificateService {
+     // 내 증명서 인쇄
+     byte[] generateMyCertificatePdf(TokenUserInfo userInfo, Long id);
+ 
+-    byte[] generatePdf(Certificate certificate, UserFeignResDto userInfo) throws IOException;
++    byte[] generatePdf(Certificate certificate, UserFeignResDto userInfo, InputStream fontStream) throws IOException;
+ 
+     // 텍스트를 셀 중앙에 그리는 함수
+     void drawCellText(PDPageContentStream cs, String text, PDFont font, int fontSize,
+diff --git a/certificate-service/src/main/java/com/playdata/certificateservice/service/CertificateServiceImpl.java b/certificate-service/src/main/java/com/playdata/certificateservice/service/CertificateServiceImpl.java
+index ba9c185..b9d72ee 100644
+--- a/certificate-service/src/main/java/com/playdata/certificateservice/service/CertificateServiceImpl.java
++++ b/certificate-service/src/main/java/com/playdata/certificateservice/service/CertificateServiceImpl.java
+@@ -39,6 +39,7 @@ import org.springframework.http.HttpStatus;
+ import java.io.ByteArrayOutputStream;
+ import java.io.FileInputStream;
+ import java.io.IOException;
++import java.io.InputStream;
+ import java.time.LocalDateTime; // 추가
+ import java.util.HashMap;
+ import java.util.Objects;
+@@ -216,15 +217,15 @@ public class CertificateServiceImpl implements CertificateService {
+         log.info("generateCertificatePdf - userInfo: {}", userInfoRes); // 주민등록번호 포함 확인
+         if (userInfoRes == null) throw new EntityNotFoundException("유저 정보 없음");
+ 
+-        try {
+-            return generatePdf(certificate, userInfoRes);
++        try (InputStream fontStream = new ClassPathResource("fonts/NanumGothic.ttf").getInputStream()){
++            return generatePdf(certificate, userInfoRes, fontStream);
+         } catch (IOException e) {
+             throw new RuntimeException("PDF 생성 실패", e);
+         }
+     }
+ 
+     @Override
+-    public byte[] generatePdf(Certificate certificate, UserFeignResDto userInfo) throws IOException {
++    public byte[] generatePdf(Certificate certificate, UserFeignResDto userInfo,  InputStream fontStream) throws IOException {
+         try (PDDocument document = new PDDocument(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+             PDPage page = new PDPage();
+             document.addPage(page);
+@@ -339,7 +340,7 @@ public class CertificateServiceImpl implements CertificateService {
+                 if (certificate.getType() != null) {
+                     footerText = switch (certificate.getType().name()) {
+                         case "EMPLOYMENT" -> "상기와 같이 재직 중임을 증명함";
+-                        case "CAREER" -> "경력증명서";
++                        case "CAREER" -> "상기와 같이 근무하였음을 증명함";
+                         default -> "상기와 같이 사실임을 증명함";
+                     };
+                 } else {
+@@ -377,7 +378,7 @@ public class CertificateServiceImpl implements CertificateService {
+                 cs.setFont(font, 16);
+                 float corpWidth = font.getStringWidth("회사명 : " + corpName) / 1000 * 16;
+                 cs.newLineAtOffset((pageWidth - corpWidth) / 2, bottomY + 45);
+-                cs.showText(corpName);
++                cs.showText("회사명 : " + corpName);
+                 cs.endText();
+ 
+                 // 대표이사 (간격 +10)
+diff --git a/certificate-service/src/main/resources/data.sql b/certificate-service/src/main/resources/data.sql
+deleted file mode 100644
+index 86ca7ac..0000000
+--- a/certificate-service/src/main/resources/data.sql
++++ /dev/null
+@@ -1,13 +0,0 @@
+--- 증명서 더미 데이터 10건 (certificate_id는 자동 증가)
+-INSERT INTO samubozo.tbl_certificates
+-(employee_no, type, status, purpose, request_date, approve_date) VALUES
+-                                                                     (1, 'EMPLOYMENT', 'REQUESTED', '은행제출용', '2025-07-10', NULL),
+-                                                                     (1, 'CAREER',    'APPROVED',  '이직용',   '2025-07-09', '2025-07-10'),
+-                                                                     (2, 'EMPLOYMENT', 'REJECTED', '비자발급', '2025-07-08', NULL),
+-                                                                     (2, 'CAREER',    'REQUESTED', '해외연수', '2025-07-07', NULL),
+-                                                                     (3, 'EMPLOYMENT', 'APPROVED', '기타',     '2025-07-06', '2025-07-07'),
+-                                                                     (3, 'CAREER',    'REQUESTED', '은행제출용', '2025-07-05', NULL),
+-                                                                     (4, 'EMPLOYMENT', 'APPROVED', '이직용',   '2025-07-04', '2025-07-05'),
+-                                                                     (5, 'CAREER',    'REJECTED',  '비자발급', '2025-07-03', NULL),
+-                                                                     (5, 'EMPLOYMENT', 'APPROVED', '해외연수', '2025-07-02', '2025-07-03'),
+-                                                                     (2, 'CAREER',    'REQUESTED', '기타',     '2025-07-01', NULL);
+\ No newline at end of file
+diff --git a/certificate-service/src/main/resources/nanum-gothic/NanumGothic.otf b/certificate-service/src/main/resources/nanum-gothic/NanumGothic.otf
+new file mode 100644
+index 0000000..a8d8d7b
+Binary files /dev/null and b/certificate-service/src/main/resources/nanum-gothic/NanumGothic.otf differ
+diff --git a/certificate-service/src/main/resources/nanum-gothic/NanumGothic.ttf b/certificate-service/src/main/resources/nanum-gothic/NanumGothic.ttf
+new file mode 100644
+index 0000000..75d010a
+Binary files /dev/null and b/certificate-service/src/main/resources/nanum-gothic/NanumGothic.ttf differ
+diff --git a/certificate-service/src/main/resources/nanum-gothic/NanumGothicBold.otf b/certificate-service/src/main/resources/nanum-gothic/NanumGothicBold.otf
+new file mode 100644
+index 0000000..d8383a3
+Binary files /dev/null and b/certificate-service/src/main/resources/nanum-gothic/NanumGothicBold.otf differ
+diff --git a/certificate-service/src/main/resources/nanum-gothic/NanumGothicBold.ttf b/certificate-service/src/main/resources/nanum-gothic/NanumGothicBold.ttf
+new file mode 100644
+index 0000000..b7abf01
+Binary files /dev/null and b/certificate-service/src/main/resources/nanum-gothic/NanumGothicBold.ttf differ
+diff --git a/certificate-service/src/main/resources/nanum-gothic/NanumGothicExtraBold.otf b/certificate-service/src/main/resources/nanum-gothic/NanumGothicExtraBold.otf
+new file mode 100644
+index 0000000..32a43bd
+Binary files /dev/null and b/certificate-service/src/main/resources/nanum-gothic/NanumGothicExtraBold.otf differ
+diff --git a/certificate-service/src/main/resources/nanum-gothic/NanumGothicExtraBold.ttf b/certificate-service/src/main/resources/nanum-gothic/NanumGothicExtraBold.ttf
+new file mode 100644
+index 0000000..2c15f95
+Binary files /dev/null and b/certificate-service/src/main/resources/nanum-gothic/NanumGothicExtraBold.ttf differ
+diff --git a/certificate-service/src/main/resources/nanum-gothic/NanumGothicLight.otf b/certificate-service/src/main/resources/nanum-gothic/NanumGothicLight.otf
+new file mode 100644
+index 0000000..83e8173
+Binary files /dev/null and b/certificate-service/src/main/resources/nanum-gothic/NanumGothicLight.otf differ
+diff --git a/certificate-service/src/main/resources/nanum-gothic/NanumGothicLight.ttf b/certificate-service/src/main/resources/nanum-gothic/NanumGothicLight.ttf
+new file mode 100644
+index 0000000..5c875b1
+Binary files /dev/null and b/certificate-service/src/main/resources/nanum-gothic/NanumGothicLight.ttf differ
+diff --git a/gateway-service/src/main/java/com/playdata/gatewayservice/filter/AuthorizationHeaderFilter.java b/gateway-service/src/main/java/com/playdata/gatewayservice/filter/AuthorizationHeaderFilter.java
+index e7c315a..6400eb1 100644
+--- a/gateway-service/src/main/java/com/playdata/gatewayservice/filter/AuthorizationHeaderFilter.java
++++ b/gateway-service/src/main/java/com/playdata/gatewayservice/filter/AuthorizationHeaderFilter.java
+@@ -39,6 +39,7 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
+             ,"/auth/find-password"
+             ,"/auth/reset-password"
+             ,"/auth/refresh"
++            ,"/notifications/mark-read-by-message-id"
+     );
+ 
+     @Override
+@@ -122,4 +123,4 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
+             return null;
+         }
+     }
+-}
++}
+\ No newline at end of file
+diff --git a/gateway-service/src/main/resources/application.yml b/gateway-service/src/main/resources/application.yml
+index 4ddf169..e637a6b 100644
+--- a/gateway-service/src/main/resources/application.yml
++++ b/gateway-service/src/main/resources/application.yml
+@@ -133,6 +133,16 @@ spring:
+             - RewritePath=/message-service/(?<segment>.*), /$\{segment}
+             - AuthorizationHeaderFilter
+ 
++        #알림 서비스
++        - id: notification-service
++          uri: lb://NOTIFICATION-SERVICE
++          predicates:
++            - Path=/notification-service/**
++          filters:
++            - RemoveRequestHeader=Cookie
++            - RewritePath=/notification-service/(?<segment>.*), /$\{segment}
++            - AuthorizationHeaderFilter
++
+         #결재 서비스
+         - id: approval-service
+           uri: lb://APPROVAL-SERVICE
+diff --git a/hr-service/src/main/java/com/playdata/hrservice/hr/controller/HRController.java b/hr-service/src/main/java/com/playdata/hrservice/hr/controller/HRController.java
+index 0b0a48a..16776c6 100644
+--- a/hr-service/src/main/java/com/playdata/hrservice/hr/controller/HRController.java
++++ b/hr-service/src/main/java/com/playdata/hrservice/hr/controller/HRController.java
+@@ -1,15 +1,16 @@
+ package com.playdata.hrservice.hr.controller;
++
+ import com.playdata.hrservice.common.auth.TokenUserInfo;
+ import com.playdata.hrservice.common.dto.CommonResDto;
+ import com.playdata.hrservice.hr.dto.*;
+-import com.playdata.hrservice.hr.service.*;
++import com.playdata.hrservice.hr.service.DepartmentService;
++import com.playdata.hrservice.hr.service.PositionService;
++import com.playdata.hrservice.hr.service.UserService;
+ import jakarta.validation.Valid;
+ import lombok.RequiredArgsConstructor;
+ import lombok.extern.slf4j.Slf4j;
+ import org.springframework.cloud.context.config.annotation.RefreshScope;
+-import org.springframework.core.env.Environment;
+ import org.springframework.data.domain.Pageable;
+-import org.springframework.data.redis.core.RedisTemplate;
+ import org.springframework.data.web.PageableDefault;
+ import org.springframework.http.HttpStatus;
+ import org.springframework.http.MediaType;
+@@ -17,7 +18,6 @@ import org.springframework.http.ResponseEntity;
+ import org.springframework.security.core.annotation.AuthenticationPrincipal;
+ import org.springframework.web.bind.annotation.*;
+ 
+-
+ import java.time.LocalDate;
+ import java.util.List;
+ import java.util.Map;
+@@ -26,7 +26,7 @@ import java.util.Map;
+ @RequestMapping("/hr")
+ @RequiredArgsConstructor
+ @Slf4j
+-@RefreshScope // spring cloud config가 관리하는 파일의 데이터가 변경되면 빈들을 새로고침해주는 어노테이션
++@RefreshScope
+ public class HRController {
+ 
+     private final UserService userService;
+@@ -34,7 +34,6 @@ public class HRController {
+     private final PositionService positionService;
+ 
+ 
+-    // 직원 계정 생성(등록)
+     @PostMapping("/users/signup")
+     public ResponseEntity<?> createUser(@Valid @RequestBody UserSaveReqDto dto, @AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
+         String hrRole = tokenUserInfo.getHrRole();
+@@ -43,7 +42,6 @@ public class HRController {
+         return new ResponseEntity<>(resDto, HttpStatus.CREATED);
+     }
+ 
+-    // 프로필
+     @PostMapping("/user/profile")
+     public ResponseEntity<?> uploadProfile(@ModelAttribute UserRequestDto dto) throws Exception{
+         String newProfile = userService.uploadProfile(dto);
+@@ -52,32 +50,29 @@ public class HRController {
+         return new ResponseEntity<>(resDto, HttpStatus.OK);
+     }
+ 
+-    // feign client 요청을 위한 메서드
+-    // 이메일로 유저 정보 얻어오기
+-    // 로그인 용으로 간략 정보 얻을 때 쓰기
+     @GetMapping("/user/feign/{email}")
+     public UserLoginFeignResDto getLoginUser(@PathVariable String email) {
+         return userService.getUserByEmail(email);
+     }
+ 
+-    // 인증되어 권한있는 사람이 요청할 수 있는 상세 정보 조회 API
+     @GetMapping("/users/detail")
+     public ResponseEntity<CommonResDto<UserFeignResDto>> getMyUserInfo(@AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
+         String email = tokenUserInfo.getEmail();
+         UserFeignResDto user = userService.getEmployeeByEmail(email);
+-        log.info("HR Service - getMyUserInfo: UserFeignResDto hrRole = {}", user.getHrRole()); // 로그 추가
+-        CommonResDto<UserFeignResDto> resDto = new CommonResDto<>(HttpStatus.OK, "User info retrieved successfully", user);
++        CommonResDto<UserFeignResDto> resDto = new CommonResDto<>(HttpStatus.OK,
++                "User info retrieved successfully", user);
+         return new ResponseEntity<>(resDto, HttpStatus.OK);
+     }
+ 
+-    // 인증된 사용자가 employeeNo로 상세정보 요청할 수 있는 API
+     @GetMapping("/users/feign/{employeeNo}")
+     public ResponseEntity<CommonResDto<UserFeignResDto>> getUserById(@PathVariable Long employeeNo) {
+         UserFeignResDto user = userService.getEmployeeById(employeeNo);
+         if (user == null) {
+-            return new ResponseEntity<>(new CommonResDto<>(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다.", null), HttpStatus.NOT_FOUND);
++            return new ResponseEntity<>(new CommonResDto<>(HttpStatus.NOT_FOUND,
++                    "사용자를 찾을 수 없습니다.", null), HttpStatus.NOT_FOUND);
+         }
+-        return new ResponseEntity<>(new CommonResDto<>(HttpStatus.OK, "User info retrieved successfully", user), HttpStatus.OK);
++        return new ResponseEntity<>(new CommonResDto<>(HttpStatus.OK,
++                "User info retrieved successfully", user), HttpStatus.OK);
+     }
+ 
+     @PostMapping("/user/password")
+@@ -86,7 +81,6 @@ public class HRController {
+         return new ResponseEntity<>(HttpStatus.OK);
+     }
+ 
+-    // 사용자 정보 수정
+     @PatchMapping(value = "/users/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+     public ResponseEntity<?> updateUser(
+             @PathVariable("id") Long employeeNo,
+@@ -97,8 +91,6 @@ public class HRController {
+         return new ResponseEntity<>(HttpStatus.OK);
+     }
+ 
+-    // 직원 리스트 조회
+-    // 직원 조회 (기존 listUsers)
+     @GetMapping("/user/list")
+     public ResponseEntity<?> listUsers(@PageableDefault(sort = "employeeNo")Pageable pageable,
+                                        @AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
+@@ -107,89 +99,77 @@ public class HRController {
+                 userService.listUsers(pageable, hrRole)), HttpStatus.OK);
+     }
+ 
+-    // 사용자 검색 엔드포인트 수정 (조건에 따라 페이징 또는 전체 리스트 반환)
+     @GetMapping("/users/search")
+     public ResponseEntity<?> searchUsers(
+             @RequestParam(required = false) String userName,
+             @RequestParam(required = false) String departmentName,
+             @RequestParam(required = false) String hrRole,
+-            @PageableDefault(sort = "employeeNo") Pageable pageable) { // Pageable은 검색 조건 없을 때만 사용
++            @PageableDefault(sort = "employeeNo") Pageable pageable) {
+         Object result;
+         if (userName != null || departmentName != null || hrRole != null) {
+-            // 검색 조건이 있을 경우, 페이징 없이 전체 리스트 반환
+-            result = userService.searchUsers(userName, departmentName, hrRole, null); // Pageable을 null로 전달
++            result = userService.searchUsers(userName, departmentName, hrRole, null);
+         } else {
+-            // 검색 조건이 없을 경우, 페이징 적용
+             result = userService.searchUsers(null, null, null, pageable);
+         }
+-        return new ResponseEntity<>(new CommonResDto<>(HttpStatus.OK, "Success", result), HttpStatus.OK);
++        return new ResponseEntity<>(new CommonResDto<>(HttpStatus.OK,
++                "Success", result), HttpStatus.OK);
+     }
+ 
+-    // 부서 정보 조회 API
+     @GetMapping("/departments")
+     public ResponseEntity<?> getAllDepartments() {
+         List<DepartmentResDto> departments = departmentService.getAllDepartments();
+-        CommonResDto<List<DepartmentResDto>> resDto = new CommonResDto<>(HttpStatus.OK, "Departments retrieved successfully", departments);
++        CommonResDto<List<DepartmentResDto>> resDto = new CommonResDto<>(HttpStatus.OK,
++                "Departments retrieved successfully", departments);
+         return new ResponseEntity<>(resDto, HttpStatus.OK);
+     }
+ 
+-    // 부서 추가
+     @PostMapping(value = "/departments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+     public ResponseEntity<?> createDepartment(@ModelAttribute DepartmentReqDto dto) {
+-        log.info("Create department : {}", dto);
+         departmentService.createDepartment(dto);
+         return ResponseEntity.ok().build();
+     }
+ 
+-    // 부서 수정
+     @PutMapping(value = "/departments/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+     public ResponseEntity<?> updateDepartment(@PathVariable("id") Long departmentId, @ModelAttribute DepartmentReqDto dto) {
+         departmentService.updateDepartment(departmentId, dto);
+         return ResponseEntity.ok().build();
+     }
+ 
+-    // 부서 삭제
+     @DeleteMapping("/departments/{id}")
+     public ResponseEntity<?> deleteDepartment(@PathVariable("id") Long departmentId) {
+         departmentService.deleteDepartment(departmentId);
+         return ResponseEntity.noContent().build();
+     }
+ 
+-    // 직책 정보 조회 API
+     @GetMapping("/positions")
+     public ResponseEntity<?> getAllPositions() {
+         List<PositionResDto> positions = positionService.getAllPositions();
+-        CommonResDto<List<PositionResDto>> resDto = new CommonResDto<>(HttpStatus.OK, "Positions retrieved successfully", positions);
++        CommonResDto<List<PositionResDto>> resDto = new CommonResDto<>(HttpStatus.OK,
++                "Positions retrieved successfully", positions);
+         return new ResponseEntity<>(resDto, HttpStatus.OK);
+     }
+ 
+-    // 직원 상세 조회
+     @GetMapping("/user/{id}")
+     public ResponseEntity<?> getUserDetail(@PathVariable("id") Long employeeNo) {
+-        return new ResponseEntity<>(new CommonResDto<>(HttpStatus.OK, "Success", userService.getUserByEmployeeNo(employeeNo)), HttpStatus.OK);
++        return new ResponseEntity<>(new CommonResDto<>(HttpStatus.OK,
++                "Success", userService.getUserByEmployeeNo(employeeNo)), HttpStatus.OK);
+     }
+ 
+-
+-    // Feign client 요청을 위한 메서드: employeeNo로 유저 정보 얻어오기
+     @GetMapping("/user/feign/employeeNo/{employeeNo}")
+     public UserFeignResDto getUserByEmployeeNo(@PathVariable Long employeeNo) {
+         return userService.getEmployeeByEmployeeNo(employeeNo);
+     }
+ 
+-    // Feign client 요청을 위한 메서드: userName으로 유저 정보 얻어오기 (리스트 반환)
+     @GetMapping("/user/feign/userName/{userName}")
+     public List<UserFeignResDto> getUserByUserName(@PathVariable String userName) {
+         return userService.getEmployeeByUserName(userName);
+     }
+ 
+-    // Feign client 요청을 위한 메서드: ID 목록으로 유저 정보 얻어오기
+     @GetMapping("/users")
+     public List<UserResDto> getUsersInfo(@RequestParam("userIds") List<Long> userIds) {
+         return userService.getUsersByIds(userIds);
+     }
+ 
+-    // 특정 사용자가 특정 날짜에 승인된 외부 일정(출장, 연수 등)이 있는지 확인합니다.
+-    // AttendanceService에서 FeignClient를 통해 호출됩니다.
+     @GetMapping("/schedules/approved")
+     public ResponseEntity<Boolean> hasApprovedExternalSchedule(
+             @RequestParam("userId") Long userId,
+@@ -198,8 +178,6 @@ public class HRController {
+         return ResponseEntity.ok(hasSchedule);
+     }
+ 
+-    // 특정 사용자가 특정 날짜에 승인된 외부 일정의 종류를 반환합니다.
+-    // AttendanceService에서 FeignClient를 통해 호출됩니다.
+     @GetMapping("/schedules/approved-type")
+     public ResponseEntity<String> getApprovedExternalScheduleType(
+             @RequestParam("userId") Long userId,
+@@ -208,7 +186,6 @@ public class HRController {
+         return ResponseEntity.ok(scheduleType);
+     }
+ 
+-    // 직원 퇴사 처리
+     @PatchMapping("/users/retire/{id}")
+     public ResponseEntity<?> retireUser(@PathVariable("id") Long employeeNo,
+                                         @AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
+@@ -218,20 +195,13 @@ public class HRController {
+ 
+     }
+ 
+-    /**
+-     * 특정 연도와 월에 입사 1주년을 맞이하는 사용자 목록을 조회합니다.
+-     * AttendanceService에서 FeignClient를 통해 호출됩니다.
+-     *
+-     * @param year 조회할 연도 (입사일 기준)
+-     * @param month 조회할 월 (입사일 기준)
+-     * @return 해당 월에 입사 1주년을 맞이하는 사용자 정보 DTO 목록
+-     */
+     @GetMapping("/anniversary/monthly")
+     public ResponseEntity<CommonResDto<List<UserResDto>>> getUsersWithFirstAnniversaryInMonth(
+             @RequestParam("year") int year,
+             @RequestParam("month") int month) {
+         List<UserResDto> users = userService.getUsersWithFirstAnniversaryInMonth(year, month);
+-        return new ResponseEntity<>(new CommonResDto(HttpStatus.OK, "Success", users), HttpStatus.OK);
++        return new ResponseEntity<>(new CommonResDto(HttpStatus.OK,
++                "Success", users), HttpStatus.OK);
+     }
+ }
+ 
+diff --git a/hr-service/src/main/java/com/playdata/hrservice/hr/service/DepartmentService.java b/hr-service/src/main/java/com/playdata/hrservice/hr/service/DepartmentService.java
+index f39095d..0a71d3e 100644
+--- a/hr-service/src/main/java/com/playdata/hrservice/hr/service/DepartmentService.java
++++ b/hr-service/src/main/java/com/playdata/hrservice/hr/service/DepartmentService.java
+@@ -9,15 +9,12 @@ import java.util.List;
+ public interface DepartmentService {
+     List<DepartmentResDto> getAllDepartments();
+ 
+-    // 부서 추가
+     @Transactional
+     void createDepartment(DepartmentReqDto dto);
+ 
+-    // 부서 수정
+     @Transactional
+     void updateDepartment(Long departmentId, DepartmentReqDto dto);
+ 
+-    // 부서 삭제
+     @Transactional
+     void deleteDepartment(Long departmentId);
+ }
+diff --git a/hr-service/src/main/java/com/playdata/hrservice/hr/service/DepartmentServiceImpl.java b/hr-service/src/main/java/com/playdata/hrservice/hr/service/DepartmentServiceImpl.java
+index ffb57be..4cd7bc0 100644
+--- a/hr-service/src/main/java/com/playdata/hrservice/hr/service/DepartmentServiceImpl.java
++++ b/hr-service/src/main/java/com/playdata/hrservice/hr/service/DepartmentServiceImpl.java
+@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
+ public class DepartmentServiceImpl implements DepartmentService {
+ 
+     private final DepartmentRepository departmentRepository;
+-    private final UserRepository userRepository; // 추가
++    private final UserRepository userRepository;
+     private final AwsS3Config awsS3Config;
+ 
+     @Override
+@@ -33,16 +33,13 @@ public class DepartmentServiceImpl implements DepartmentService {
+                 .collect(Collectors.toList());
+     }
+ 
+-    // 부서 추가
+     @Transactional
+     @Override
+     public void createDepartment(DepartmentReqDto dto) {
+-        // 부서명 중복 체크
+         if (departmentRepository.existsByName(dto.getName())) {
+             throw new IllegalArgumentException("이미 사용 중인 부서명입니다.");
+         }
+ 
+-        // 컬러 중복 체크
+         if (departmentRepository.existsByDepartmentColor(dto.getDepartmentColor())) {
+             throw new IllegalArgumentException("이미 사용 중인 부서 색상입니다.");
+         }
+@@ -67,19 +64,16 @@ public class DepartmentServiceImpl implements DepartmentService {
+         departmentRepository.save(department);
+     }
+ 
+-    // 부서 수정
+     @Transactional
+     @Override
+     public void updateDepartment(Long departmentId, DepartmentReqDto dto) {
+         Department department = departmentRepository.findById(departmentId)
+                 .orElseThrow(() -> new EntityNotFoundException("Department not found with ID: " + departmentId));
+ 
+-        // 부서명 중복 체크 (자신 제외)
+         if (departmentRepository.existsByName(dto.getName()) && !department.getName().equals(dto.getName())) {
+             throw new IllegalArgumentException("이미 사용 중인 부서명입니다.");
+         }
+ 
+-        // 컬러 중복 체크 (자신 제외)
+         if (departmentRepository.existsByDepartmentColor(dto.getDepartmentColor()) && !department.getDepartmentColor().equals(dto.getDepartmentColor())) {
+             throw new IllegalArgumentException("이미 사용 중인 부서 색상입니다.");
+         }
+@@ -114,19 +108,16 @@ public class DepartmentServiceImpl implements DepartmentService {
+         departmentRepository.save(department);
+     }
+ 
+-    // 부서 삭제
+     @Transactional
+     @Override
+     public void deleteDepartment(Long departmentId) {
+         Department department = departmentRepository.findById(departmentId)
+                 .orElseThrow(() -> new EntityNotFoundException("Department not found with ID: " + departmentId));
+ 
+-        // 해당 부서에 속한 직원이 있는지 확인
+         if (userRepository.existsByDepartmentDepartmentId(departmentId)) {
+             throw new IllegalArgumentException("해당 부서에 속한 직원이 존재하여 삭제할 수 없습니다.");
+         }
+ 
+-        // 이미지 파일이 있다면 S3에서 삭제
+         if (department.getImageUrl() != null && !department.getImageUrl().isBlank()) {
+             try {
+                 awsS3Config.deleteFromS3Bucket(department.getImageUrl());
+diff --git a/hr-service/src/main/java/com/playdata/hrservice/hr/service/UserService.java b/hr-service/src/main/java/com/playdata/hrservice/hr/service/UserService.java
+index d4777dc..30df485 100644
+--- a/hr-service/src/main/java/com/playdata/hrservice/hr/service/UserService.java
++++ b/hr-service/src/main/java/com/playdata/hrservice/hr/service/UserService.java
+@@ -9,64 +9,44 @@ import java.time.LocalDate;
+ import java.util.List;
+ 
+ public interface UserService {
+-    // 회원가입
++
+     @Transactional
+     UserResDto createUser(UserSaveReqDto dto, String hrRole);
+ 
+-    // 프로필
+     String uploadProfile(UserRequestDto dto) throws Exception;
+ 
+-    // 사용자 정보 수정
+     @Transactional
+     void updateUser(Long employeeNo, UserUpdateRequestDto dto, String hrRole) throws Exception;
+ 
+-    // 직원 상세 조회
+     UserResDto getUserByEmployeeNo(Long employeeNo);
+ 
+-    // 로그인을 위한 Feign
+     UserLoginFeignResDto getUserByEmail(String email);
+ 
+-    // Feign client용: employeeNo로 사용자 정보 조회
+     @Transactional(readOnly = true)
+     UserFeignResDto getEmployeeByEmployeeNo(Long employeeNo);
+ 
+-    // Feign client용: userName으로 사용자 정보 조회
+     List<UserFeignResDto> getEmployeeByUserName(String userName);
+ 
+-    // 모든 서비스를 위한 Feign
+     UserFeignResDto getEmployeeByEmail(String email);
+ 
+-    // 모든 서비스를 위한 Feign (id로 조회)
+     UserFeignResDto getEmployeeById(Long employeeNo);
+ 
+-    // 비밀번호를 위한 Feign
+     void updatePassword(UserPwUpdateDto dto);
+ 
+-    // 직원 조회
+     Page<UserResDto> listUsers(Pageable pageable, String hrRole);
+ 
+-    // 사용자 검색 (조건에 따라 페이징 또는 전체 리스트 반환)
+     Object searchUsers(String userName, String departmentName, String hrRole, Pageable pageable);
+ 
+-    // 퇴사 처리
+     void retireUser(Long employeeNo, String hrRole);
+ 
+-    // 특정 사용자가 특정 날짜에 승인된 외부 일정(출장, 연수 등)이 있는지 확인
+     boolean hasApprovedExternalSchedule(Long userId, LocalDate date);
+ 
+-    // 특정 사용자가 특정 날짜에 승인된 외부 일정의 종류를 조회
+     String getApprovedExternalScheduleType(Long userId, LocalDate date);
+ 
+     @Transactional(readOnly = true)
+     List<UserResDto> getUsersByIds(List<Long> employeeNos);
+ 
+-    /**
+-     * 특정 연도와 월에 입사 1주년을 맞이하는 사용자 목록을 조회합니다.
+-     *
+-     * @param year 조회할 연도 (입사일 기준)
+-     * @param month 조회할 월 (입사일 기준)
+-     * @return 해당 월에 입사 1주년을 맞이하는 사용자 정보 DTO 목록
+-     */
+     @Transactional(readOnly = true)
+     List<UserResDto> getUsersWithFirstAnniversaryInMonth(int year, int month);
++
+ }
+diff --git a/hr-service/src/main/java/com/playdata/hrservice/hr/service/UserServiceImpl.java b/hr-service/src/main/java/com/playdata/hrservice/hr/service/UserServiceImpl.java
+index d0e2429..9f180f4 100644
+--- a/hr-service/src/main/java/com/playdata/hrservice/hr/service/UserServiceImpl.java
++++ b/hr-service/src/main/java/com/playdata/hrservice/hr/service/UserServiceImpl.java
+@@ -32,14 +32,12 @@ import java.util.stream.Collectors;
+ @RequiredArgsConstructor
+ public class UserServiceImpl implements UserService {
+ 
+-    //필요한 객체 생성하여 주입
+     private final UserRepository userRepository;
+     private final DepartmentRepository departmentRepository;
+     private final PositionRepository positionRepository;
+     private final PasswordEncoder encoder;
+     private final AwsS3Config awsS3Config;
+ 
+-    // 회원가입
+     @Transactional
+     @Override
+     public UserResDto createUser(UserSaveReqDto dto, String hrRole) {
+@@ -47,17 +45,14 @@ public class UserServiceImpl implements UserService {
+             throw new BadRequestException("계정 생성 권한이 없습니다.");
+         }
+ 
+-        // 이메일 중복 확인 (신규 가입)
+         if (userRepository.findByEmail(dto.getEmail()).isPresent()) {
+             throw new IllegalArgumentException("이미 존재하는 이메일 입니다!");
+         }
+ 
+-        // 일반 회원가입 사용자: 비밀번호가 필수로 존재해야 함
+-        if (!StringUtils.hasText(dto.getPassword())) { // 비밀번호가 null이거나 빈 문자열인지 확인
++        if (!StringUtils.hasText(dto.getPassword())) {
+             throw new IllegalArgumentException("비밀번호는 필수입니다.");
+         }
+ 
+-        // 비밀번호 길이 검사 (패턴 검사도 필요하다면 여기에 추가)
+         if (dto.getPassword().length() < 8) {
+             throw new IllegalArgumentException("비밀번호는 최소 8자 이상이어야 합니다.");
+         }
+@@ -70,7 +65,6 @@ public class UserServiceImpl implements UserService {
+         Position foundPos = positionRepository.findById(positionId)
+                 .orElseThrow(() -> new EntityNotFoundException("Position not found with ID: " + positionId));
+ 
+-        // User Entity 생성 및 저장
+         User newUser = User.builder()
+                 .userName(dto.getUserName())
+                 .email(dto.getEmail())
+@@ -81,7 +75,7 @@ public class UserServiceImpl implements UserService {
+                 .gender(dto.getGender())
+                 .department(foundDept)
+                 .position(foundPos)
+-                .hireDate(dto.getHireDate() != null ? dto.getHireDate() : LocalDate.now()) // 입사일이 없으면 오늘
++                .hireDate(dto.getHireDate() != null ? dto.getHireDate() : LocalDate.now())
+                 .createdAt(LocalDateTime.now())
+                 .build();
+ 
+@@ -89,20 +83,17 @@ public class UserServiceImpl implements UserService {
+         return savedUser.fromEntity();
+     }
+ 
+-    // 프로필
+     @Override
+     public String uploadProfile(UserRequestDto dto) throws Exception{
+         User user = userRepository.findById(dto.getEmployeeNo()).orElseThrow(
+                 () -> new EntityNotFoundException("User not found!")
+         );
+ 
+-        // 1. 이전 프로필이 기본 url이 아니고, null도 아니라면 삭제
+         String oldUrl = user.getProfileImage();
+         if (oldUrl != null && !oldUrl.isBlank()) {
+             awsS3Config.deleteFromS3Bucket(oldUrl);
+         }
+ 
+-        // 2. 새 파일 업로드
+         MultipartFile profileImage = dto.getProfileImage();
+         String uniqueFileName = UUID.randomUUID() + "_" + profileImage.getOriginalFilename();
+         String imageUrl = awsS3Config.uploadToS3Bucket(profileImage.getBytes(), uniqueFileName);
+@@ -112,7 +103,6 @@ public class UserServiceImpl implements UserService {
+         return imageUrl;
+     }
+ 
+-    // 사용자 정보 수정
+     @Transactional
+     @Override
+     public void updateUser(Long employeeNo, UserUpdateRequestDto dto, String hrRole) throws Exception {
+@@ -135,7 +125,6 @@ public class UserServiceImpl implements UserService {
+         user.setBankName(dto.getBankName());
+         user.setAccountNumber(dto.getAccountNumber());
+         user.setAccountHolder(dto.getAccountHolder());
+-//        user.setDepartment(departmentRepository.findByName(dto.getDepartmentName()));
+         user.setDepartment(departmentRepository.findById(dto.getDepartmentId()).orElseThrow(
+                 () -> new EntityNotFoundException("Department not found with ID: " + dto.getDepartmentId())
+         ));
+@@ -151,7 +140,6 @@ public class UserServiceImpl implements UserService {
+         userRepository.save(user);
+     }
+ 
+-    // 직원 상세 조회
+     @Override
+     public UserResDto getUserByEmployeeNo(Long employeeNo) {
+         return userRepository.findByEmployeeNo(employeeNo).orElseThrow(
+@@ -159,7 +147,6 @@ public class UserServiceImpl implements UserService {
+         ).fromEntity();
+     }
+ 
+-    // 로그인을 위한 Feign
+     @Override
+     public UserLoginFeignResDto getUserByEmail(String email) {
+         User user = userRepository.findByEmail(email).orElse(null);
+@@ -169,7 +156,6 @@ public class UserServiceImpl implements UserService {
+         return null;
+     }
+ 
+-    // Feign client용: employeeNo로 사용자 정보 조회
+     @Transactional(readOnly = true)
+     @Override
+     public UserFeignResDto getEmployeeByEmployeeNo(Long employeeNo) {
+@@ -178,7 +164,6 @@ public class UserServiceImpl implements UserService {
+         return user.toUserFeignResDto();
+     }
+ 
+-    // Feign client용: userName으로 사용자 정보 조회
+     @Override
+     public List<UserFeignResDto> getEmployeeByUserName(String userName) {
+         List<User> users = userRepository.findByUserNameContaining(userName);
+@@ -187,7 +172,6 @@ public class UserServiceImpl implements UserService {
+                 .collect(Collectors.toList());
+     }
+ 
+-    // 모든 서비스를 위한 Feign
+     @Override
+     public UserFeignResDto getEmployeeByEmail(String email) {
+         User user = userRepository.findByEmail(email).orElse(null);
+@@ -197,7 +181,6 @@ public class UserServiceImpl implements UserService {
+         return null;
+     }
+ 
+-    // 모든 서비스를 위한 Feign (id로 조회)
+     @Override
+     public UserFeignResDto getEmployeeById(Long employeeNo) {
+         User user = userRepository.findByEmployeeNo(employeeNo).orElse(null);
+@@ -207,7 +190,6 @@ public class UserServiceImpl implements UserService {
+         return null;
+     }
+ 
+-    // 비밀번호를 위한 Feign
+     @Override
+     public void updatePassword(UserPwUpdateDto dto) {
+         User user = userRepository.findByEmployeeNo(dto.getEmployeeNo()).orElseThrow(
+@@ -217,7 +199,6 @@ public class UserServiceImpl implements UserService {
+         userRepository.save(user);
+     }
+ 
+-    // 직원 조회
+     @Override
+     public Page<UserResDto> listUsers(Pageable pageable, String hrRole) {
+         Page<User> users = userRepository.findAll(pageable);
+@@ -226,7 +207,7 @@ public class UserServiceImpl implements UserService {
+                 .employeeNo(user.getEmployeeNo())
+                 .userName(user.getUserName())
+                 .positionName(user.getPosition().getPositionName())
+-                .department(new DepartmentResDto(user.getDepartment())) // DepartmentResDto 객체로 변경
++                .department(new DepartmentResDto(user.getDepartment()))
+                 .hireDate(user.getHireDate())
+                 .phone(user.getPhone())
+                 .email(user.getEmail())
+@@ -237,11 +218,9 @@ public class UserServiceImpl implements UserService {
+                 .build());
+     }
+ 
+-    // 사용자 검색 (조건에 따라 페이징 또는 전체 리스트 반환)
+     @Override
+     public Object searchUsers(String userName, String departmentName, String hrRole, Pageable pageable) {
+         if (StringUtils.hasText(userName) || StringUtils.hasText(departmentName) || StringUtils.hasText(hrRole)) {
+-            // 검색 조건이 있을 경우, 페이징 없이 전체 리스트 반환
+             List<User> users;
+             if (StringUtils.hasText(userName) && StringUtils.hasText(departmentName) && StringUtils.hasText(hrRole)) {
+                 users = userRepository.findByUserNameContainingAndDepartmentNameContainingAndPositionHrRole(userName, departmentName, hrRole);
+@@ -255,14 +234,14 @@ public class UserServiceImpl implements UserService {
+                 users = userRepository.findByUserNameContaining(userName);
+             } else if (StringUtils.hasText(departmentName)) {
+                 users = userRepository.findByDepartmentNameContaining(departmentName);
+-            } else { // hrRole만 있을 경우
++            } else {
+                 users = userRepository.findByPositionHrRole(hrRole);
+             }
+             return users.stream().map(user -> UserResDto.builder()
+                     .employeeNo(user.getEmployeeNo())
+                     .userName(user.getUserName())
+                     .positionName(user.getPosition().getPositionName())
+-                    .department(new DepartmentResDto(user.getDepartment())) // DepartmentResDto 객체로 변경
++                    .department(new DepartmentResDto(user.getDepartment()))
+                     .hireDate(user.getHireDate())
+                     .phone(user.getPhone())
+                     .email(user.getEmail())
+@@ -272,13 +251,12 @@ public class UserServiceImpl implements UserService {
+                     .hrRole(user.getPosition().getHrRole())
+                     .build()).collect(Collectors.toList());
+         } else {
+-            // 검색 조건이 없을 경우, 페이징 적용
+             Page<User> users = userRepository.findAll(pageable);
+             return users.map(user -> UserResDto.builder()
+                     .employeeNo(user.getEmployeeNo())
+                     .userName(user.getUserName())
+                     .positionName(user.getPosition().getPositionName())
+-                    .department(new DepartmentResDto(user.getDepartment())) // DepartmentResDto 객체로 변경
++                    .department(new DepartmentResDto(user.getDepartment()))
+                     .hireDate(user.getHireDate())
+                     .phone(user.getPhone())
+                     .email(user.getEmail())
+@@ -290,7 +268,6 @@ public class UserServiceImpl implements UserService {
+         }
+     }
+ 
+-    // 퇴사 처리
+     @Override
+     public void retireUser(Long employeeNo, String hrRole) {
+         if (!"Y".equals(hrRole)) {
+@@ -304,26 +281,16 @@ public class UserServiceImpl implements UserService {
+         userRepository.save(user);
+     }
+ 
+-    // 특정 사용자가 특정 날짜에 승인된 외부 일정(출장, 연수 등)이 있는지 확인
+     @Override
+     public boolean hasApprovedExternalSchedule(Long userId, LocalDate date) {
+-        // 현재는 항상 false 반환 (임시)
+         return false;
+     }
+ 
+-    // 특정 사용자가 특정 날짜에 승인된 외부 일정의 종류를 조회
+     @Override
+     public String getApprovedExternalScheduleType(Long userId, LocalDate date) {
+-        // 현재는 항상 null 반환 (임시)
+         return null;
+     }
+ 
+-    /**
+-     * 주어진 ID 목록에 해당하는 사용자 정보를 조회합니다.
+-     *
+-     * @param employeeNos 조회할 사용자 ID 목록
+-     * @return 사용자 정보 DTO 목록
+-     */
+     @Transactional(readOnly = true)
+     @Override
+     public List<UserResDto> getUsersByIds(List<Long> employeeNos) {
+@@ -333,13 +300,6 @@ public class UserServiceImpl implements UserService {
+                 .collect(Collectors.toList());
+     }
+ 
+-    /**
+-     * 특정 연도와 월에 입사 1주년을 맞이하는 사용자 목록을 조회합니다.
+-     *
+-     * @param year 조회할 연도 (입사일 기준)
+-     * @param month 조회할 월 (입사일 기준)
+-     * @return 해당 월에 입사 1주년을 맞이하는 사용자 정보 DTO 목록
+-     */
+     @Transactional(readOnly = true)
+     @Override
+     public List<UserResDto> getUsersWithFirstAnniversaryInMonth(int year, int month) {
+@@ -348,6 +308,7 @@ public class UserServiceImpl implements UserService {
+                 .map(User::fromEntity)
+                 .collect(Collectors.toList());
+     }
++
+ }
+ 
+ 
+diff --git a/message-service/src/main/java/com/playdata/messageservice/client/HrServiceClient.java b/message-service/src/main/java/com/playdata/messageservice/client/HrServiceClient.java
+index 3fe7151..a1f3140 100644
+--- a/message-service/src/main/java/com/playdata/messageservice/client/HrServiceClient.java
++++ b/message-service/src/main/java/com/playdata/messageservice/client/HrServiceClient.java
+@@ -17,6 +17,6 @@ public interface HrServiceClient {
+     List<UserFeignResDto> getUserByUserName(@PathVariable("userName") String userName);
+ 
+     // 필요하다면 employeeNo로 조회하는 엔드포인트도 추가
+-    // @GetMapping("/hr/user/feign/employeeNo/{employeeNo}")
+-    // UserFeignResDto getUserByEmployeeNo(@PathVariable Long employeeNo);
++    @GetMapping("/hr/user/feign/employeeNo/{employeeNo}")
++    UserFeignResDto getUserByEmployeeNo(@PathVariable Long employeeNo);
+ }
+\ No newline at end of file
+diff --git a/message-service/src/main/java/com/playdata/messageservice/client/NotificationServiceClient.java b/message-service/src/main/java/com/playdata/messageservice/client/NotificationServiceClient.java
+new file mode 100644
+index 0000000..2fb5ad3
+--- /dev/null
++++ b/message-service/src/main/java/com/playdata/messageservice/client/NotificationServiceClient.java
+@@ -0,0 +1,48 @@
++package com.playdata.messageservice.client;
++
++import com.playdata.messageservice.common.configs.FeignClientConfiguration;
++import com.playdata.messageservice.type.NotificationType;
++import lombok.AllArgsConstructor;
++import lombok.Builder;
++import lombok.Getter;
++import lombok.NoArgsConstructor;
++import org.springframework.cloud.openfeign.FeignClient;
++import org.springframework.web.bind.annotation.PostMapping;
++import org.springframework.web.bind.annotation.RequestBody;
++import org.springframework.web.bind.annotation.RequestHeader;
++
++@FeignClient(name = "notification-service", configuration = FeignClientConfiguration.class)
++public interface NotificationServiceClient {
++
++    @PostMapping("/notifications")
++    void createNotification(
++            @RequestHeader("X-User-Employee-No") String employeeNo,
++            @RequestHeader("X-User-Email") String userEmail,
++            @RequestHeader("X-User-Role") String userRole,
++            @RequestBody NotificationCreateRequest request);
++
++    @PostMapping("/notifications/mark-read-by-message-id")
++    void markNotificationAsReadByMessageId(
++            @RequestHeader("X-User-Employee-No") String employeeNo,
++            @RequestHeader("X-User-Email") String userEmail,
++            @RequestHeader("X-User-Role") String userRole,
++            @RequestBody Long messageId);
++
++    @PostMapping("/notifications/delete-by-message-id")
++    void deleteNotificationsByMessageId(
++            @RequestHeader("X-User-Employee-No") String employeeNo,
++            @RequestHeader("X-User-Email") String userEmail,
++            @RequestHeader("X-User-Role") String userRole,
++            @RequestBody Long messageId);
++
++    @Getter
++    @Builder
++    @NoArgsConstructor
++    @AllArgsConstructor
++    class NotificationCreateRequest {
++        private String employeeNo;
++        private NotificationType type;
++        private String message;
++        private Long messageId;
++    }
++}
+\ No newline at end of file
+diff --git a/message-service/src/main/java/com/playdata/messageservice/common/configs/FeignClientConfiguration.java b/message-service/src/main/java/com/playdata/messageservice/common/configs/FeignClientConfiguration.java
+new file mode 100644
+index 0000000..11699d7
+--- /dev/null
++++ b/message-service/src/main/java/com/playdata/messageservice/common/configs/FeignClientConfiguration.java
+@@ -0,0 +1,34 @@
++package com.playdata.messageservice.common.configs;
++
++import feign.RequestInterceptor;
++import jakarta.servlet.http.HttpServletRequest;
++import org.springframework.context.annotation.Bean;
++import org.springframework.context.annotation.Configuration;
++import org.springframework.web.context.request.RequestContextHolder;
++import org.springframework.web.context.request.ServletRequestAttributes;
++
++import java.util.Objects;
++
++@Configuration
++public class FeignClientConfiguration {
++
++    @Bean
++    public RequestInterceptor requestInterceptor() {
++        return requestTemplate -> {
++            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
++            if (Objects.nonNull(attributes)) {
++                HttpServletRequest request = attributes.getRequest();
++                // X-Authentication-Id 헤더 추가
++                String employeeNo = request.getHeader("X-Authentication-Id");
++                if (Objects.nonNull(employeeNo) && !employeeNo.isEmpty()) {
++                    requestTemplate.header("X-Authentication-Id", employeeNo);
++                }
++                // Authorization 헤더도 함께 전달 (선택 사항, 필요에 따라)
++                String authorizationHeader = request.getHeader("Authorization");
++                if (Objects.nonNull(authorizationHeader) && !authorizationHeader.isEmpty()) {
++                    requestTemplate.header("Authorization", authorizationHeader);
++                }
++            }
++        };
++    }
++}
+diff --git a/message-service/src/main/java/com/playdata/messageservice/common/configs/SecurityConfig.java b/message-service/src/main/java/com/playdata/messageservice/common/configs/SecurityConfig.java
+index 1aa491a..94999a0 100644
+--- a/message-service/src/main/java/com/playdata/messageservice/common/configs/SecurityConfig.java
++++ b/message-service/src/main/java/com/playdata/messageservice/common/configs/SecurityConfig.java
+@@ -26,7 +26,6 @@ public class SecurityConfig {
+                 )
+                 .authorizeHttpRequests(authorize ->
+                         authorize
+-                                .requestMatchers("/notifications/subscribe/**").authenticated()
+                                 .anyRequest().authenticated()
+ 
+                 )
+diff --git a/message-service/src/main/java/com/playdata/messageservice/controller/NotificationController.java b/message-service/src/main/java/com/playdata/messageservice/controller/NotificationController.java
+deleted file mode 100644
+index c011121..0000000
+--- a/message-service/src/main/java/com/playdata/messageservice/controller/NotificationController.java
++++ /dev/null
+@@ -1,53 +0,0 @@
+-package com.playdata.messageservice.controller;
+-
+-import com.playdata.messageservice.dto.NotificationResponse;
+-import com.playdata.messageservice.service.NotificationService;
+-import lombok.RequiredArgsConstructor;
+-import org.springframework.http.MediaType;
+-import org.springframework.http.ResponseEntity;
+-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+-import org.springframework.web.bind.annotation.*;
+-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+-import com.playdata.messageservice.common.auth.TokenUserInfo;
+-
+-import java.util.List;
+-
+-@RestController
+-@RequestMapping("/notifications")
+-@RequiredArgsConstructor
+-public class NotificationController {
+-
+-    private final NotificationService notificationService;
+-
+-    // SSE 구독 엔드포인트
+-    @GetMapping(value = "/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+-    public SseEmitter subscribe(@AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
+-        String employeeNo = String.valueOf(tokenUserInfo.getEmployeeNo());
+-        return notificationService.subscribe(employeeNo);
+-    }
+-
+-    // 알림 읽음 처리
+-    @PatchMapping("/{notificationId}/read")
+-    public ResponseEntity<NotificationResponse> markAsRead(@PathVariable Long notificationId) {
+-        NotificationResponse response = notificationService.markNotificationAsRead(notificationId);
+-        return ResponseEntity.ok(response);
+-    }
+-
+-    // 알림 목록 조회
+-    @GetMapping
+-    public ResponseEntity<List<NotificationResponse>> getNotifications(
+-            @AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
+-        String employeeNo = String.valueOf(tokenUserInfo.getEmployeeNo());
+-        List<NotificationResponse> notifications = notificationService.getNotifications(employeeNo);
+-        return ResponseEntity.ok(notifications);
+-    }
+-
+-    // 읽지 않은 알림 개수 조회
+-    @GetMapping("/unread/count")
+-    public ResponseEntity<Long> getUnreadNotificationCount(
+-            @AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
+-        String employeeNo = String.valueOf(tokenUserInfo.getEmployeeNo());
+-        long count = notificationService.getUnreadNotificationCount(employeeNo);
+-        return ResponseEntity.ok(count);
+-    }
+-}
+\ No newline at end of file
+diff --git a/message-service/src/main/java/com/playdata/messageservice/dto/MessageRequest.java b/message-service/src/main/java/com/playdata/messageservice/dto/MessageRequest.java
+index eab96d5..6aaa936 100644
+--- a/message-service/src/main/java/com/playdata/messageservice/dto/MessageRequest.java
++++ b/message-service/src/main/java/com/playdata/messageservice/dto/MessageRequest.java
+@@ -12,4 +12,5 @@ public class MessageRequest {
+     private String subject;
+     private String content;
+     private MultipartFile[] attachments;
++    private Boolean isNotice;
+ }
+\ No newline at end of file
+diff --git a/message-service/src/main/java/com/playdata/messageservice/dto/MessageResponse.java b/message-service/src/main/java/com/playdata/messageservice/dto/MessageResponse.java
+index fe71a84..99f7b05 100644
+--- a/message-service/src/main/java/com/playdata/messageservice/dto/MessageResponse.java
++++ b/message-service/src/main/java/com/playdata/messageservice/dto/MessageResponse.java
+@@ -13,11 +13,14 @@ import java.util.List;
+ public class MessageResponse {
+     private Long messageId;
+     private Long senderId;
++    private String senderName;
+     private Long receiverId;
++    private String receiverName;
+     private String subject;
+     private String content;
+     private LocalDateTime sentAt;
+     private Boolean isRead;
+     private LocalDateTime readAt;
++    private Boolean isNotice;
+     private List<AttachmentResponse> attachments;
+ }
+\ No newline at end of file
+diff --git a/message-service/src/main/java/com/playdata/messageservice/entity/Message.java b/message-service/src/main/java/com/playdata/messageservice/entity/Message.java
+index 74ac7ff..6e5a539 100644
+--- a/message-service/src/main/java/com/playdata/messageservice/entity/Message.java
++++ b/message-service/src/main/java/com/playdata/messageservice/entity/Message.java
+@@ -26,7 +26,7 @@ public class Message {
+     @Column(name = "sender_id", nullable = false)
+     private Long senderId;
+ 
+-    @Column(name = "receiver_id", nullable = false)
++    @Column(name = "receiver_id", nullable = true)
+     private Long receiverId;
+ 
+     @Column(name = "subject", length = 255)
+@@ -45,6 +45,9 @@ public class Message {
+     @Column(name = "read_at")
+     private LocalDateTime readAt;
+ 
++    @Column(name = "is_notice", nullable = false)
++    private Boolean isNotice;
++
+     @OneToMany(mappedBy = "message", cascade = CascadeType.ALL, orphanRemoval = true)
+     @Builder.Default
+     private List<Attachment> attachments = new ArrayList<>();
+diff --git a/message-service/src/main/java/com/playdata/messageservice/repository/MessageRepositoryImpl.java b/message-service/src/main/java/com/playdata/messageservice/repository/MessageRepositoryImpl.java
+index 17aa513..6d27d7b 100644
+--- a/message-service/src/main/java/com/playdata/messageservice/repository/MessageRepositoryImpl.java
++++ b/message-service/src/main/java/com/playdata/messageservice/repository/MessageRepositoryImpl.java
+@@ -29,8 +29,13 @@ public class MessageRepositoryImpl implements MessageRepositoryCustom {
+         CriteriaQuery<Message> cq = cb.createQuery(Message.class);
+         Root<Message> message = cq.from(Message.class);
+ 
++        // 받은 편지함 또는 공지사항
++        Predicate receiverPredicate = cb.equal(message.get("receiverId"), receiverId);
++        Predicate noticePredicate = cb.isTrue(message.get("isNotice"));
++        Predicate mainPredicate = cb.or(receiverPredicate, noticePredicate);
++
+         List<Predicate> predicates = new ArrayList<>();
+-        predicates.add(cb.equal(message.get("receiverId"), receiverId));
++        predicates.add(mainPredicate);
+ 
+         if (searchEmployeeNos != null && !searchEmployeeNos.isEmpty()) {
+             if ("sender".equals(searchType)) {
+@@ -62,8 +67,14 @@ public class MessageRepositoryImpl implements MessageRepositoryCustom {
+         // count 쿼리 수정
+         CriteriaQuery<Long> countCq = cb.createQuery(Long.class);
+         Root<Message> countMessage = countCq.from(Message.class);
++
++        // 받은 편지함 또는 공지사항 (count 쿼리에도 동일하게 적용)
++        Predicate countReceiverPredicate = cb.equal(countMessage.get("receiverId"), receiverId);
++        Predicate countNoticePredicate = cb.isTrue(countMessage.get("isNotice"));
++        Predicate countMainPredicate = cb.or(countReceiverPredicate, countNoticePredicate);
++
+         List<Predicate> countPredicates = new ArrayList<>();
+-        countPredicates.add(cb.equal(countMessage.get("receiverId"), receiverId));
++        countPredicates.add(countMainPredicate);
+ 
+         if (searchEmployeeNos != null && !searchEmployeeNos.isEmpty()) {
+             if ("sender".equals(searchType)) {
+diff --git a/message-service/src/main/java/com/playdata/messageservice/service/MessageServiceImpl.java b/message-service/src/main/java/com/playdata/messageservice/service/MessageServiceImpl.java
+index 5a2a4bd..621c9e6 100644
+--- a/message-service/src/main/java/com/playdata/messageservice/service/MessageServiceImpl.java
++++ b/message-service/src/main/java/com/playdata/messageservice/service/MessageServiceImpl.java
+@@ -1,6 +1,9 @@
+ package com.playdata.messageservice.service;
+ 
+ import com.playdata.messageservice.client.HrServiceClient;
++import com.playdata.messageservice.client.NotificationServiceClient;
++import com.playdata.messageservice.client.NotificationServiceClient.NotificationCreateRequest;
++import com.playdata.messageservice.common.auth.TokenUserInfo;
+ import com.playdata.messageservice.common.configs.AwsS3Config;
+ import com.playdata.messageservice.dto.AttachmentResponse;
+ import com.playdata.messageservice.dto.MessageRequest;
+@@ -15,6 +18,8 @@ import lombok.RequiredArgsConstructor;
+ import lombok.extern.slf4j.Slf4j;
+ import org.springframework.data.domain.Page;
+ import org.springframework.data.domain.Pageable;
++import org.springframework.security.core.Authentication;
++import org.springframework.security.core.context.SecurityContextHolder;
+ import org.springframework.stereotype.Service;
+ import org.springframework.transaction.annotation.Transactional;
+ import org.springframework.util.StringUtils;
+@@ -35,7 +40,7 @@ import java.util.stream.Collectors;
+ public class MessageServiceImpl implements MessageService {
+ 
+     private final MessageRepository messageRepository;
+-    private final NotificationServiceImpl notificationService;
++    private final NotificationServiceClient notificationServiceClient;
+     private final AwsS3Config awsS3Config;
+     private final HrServiceClient hrServiceClient;
+     private final AttachmentRepository attachmentRepository;
+@@ -43,14 +48,24 @@ public class MessageServiceImpl implements MessageService {
+     @Transactional
+     @Override
+     public MessageResponse sendMessage(Long senderId, MessageRequest request, MultipartFile[] attachments) {
+-        Message message = Message.builder()
++        Message.MessageBuilder messageBuilder = Message.builder()
+                 .senderId(senderId)
+-                .receiverId(request.getReceiverId())
+                 .subject(request.getSubject())
+                 .content(request.getContent())
+                 .isRead(false)
+                 .sentAt(LocalDateTime.now())
+-                .build();
++                .isNotice(request.getIsNotice() != null && request.getIsNotice());
++
++        if (request.getIsNotice() != null && request.getIsNotice()) {
++            messageBuilder.receiverId(null); // 공지사항일 경우 receiverId를 null로 설정
++        } else {
++            if (request.getReceiverId() == null) {
++                throw new IllegalArgumentException("일반 쪽지는 수신자 ID가 필수입니다.");
++            }
++            messageBuilder.receiverId(request.getReceiverId());
++        }
++
++        Message message = messageBuilder.build();
+ 
+         Message savedMessage = messageRepository.save(message);
+ 
+@@ -77,18 +92,29 @@ public class MessageServiceImpl implements MessageService {
+             });
+         }
+ 
+-        // 쪽지 발송 시 알림 생성
+-        notificationService.createNotification(
+-            String.valueOf(request.getReceiverId()), // employeeNo는 String
+-            NotificationType.MESSAGE, // "NEW_MESSAGE" -> NotificationType.MESSAGE로 변경
+-            "새 쪽지가 도착했습니다: " + request.getSubject(),
+-            savedMessage.getMessageId()
+-        );
++        // 쪽지 발송 시 알림 생성 (공지사항이 아닌 경우에만)
++        if ((request.getIsNotice() == null || !request.getIsNotice()) && request.getReceiverId() != null) {
++            TokenUserInfo userInfo = getAuthenticatedUserInfo();
++            if (userInfo != null) {
++                notificationServiceClient.createNotification(
++                        String.valueOf(senderId),
++                        userInfo.getEmail(), // 수정: getUserEmail() -> getEmail()
++                        userInfo.getHrRole(), // 수정: getUserRole() -> getHrRole()
++                        NotificationCreateRequest.builder()
++                                .employeeNo(String.valueOf(request.getReceiverId()))
++                                .type(NotificationType.MESSAGE)
++                                .message("새 쪽지가 도착했습니다: " + request.getSubject())
++                                .messageId(savedMessage.getMessageId())
++                                .build()
++                );
++            } else {
++                log.warn("인증된 사용자 정보가 없어 알림을 생성할 수 없습니다. senderId: {}", senderId);
++            }
++        }
+ 
+         return convertToDto(savedMessage);
+     }
+ 
+-    // 받은 쪽지함 검색/필터/페이징
+     @Override
+     public Page<MessageResponse> getReceivedMessages(Long receiverId, String searchType, String searchValue, String period, Boolean unreadOnly, Pageable pageable) {
+         LocalDateTime[] dateRange = getDateRange(period);
+@@ -102,7 +128,6 @@ public class MessageServiceImpl implements MessageService {
+         return messages.map(this::convertToDto);
+     }
+ 
+-    // 보낸 쪽지함 검색/필터/페이징
+     @Override
+     public Page<MessageResponse> getSentMessages(Long senderId, String searchType, String searchValue, String period, Pageable pageable) {
+         LocalDateTime[] dateRange = getDateRange(period);
+@@ -122,19 +147,28 @@ public class MessageServiceImpl implements MessageService {
+         Message message = messageRepository.findById(messageId)
+                 .orElseThrow(() -> new IllegalArgumentException("Message not found"));
+ 
+-        // 메시지 수신자 또는 발신자가 맞는지 확인
+-        if (!message.getReceiverId().equals(authenticatedEmployeeNo) && !message.getSenderId().equals(authenticatedEmployeeNo)) {
++        // 공지사항이 아니고, 수신자나 발신자가 아니면 접근 불가
++        if (!(message.getIsNotice() != null && message.getIsNotice()) && !message.getReceiverId().equals(authenticatedEmployeeNo) && !message.getSenderId().equals(authenticatedEmployeeNo)) {
+             throw new IllegalArgumentException("Unauthorized access to message");
+         }
+ 
+-        // 현재 로그인한 사용자가 쪽지의 수신자이고, 아직 읽지 않은 경우에만 읽음 처리
+-        if (message.getReceiverId().equals(authenticatedEmployeeNo) && !message.getIsRead()) {
++        // 수신자가 본인이고 아직 읽지 않은 경우에만 읽음 처리
++        if (message.getReceiverId() != null && message.getReceiverId().equals(authenticatedEmployeeNo) && !message.getIsRead()) {
+             message.setIsRead(true);
+             message.setReadAt(LocalDateTime.now());
+             messageRepository.save(message);
+ 
+-            // 알림 서비스에서 해당 쪽지 관련 알림을 읽음 처리
+-            notificationService.markNotificationAsReadByMessageId(messageId);
++            TokenUserInfo userInfo = getAuthenticatedUserInfo();
++            if (userInfo != null) {
++                notificationServiceClient.markNotificationAsReadByMessageId(
++                        String.valueOf(authenticatedEmployeeNo),
++                        userInfo.getEmail(), // 수정: getUserEmail() -> getEmail()
++                        userInfo.getHrRole(), // 수정: getUserRole() -> getHrRole()
++                        messageId
++                );
++            } else {
++                log.warn("인증된 사용자 정보가 없어 알림을 읽음 처리할 수 없습니다. employeeNo: {}", authenticatedEmployeeNo);
++            }
+         }
+         return convertToDto(message);
+     }
+@@ -150,26 +184,41 @@ public class MessageServiceImpl implements MessageService {
+         Message message = messageRepository.findById(messageId)
+                 .orElseThrow(() -> new IllegalArgumentException("Message not found with id: " + messageId));
+ 
+-        // 메시지를 보낸 사람 또는 받은 사람만 삭제 가능하도록 검증
+-        if (!message.getSenderId().equals(employeeNo) && !message.getReceiverId().equals(employeeNo)) {
+-            throw new IllegalArgumentException("Unauthorized to delete this message.");
++        // 공지사항인 경우 작성자만 삭제 가능
++        if (message.getIsNotice() != null && message.getIsNotice()) {
++            if (!message.getSenderId().equals(employeeNo)) {
++                throw new IllegalArgumentException("공지사항은 작성자만 삭제할 수 있습니다.");
++            }
++        } else {
++            // 일반 쪽지는 수신자 또는 발신자가 삭제 가능
++            if (!message.getSenderId().equals(employeeNo) && !message.getReceiverId().equals(employeeNo)) {
++                throw new IllegalArgumentException("Unauthorized to delete this message.");
++            }
+         }
+ 
+-        // S3에 첨부된 파일이 있다면 삭제
+         if (message.getAttachments() != null && !message.getAttachments().isEmpty()) {
+             message.getAttachments().forEach(attachment -> {
+                 try {
+                     awsS3Config.deleteFromS3Bucket(attachment.getAttachmentUrl());
+                 } catch (IOException e) {
+                     log.error("Failed to delete attachment from S3: {}", attachment.getAttachmentUrl(), e);
+-                    // 파일 삭제 실패 시에도 메시지 삭제는 진행
+                 }
+             });
+         }
+ 
+         messageRepository.delete(message);
+-        // 알림 서비스에서 해당 쪽지 관련 알림도 삭제
+-        notificationService.deleteNotificationsByMessageId(messageId);
++
++        TokenUserInfo userInfo = getAuthenticatedUserInfo();
++        if (userInfo != null) {
++            notificationServiceClient.deleteNotificationsByMessageId(
++                    String.valueOf(employeeNo),
++                    userInfo.getEmail(), // 수정: getUserEmail() -> getEmail()
++                    userInfo.getHrRole(), // 수정: getUserRole() -> getHrRole()
++                    messageId
++            );
++        } else {
++            log.warn("인증된 사용자 정보가 없어 알림을 삭제할 수 없습니다. employeeNo: {}", employeeNo);
++        }
+     }
+ 
+     @Transactional
+@@ -178,21 +227,24 @@ public class MessageServiceImpl implements MessageService {
+         Message message = messageRepository.findById(messageId)
+                 .orElseThrow(() -> new IllegalArgumentException("Message not found with id: " + messageId));
+ 
+-        // 발신자만 발신 취소 가능
+         if (!message.getSenderId().equals(senderEmployeeNo)) {
+             throw new IllegalArgumentException("Only the sender can recall this message.");
+         }
+ 
+-        // 쪽지가 읽지 않은 상태인지 확인
+         if (message.getIsRead()) {
+             throw new IllegalArgumentException("Cannot recall a message that has already been read.");
+         }
+ 
+-        // 첨부파일 및 알림 삭제는 deleteMessage 로직을 재활용
+         deleteMessage(messageId, senderEmployeeNo);
+     }
+ 
+-    
++    private TokenUserInfo getAuthenticatedUserInfo() {
++        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
++        if (authentication != null && authentication.getPrincipal() instanceof TokenUserInfo) {
++            return (TokenUserInfo) authentication.getPrincipal();
++        }
++        return null;
++    }
+ 
+     @Override
+     public List<Long> getEmployeeNosFromSearch(String searchType, String searchValue, String targetType) {
+@@ -221,20 +273,28 @@ public class MessageServiceImpl implements MessageService {
+             attachmentResponses = Collections.emptyList();
+         }
+ 
++        UserFeignResDto sender = hrServiceClient.getUserByEmployeeNo(message.getSenderId());
++        UserFeignResDto receiver = null;
++        if (message.getReceiverId() != null) {
++            receiver = hrServiceClient.getUserByEmployeeNo(message.getReceiverId());
++        }
++
+         return MessageResponse.builder()
+                 .messageId(message.getMessageId())
+                 .senderId(message.getSenderId())
++                .senderName(sender != null ? sender.getUserName() : "알 수 없음")
+                 .receiverId(message.getReceiverId())
++                .receiverName(receiver != null ? receiver.getUserName() : "전사공지")
+                 .subject(message.getSubject())
+                 .content(message.getContent())
+                 .sentAt(message.getSentAt())
+                 .isRead(message.getIsRead())
+                 .readAt(message.getReadAt())
++                .isNotice(message.getIsNotice())
+                 .attachments(attachmentResponses)
+                 .build();
+     }
+ 
+-    // 기간 필터링을 위한 날짜 범위 계산 유틸리티 메서드
+     @Override
+     public LocalDateTime[] getDateRange(String period) {
+         LocalDateTime endDate = LocalDateTime.now();
+@@ -252,9 +312,8 @@ public class MessageServiceImpl implements MessageService {
+                 break;
+             case "all":
+             default:
+-                // startDate는 null로 유지하여 전체 기간 조회
+                 break;
+         }
+         return new LocalDateTime[]{startDate, endDate};
+     }
+-}
++}
+\ No newline at end of file
+diff --git a/message-service/src/test/java/com/playdata/messageservice/service/NotificationServiceTest.java b/message-service/src/test/java/com/playdata/messageservice/service/NotificationServiceTest.java
+deleted file mode 100644
+index a1f7908..0000000
+--- a/message-service/src/test/java/com/playdata/messageservice/service/NotificationServiceTest.java
++++ /dev/null
+@@ -1,9 +0,0 @@
+-package com.playdata.messageservice.service;
+-
+-import org.junit.jupiter.api.extension.ExtendWith;
+-import org.mockito.junit.jupiter.MockitoExtension;
+-
+-@ExtendWith(MockitoExtension.class)
+-class NotificationServiceTest {
+-
+-}
+diff --git a/notification-service/build.gradle b/notification-service/build.gradle
+new file mode 100644
+index 0000000..7be6fbd
+--- /dev/null
++++ b/notification-service/build.gradle
+@@ -0,0 +1,56 @@
++plugins {
++    id 'java'
++    id 'org.springframework.boot' version '3.3.11'
++    id 'io.spring.dependency-management' version '1.1.7'
++}
++
++group = 'com.playdata'
++version = '0.0.1-SNAPSHOT'
++
++java {
++    toolchain {
++        languageVersion = JavaLanguageVersion.of(17)
++    }
++}
++
++configurations {
++    compileOnly {
++        extendsFrom annotationProcessor
++    }
++}
++
++repositories {
++    mavenCentral()
++}
++
++ext {
++    set('springCloudVersion', "2023.0.5")
++}
++
++dependencyManagement {
++    imports {
++        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
++    }
++}
++
++dependencies {
++    implementation 'org.springframework.boot:spring-boot-starter-web'
++    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
++    implementation 'org.springframework.boot:spring-boot-starter-security'
++    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
++    implementation 'org.springframework.cloud:spring-cloud-starter-config'
++    implementation 'org.springframework.cloud:spring-cloud-starter-bootstrap'
++    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
++    implementation 'org.springframework.boot:spring-boot-starter-amqp'
++
++    compileOnly 'org.projectlombok:lombok'
++    runtimeOnly 'com.mysql:mysql-connector-j'
++    annotationProcessor 'org.projectlombok:lombok'
++
++    testImplementation 'org.springframework.boot:spring-boot-starter-test'
++    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
++}
++
++tasks.named('test') {
++    useJUnitPlatform()
++}
+\ No newline at end of file
+diff --git a/notification-service/gradle/wrapper/gradle-wrapper.jar b/notification-service/gradle/wrapper/gradle-wrapper.jar
+new file mode 100644
+index 0000000..a4b76b9
+Binary files /dev/null and b/notification-service/gradle/wrapper/gradle-wrapper.jar differ
+diff --git a/notification-service/gradle/wrapper/gradle-wrapper.properties b/notification-service/gradle/wrapper/gradle-wrapper.properties
+new file mode 100644
+index 0000000..cea7a79
+--- /dev/null
++++ b/notification-service/gradle/wrapper/gradle-wrapper.properties
+@@ -0,0 +1,7 @@
++distributionBase=GRADLE_USER_HOME
++distributionPath=wrapper/dists
++distributionUrl=https\://services.gradle.org/distributions/gradle-8.12-bin.zip
++networkTimeout=10000
++validateDistributionUrl=true
++zipStoreBase=GRADLE_USER_HOME
++zipStorePath=wrapper/dists
+diff --git a/notification-service/gradlew b/notification-service/gradlew
+new file mode 100755
+index 0000000..f3b75f3
+--- /dev/null
++++ b/notification-service/gradlew
+@@ -0,0 +1,251 @@
++#!/bin/sh
++
++#
++# Copyright © 2015-2021 the original authors.
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#      https://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++
++##############################################################################
++#
++#   Gradle start up script for POSIX generated by Gradle.
++#
++#   Important for running:
++#
++#   (1) You need a POSIX-compliant shell to run this script. If your /bin/sh is
++#       noncompliant, but you have some other compliant shell such as ksh or
++#       bash, then to run this script, type that shell name before the whole
++#       command line, like:
++#
++#           ksh Gradle
++#
++#       Busybox and similar reduced shells will NOT work, because this script
++#       requires all of these POSIX shell features:
++#         * functions;
++#         * expansions «$var», «${var}», «${var:-default}», «${var+SET}»,
++#           «${var#prefix}», «${var%suffix}», and «$( cmd )»;
++#         * compound commands having a testable exit status, especially «case»;
++#         * various built-in commands including «command», «set», and «ulimit».
++#
++#   Important for patching:
++#
++#   (2) This script targets any POSIX shell, so it avoids extensions provided
++#       by Bash, Ksh, etc; in particular arrays are avoided.
++#
++#       The "traditional" practice of packing multiple parameters into a
++#       space-separated string is a well documented source of bugs and security
++#       problems, so this is (mostly) avoided, by progressively accumulating
++#       options in "$@", and eventually passing that to Java.
++#
++#       Where the inherited environment variables (DEFAULT_JVM_OPTS, JAVA_OPTS,
++#       and GRADLE_OPTS) rely on word-splitting, this is performed explicitly;
++#       see the in-line comments for details.
++#
++#       There are tweaks for specific operating systems such as AIX, CygWin,
++#       Darwin, MinGW, and NonStop.
++#
++#   (3) This script is generated from the Groovy template
++#       https://github.com/gradle/gradle/blob/HEAD/platforms/jvm/plugins-application/src/main/resources/org/gradle/api/internal/plugins/unixStartScript.txt
++#       within the Gradle project.
++#
++#       You can find Gradle at https://github.com/gradle/gradle/.
++#
++##############################################################################
++
++# Attempt to set APP_HOME
++
++# Resolve links: $0 may be a link
++app_path=$0
++
++# Need this for daisy-chained symlinks.
++while
++    APP_HOME=${app_path%"${app_path##*/}"}  # leaves a trailing /; empty if no leading path
++    [ -h "$app_path" ]
++do
++    ls=$( ls -ld "$app_path" )
++    link=${ls#*' -> '}
++    case $link in             #(
++      /*)   app_path=$link ;; #(
++      *)    app_path=$APP_HOME$link ;;
++    esac
++done
++
++# This is normally unused
++# shellcheck disable=SC2034
++APP_BASE_NAME=${0##*/}
++# Discard cd standard output in case $CDPATH is set (https://github.com/gradle/gradle/issues/25036)
++APP_HOME=$( cd -P "${APP_HOME:-./}" > /dev/null && printf '%s\n' "$PWD" ) || exit
++
++# Use the maximum available, or set MAX_FD != -1 to use that value.
++MAX_FD=maximum
++
++warn () {
++    echo "$*"
++} >&2
++
++die () {
++    echo
++    echo "$*"
++    echo
++    exit 1
++} >&2
++
++# OS specific support (must be 'true' or 'false').
++cygwin=false
++msys=false
++darwin=false
++nonstop=false
++case "$( uname )" in                #(
++  CYGWIN* )         cygwin=true  ;; #(
++  Darwin* )         darwin=true  ;; #(
++  MSYS* | MINGW* )  msys=true    ;; #(
++  NONSTOP* )        nonstop=true ;;
++esac
++
++CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
++
++
++# Determine the Java command to use to start the JVM.
++if [ -n "$JAVA_HOME" ] ; then
++    if [ -x "$JAVA_HOME/jre/sh/java" ] ; then
++        # IBM's JDK on AIX uses strange locations for the executables
++        JAVACMD=$JAVA_HOME/jre/sh/java
++    else
++        JAVACMD=$JAVA_HOME/bin/java
++    fi
++    if [ ! -x "$JAVACMD" ] ; then
++        die "ERROR: JAVA_HOME is set to an invalid directory: $JAVA_HOME
++
++Please set the JAVA_HOME variable in your environment to match the
++location of your Java installation."
++    fi
++else
++    JAVACMD=java
++    if ! command -v java >/dev/null 2>&1
++    then
++        die "ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.
++
++Please set the JAVA_HOME variable in your environment to match the
++location of your Java installation."
++    fi
++fi
++
++# Increase the maximum file descriptors if we can.
++if ! "$cygwin" && ! "$darwin" && ! "$nonstop" ; then
++    case $MAX_FD in #(
++      max*)
++        # In POSIX sh, ulimit -H is undefined. That's why the result is checked to see if it worked.
++        # shellcheck disable=SC2039,SC3045
++        MAX_FD=$( ulimit -H -n ) ||
++            warn "Could not query maximum file descriptor limit"
++    esac
++    case $MAX_FD in  #(
++      '' | soft) :;; #(
++      *)
++        # In POSIX sh, ulimit -n is undefined. That's why the result is checked to see if it worked.
++        # shellcheck disable=SC2039,SC3045
++        ulimit -n "$MAX_FD" ||
++            warn "Could not set maximum file descriptor limit to $MAX_FD"
++    esac
++fi
++
++# Collect all arguments for the java command, stacking in reverse order:
++#   * args from the command line
++#   * the main class name
++#   * -classpath
++#   * -D...appname settings
++#   * --module-path (only if needed)
++#   * DEFAULT_JVM_OPTS, JAVA_OPTS, and GRADLE_OPTS environment variables.
++
++# For Cygwin or MSYS, switch paths to Windows format before running java
++if "$cygwin" || "$msys" ; then
++    APP_HOME=$( cygpath --path --mixed "$APP_HOME" )
++    CLASSPATH=$( cygpath --path --mixed "$CLASSPATH" )
++
++    JAVACMD=$( cygpath --unix "$JAVACMD" )
++
++    # Now convert the arguments - kludge to limit ourselves to /bin/sh
++    for arg do
++        if
++            case $arg in                                #(
++              -*)   false ;;                            # don't mess with options #(
++              /?*)  t=${arg#/} t=/${t%%/*}              # looks like a POSIX filepath
++                    [ -e "$t" ] ;;                      #(
++              *)    false ;;
++            esac
++        then
++            arg=$( cygpath --path --ignore --mixed "$arg" )
++        fi
++        # Roll the args list around exactly as many times as the number of
++        # args, so each arg winds up back in the position where it started, but
++        # possibly modified.
++        #
++        # NB: a `for` loop captures its iteration list before it begins, so
++        # changing the positional parameters here affects neither the number of
++        # iterations, nor the values presented in `arg`.
++        shift                   # remove old arg
++        set -- "$@" "$arg"      # push replacement arg
++    done
++fi
++
++
++# Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
++DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m"'
++
++# Collect all arguments for the java command:
++#   * DEFAULT_JVM_OPTS, JAVA_OPTS, JAVA_OPTS, and optsEnvironmentVar are not allowed to contain shell fragments,
++#     and any embedded shellness will be escaped.
++#   * For example: A user cannot expect ${Hostname} to be expanded, as it is an environment variable and will be
++#     treated as '${Hostname}' itself on the command line.
++
++set -- \
++        "-Dorg.gradle.appname=$APP_BASE_NAME" \
++        -classpath "$CLASSPATH" \
++        org.gradle.wrapper.GradleWrapperMain \
++        "$@"
++
++# Stop when "xargs" is not available.
++if ! command -v xargs >/dev/null 2>&1
++then
++    die "xargs is not available"
++fi
++
++# Use "xargs" to parse quoted args.
++#
++# With -n1 it outputs one arg per line, with the quotes and backslashes removed.
++#
++# In Bash we could simply go:
++#
++#   readarray ARGS < <( xargs -n1 <<<"$var" ) &&
++#   set -- "${ARGS[@]}" "$@"
++#
++# but POSIX shell has neither arrays nor command substitution, so instead we
++# post-process each arg (as a line of input to sed) to backslash-escape any
++# character that might be a shell metacharacter, then use eval to reverse
++# that process (while maintaining the separation between arguments), and wrap
++# the whole thing up as a single "set" statement.
++#
++# This will of course break if any of these variables contains a newline or
++# an unmatched quote.
++#
++
++eval "set -- $(
++        printf '%s\n' "$DEFAULT_JVM_OPTS $JAVA_OPTS $GRADLE_OPTS" |
++        xargs -n1 |
++        sed ' s~[^-[:alnum:]+,./:=@_]~\\&~g; ' |
++        tr '\n' ' '
++    )" '"$@"'
++
++exec "$JAVACMD" "$@"
+diff --git a/notification-service/gradlew.bat b/notification-service/gradlew.bat
+new file mode 100644
+index 0000000..9d21a21
+--- /dev/null
++++ b/notification-service/gradlew.bat
+@@ -0,0 +1,94 @@
++@rem
++@rem Copyright 2015 the original author or authors.
++@rem
++@rem Licensed under the Apache License, Version 2.0 (the "License");
++@rem you may not use this file except in compliance with the License.
++@rem You may obtain a copy of the License at
++@rem
++@rem      https://www.apache.org/licenses/LICENSE-2.0
++@rem
++@rem Unless required by applicable law or agreed to in writing, software
++@rem distributed under the License is distributed on an "AS IS" BASIS,
++@rem WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++@rem See the License for the specific language governing permissions and
++@rem limitations under the License.
++@rem
++@rem SPDX-License-Identifier: Apache-2.0
++@rem
++
++@if "%DEBUG%"=="" @echo off
++@rem ##########################################################################
++@rem
++@rem  Gradle startup script for Windows
++@rem
++@rem ##########################################################################
++
++@rem Set local scope for the variables with windows NT shell
++if "%OS%"=="Windows_NT" setlocal
++
++set DIRNAME=%~dp0
++if "%DIRNAME%"=="" set DIRNAME=.
++@rem This is normally unused
++set APP_BASE_NAME=%~n0
++set APP_HOME=%DIRNAME%
++
++@rem Resolve any "." and ".." in APP_HOME to make it shorter.
++for %%i in ("%APP_HOME%") do set APP_HOME=%%~fi
++
++@rem Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
++set DEFAULT_JVM_OPTS="-Xmx64m" "-Xms64m"
++
++@rem Find java.exe
++if defined JAVA_HOME goto findJavaFromJavaHome
++
++set JAVA_EXE=java.exe
++%JAVA_EXE% -version >NUL 2>&1
++if %ERRORLEVEL% equ 0 goto execute
++
++echo. 1>&2
++echo ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH. 1>&2
++echo. 1>&2
++echo Please set the JAVA_HOME variable in your environment to match the 1>&2
++echo location of your Java installation. 1>&2
++
++goto fail
++
++:findJavaFromJavaHome
++set JAVA_HOME=%JAVA_HOME:"=%
++set JAVA_EXE=%JAVA_HOME%/bin/java.exe
++
++if exist "%JAVA_EXE%" goto execute
++
++echo. 1>&2
++echo ERROR: JAVA_HOME is set to an invalid directory: %JAVA_HOME% 1>&2
++echo. 1>&2
++echo Please set the JAVA_HOME variable in your environment to match the 1>&2
++echo location of your Java installation. 1>&2
++
++goto fail
++
++:execute
++@rem Setup the command line
++
++set CLASSPATH=%APP_HOME%\gradle\wrapper\gradle-wrapper.jar
++
++
++@rem Execute Gradle
++"%JAVA_EXE%" %DEFAULT_JVM_OPTS% %JAVA_OPTS% %GRADLE_OPTS% "-Dorg.gradle.appname=%APP_BASE_NAME%" -classpath "%CLASSPATH%" org.gradle.wrapper.GradleWrapperMain %*
++
++:end
++@rem End local scope for the variables with windows NT shell
++if %ERRORLEVEL% equ 0 goto mainEnd
++
++:fail
++rem Set variable GRADLE_EXIT_CONSOLE if you need the _script_ return code instead of
++rem the _cmd.exe /c_ return code!
++set EXIT_CODE=%ERRORLEVEL%
++if %EXIT_CODE% equ 0 set EXIT_CODE=1
++if not ""=="%GRADLE_EXIT_CONSOLE%" exit %EXIT_CODE%
++exit /b %EXIT_CODE%
++
++:mainEnd
++if "%OS%"=="Windows_NT" endlocal
++
++:omega
+diff --git a/notification-service/settings.gradle b/notification-service/settings.gradle
+new file mode 100644
+index 0000000..6e14aca
+--- /dev/null
++++ b/notification-service/settings.gradle
+@@ -0,0 +1 @@
++rootProject.name = 'notification-service'
+\ No newline at end of file
+diff --git a/notification-service/src/main/java/com/playdata/notificationservice/NotificationServiceApplication.java b/notification-service/src/main/java/com/playdata/notificationservice/NotificationServiceApplication.java
+new file mode 100644
+index 0000000..2c3e6f3
+--- /dev/null
++++ b/notification-service/src/main/java/com/playdata/notificationservice/NotificationServiceApplication.java
+@@ -0,0 +1,19 @@
++package com.playdata.notificationservice;
++
++import org.springframework.boot.SpringApplication;
++import org.springframework.boot.autoconfigure.SpringBootApplication;
++import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
++import org.springframework.cloud.openfeign.EnableFeignClients;
++import org.springframework.scheduling.annotation.EnableScheduling;
++
++@SpringBootApplication
++@EnableDiscoveryClient
++@EnableFeignClients
++@EnableScheduling
++public class NotificationServiceApplication {
++
++    public static void main(String[] args) {
++        SpringApplication.run(NotificationServiceApplication.class, args);
++    }
++
++}
+diff --git a/notification-service/src/main/java/com/playdata/notificationservice/batch/NotificationBatchScheduler.java b/notification-service/src/main/java/com/playdata/notificationservice/batch/NotificationBatchScheduler.java
+new file mode 100644
+index 0000000..cca1860
+--- /dev/null
++++ b/notification-service/src/main/java/com/playdata/notificationservice/batch/NotificationBatchScheduler.java
+@@ -0,0 +1,28 @@
++package com.playdata.notificationservice.batch;
++
++import com.playdata.notificationservice.repository.NotificationRepository;
++import lombok.RequiredArgsConstructor;
++import lombok.extern.slf4j.Slf4j;
++import org.springframework.scheduling.annotation.Scheduled;
++import org.springframework.stereotype.Component;
++import org.springframework.transaction.annotation.Transactional;
++
++import java.time.LocalDateTime;
++
++@Component
++@RequiredArgsConstructor
++@Slf4j
++public class NotificationBatchScheduler {
++
++    private final NotificationRepository notificationRepository;
++
++    // 매일 자정(0시 0분 0초)에 실행
++    @Scheduled(cron = "0 0 0 * * ?")
++    @Transactional
++    public void deleteOldNotifications() {
++        log.info("Starting batch job: deleteOldNotifications");
++        LocalDateTime sixtyDaysAgo = LocalDateTime.now().minusDays(60);
++        notificationRepository.deleteByCreatedAtBefore(sixtyDaysAgo);
++        log.info("Finished batch job: deleteOldNotifications. Deleted notifications created before {}", sixtyDaysAgo);
++    }
++}
+diff --git a/notification-service/src/main/java/com/playdata/notificationservice/common/auth/JwtAuthFilter.java b/notification-service/src/main/java/com/playdata/notificationservice/common/auth/JwtAuthFilter.java
+new file mode 100644
+index 0000000..9bb6218
+--- /dev/null
++++ b/notification-service/src/main/java/com/playdata/notificationservice/common/auth/JwtAuthFilter.java
+@@ -0,0 +1,80 @@
++package com.playdata.notificationservice.common.auth;
++
++import jakarta.servlet.FilterChain;
++import jakarta.servlet.ServletException;
++import jakarta.servlet.http.HttpServletRequest;
++import jakarta.servlet.http.HttpServletResponse;
++import lombok.RequiredArgsConstructor;
++import lombok.extern.slf4j.Slf4j;
++import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
++import org.springframework.security.core.Authentication;
++import org.springframework.security.core.authority.SimpleGrantedAuthority;
++import org.springframework.security.core.context.SecurityContextHolder;
++import org.springframework.stereotype.Component;
++import org.springframework.web.filter.OncePerRequestFilter;
++
++import java.io.IOException;
++import java.util.ArrayList;
++import java.util.List;
++
++@Component
++@RequiredArgsConstructor
++@Slf4j
++public class JwtAuthFilter extends OncePerRequestFilter {
++
++    @Override
++    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
++
++        String requestURI = request.getRequestURI();
++        String userEmail = null;
++        String userRole = null;
++        String employeeNoStr = null;
++
++        // SSE 구독 요청의 경우, 쿼리 파라미터에서 인증 정보 추출
++        if (requestURI.contains("/notifications/subscribe")) {
++            log.info("SSE connection detected. Reading auth info from query parameters.");
++            userEmail = request.getParameter("userEmail");
++            userRole = request.getParameter("userRole");
++            employeeNoStr = request.getParameter("employeeNo");
++        } else {
++            // 그 외 모든 요청은 기존 방식대로 헤더에서 인증 정보 추출
++            userEmail = request.getHeader("X-User-Email");
++            userRole = request.getHeader("X-User-Role");
++            employeeNoStr = request.getHeader("X-User-Employee-No");
++        }
++
++        Long employeeNo = null;
++        if (employeeNoStr != null) {
++            try {
++                employeeNo = Long.parseLong(employeeNoStr);
++            } catch (NumberFormatException e) {
++                log.warn("Invalid employee number format: {}", employeeNoStr);
++            }
++        }
++
++        log.info("userEmail:{} userRole:{} employeeNo:{}", userEmail, userRole, employeeNo);
++
++        if (userEmail != null && userRole != null && employeeNo != null) {
++            List<SimpleGrantedAuthority> authorityList = new ArrayList<>();
++            authorityList.add(new SimpleGrantedAuthority("ROLE_" + userRole));
++
++            Authentication auth = new UsernamePasswordAuthenticationToken(
++                    new TokenUserInfo(userEmail, userRole, employeeNo),
++                    "",
++                    authorityList
++            );
++
++            SecurityContextHolder.getContext().setAuthentication(auth);
++
++            log.info("SecurityContext Authentication: {}", SecurityContextHolder.getContext().getAuthentication());
++            if (SecurityContextHolder.getContext().getAuthentication() != null) {
++                log.info("Authentication Principal: {}", SecurityContextHolder.getContext().getAuthentication().getPrincipal());
++                log.info("Authentication Authorities: {}", SecurityContextHolder.getContext().getAuthentication().getAuthorities());
++                log.info("Authentication isAuthenticated: {}", SecurityContextHolder.getContext().getAuthentication().isAuthenticated());
++            }
++
++        }
++        filterChain.doFilter(request, response);
++
++    }
++}
+\ No newline at end of file
+diff --git a/notification-service/src/main/java/com/playdata/notificationservice/common/auth/TokenUserInfo.java b/notification-service/src/main/java/com/playdata/notificationservice/common/auth/TokenUserInfo.java
+new file mode 100644
+index 0000000..988ed94
+--- /dev/null
++++ b/notification-service/src/main/java/com/playdata/notificationservice/common/auth/TokenUserInfo.java
+@@ -0,0 +1,17 @@
++package com.playdata.notificationservice.common.auth;
++
++import lombok.*;
++
++@Setter
++@Getter
++@ToString
++@NoArgsConstructor
++@AllArgsConstructor
++@Builder
++public class TokenUserInfo {
++
++    private String email;
++    private String hrRole;
++    private Long employeeNo;
++
++}
+\ No newline at end of file
+diff --git a/notification-service/src/main/java/com/playdata/notificationservice/common/configs/SecurityConfig.java b/notification-service/src/main/java/com/playdata/notificationservice/common/configs/SecurityConfig.java
+new file mode 100644
+index 0000000..4fe41c3
+--- /dev/null
++++ b/notification-service/src/main/java/com/playdata/notificationservice/common/configs/SecurityConfig.java
+@@ -0,0 +1,38 @@
++package com.playdata.notificationservice.common.configs;
++
++
++import com.playdata.notificationservice.common.auth.JwtAuthFilter;
++import lombok.RequiredArgsConstructor;
++import org.springframework.context.annotation.Bean;
++import org.springframework.context.annotation.Configuration;
++import org.springframework.security.config.annotation.web.builders.HttpSecurity;
++import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
++import org.springframework.security.config.http.SessionCreationPolicy;
++import org.springframework.security.web.SecurityFilterChain;
++import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
++
++@Configuration
++@EnableWebSecurity
++@RequiredArgsConstructor
++public class SecurityConfig {
++
++    private final JwtAuthFilter jwtAuthFilter;
++
++    @Bean
++    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
++        http
++                .csrf(csrf -> csrf.disable())
++                .sessionManagement(sessionManagement ->
++                        sessionManagement.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
++                )
++                .authorizeHttpRequests(authorize ->
++                        authorize
++                                .requestMatchers("/notifications/subscribe/**").authenticated()
++                                .anyRequest().authenticated()
++
++                )
++                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
++
++        return http.build();
++    }
++}
+\ No newline at end of file
+diff --git a/notification-service/src/main/java/com/playdata/notificationservice/controller/NotificationController.java b/notification-service/src/main/java/com/playdata/notificationservice/controller/NotificationController.java
+new file mode 100644
+index 0000000..c52db67
+--- /dev/null
++++ b/notification-service/src/main/java/com/playdata/notificationservice/controller/NotificationController.java
+@@ -0,0 +1,69 @@
++package com.playdata.notificationservice.controller;
++
++import com.playdata.notificationservice.dto.NotificationResponse;
++import com.playdata.notificationservice.service.NotificationService;
++import com.playdata.notificationservice.dto.NotificationCreateRequest;
++import lombok.RequiredArgsConstructor;
++import org.springframework.http.HttpStatus;
++import org.springframework.http.MediaType;
++import org.springframework.http.ResponseEntity;
++import org.springframework.web.bind.annotation.*;
++import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
++
++import java.util.List;
++
++@RestController
++@RequestMapping("/notifications")
++@RequiredArgsConstructor
++public class NotificationController {
++
++    private final NotificationService notificationService;
++
++    // SSE 구독 엔드포인트
++    @GetMapping(value = "/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
++    public SseEmitter subscribe(@RequestHeader("X-User-Employee-No") String employeeNo) {
++        return notificationService.subscribe(employeeNo);
++    }
++
++    // 알림 생성 처리
++    @PostMapping
++    public ResponseEntity<NotificationResponse> createNotification(@RequestBody NotificationCreateRequest request) {
++        NotificationResponse response = notificationService.createNotification(request.getEmployeeNo(), request.getType(), request.getMessage(), request.getMessageId());
++        return new ResponseEntity<>(response, HttpStatus.CREATED);
++    }
++
++    // 알림 읽음 처리
++    @PatchMapping("/{notificationId}/read")
++    public ResponseEntity<NotificationResponse> markAsRead(@PathVariable Long notificationId) {
++        NotificationResponse response = notificationService.markNotificationAsRead(notificationId);
++        return ResponseEntity.ok(response);
++    }
++
++    // 메세지를 알림보다 먼저 볼시 ID로 알림 읽음 처리
++    @PostMapping("/mark-read-by-message-id")
++    public ResponseEntity<NotificationResponse> markReadByMessageId(@RequestBody Long notificationId) {
++        NotificationResponse response = notificationService.markNotificationAsRead(notificationId);
++        return ResponseEntity.ok(response);
++    }
++    @PostMapping("/delete-by-message-id")
++    public ResponseEntity<Void> deleteNotificationsByMessageId(@RequestBody Long messageId){
++        notificationService.deleteNotificationsByMessageId(messageId);
++        return ResponseEntity.ok().build();
++    }
++
++    // 알림 목록 조회
++    @GetMapping
++    public ResponseEntity<List<NotificationResponse>> getNotifications(
++            @RequestHeader("X-User-Employee-No") String employeeNo) {
++        List<NotificationResponse> notifications = notificationService.getNotifications(employeeNo);
++        return ResponseEntity.ok(notifications);
++    }
++
++    // 읽지 않은 알림 개수 조회
++    @GetMapping("/unread/count")
++    public ResponseEntity<Long> getUnreadNotificationCount(
++            @RequestHeader("X-User-Employee-No") String employeeNo) {
++        long count = notificationService.getUnreadNotificationCount(employeeNo);
++        return ResponseEntity.ok(count);
++    }
++}
+diff --git a/notification-service/src/main/java/com/playdata/notificationservice/dto/NotificationCreateRequest.java b/notification-service/src/main/java/com/playdata/notificationservice/dto/NotificationCreateRequest.java
+new file mode 100644
+index 0000000..698e9b7
+--- /dev/null
++++ b/notification-service/src/main/java/com/playdata/notificationservice/dto/NotificationCreateRequest.java
+@@ -0,0 +1,18 @@
++package com.playdata.notificationservice.dto;
++
++import com.playdata.notificationservice.type.NotificationType;
++import lombok.AllArgsConstructor;
++import lombok.Builder;
++import lombok.Getter;
++import lombok.NoArgsConstructor;
++
++@Getter
++@Builder
++@NoArgsConstructor
++@AllArgsConstructor
++public class NotificationCreateRequest {
++    private String employeeNo;
++    private NotificationType type;
++    private String message;
++    private Long messageId;
++}
+diff --git a/message-service/src/main/java/com/playdata/messageservice/dto/NotificationResponse.java b/notification-service/src/main/java/com/playdata/notificationservice/dto/NotificationResponse.java
+similarity index 76%
+rename from message-service/src/main/java/com/playdata/messageservice/dto/NotificationResponse.java
+rename to notification-service/src/main/java/com/playdata/notificationservice/dto/NotificationResponse.java
+index 3b7ea02..53239e4 100644
+--- a/message-service/src/main/java/com/playdata/messageservice/dto/NotificationResponse.java
++++ b/notification-service/src/main/java/com/playdata/notificationservice/dto/NotificationResponse.java
+@@ -1,6 +1,6 @@
+-package com.playdata.messageservice.dto;
++package com.playdata.notificationservice.dto;
+ 
+-import com.playdata.messageservice.type.NotificationType; // NotificationType import 추가
++import com.playdata.notificationservice.type.NotificationType; // NotificationType import 추가
+ import lombok.Builder;
+ import lombok.Getter;
+ import lombok.Setter;
+diff --git a/message-service/src/main/java/com/playdata/messageservice/entity/Notification.java b/notification-service/src/main/java/com/playdata/notificationservice/entity/Notification.java
+similarity index 88%
+rename from message-service/src/main/java/com/playdata/messageservice/entity/Notification.java
+rename to notification-service/src/main/java/com/playdata/notificationservice/entity/Notification.java
+index bab6b5c..6679c32 100644
+--- a/message-service/src/main/java/com/playdata/messageservice/entity/Notification.java
++++ b/notification-service/src/main/java/com/playdata/notificationservice/entity/Notification.java
+@@ -1,6 +1,6 @@
+-package com.playdata.messageservice.entity;
++package com.playdata.notificationservice.entity;
+ 
+-import com.playdata.messageservice.type.NotificationType; // NotificationType import 추가
++import com.playdata.notificationservice.type.NotificationType; // NotificationType import 추가
+ import jakarta.persistence.*;
+ import lombok.*;
+ import org.hibernate.annotations.CreationTimestamp;
+diff --git a/message-service/src/main/java/com/playdata/messageservice/repository/NotificationRepository.java b/notification-service/src/main/java/com/playdata/notificationservice/repository/NotificationRepository.java
+similarity index 72%
+rename from message-service/src/main/java/com/playdata/messageservice/repository/NotificationRepository.java
+rename to notification-service/src/main/java/com/playdata/notificationservice/repository/NotificationRepository.java
+index cca5c72..9d56f6e 100644
+--- a/message-service/src/main/java/com/playdata/messageservice/repository/NotificationRepository.java
++++ b/notification-service/src/main/java/com/playdata/notificationservice/repository/NotificationRepository.java
+@@ -1,6 +1,6 @@
+-package com.playdata.messageservice.repository;
++package com.playdata.notificationservice.repository;
+ 
+-import com.playdata.messageservice.entity.Notification;
++import com.playdata.notificationservice.entity.Notification;
+ import org.springframework.data.jpa.repository.JpaRepository;
+ import org.springframework.stereotype.Repository;
+ 
+@@ -16,4 +16,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
+ 
+     // 특정 쪽지 ID와 관련된 알림 목록 조회
+     List<Notification> findByMessageId(Long messageId);
++
++    // 특정 시간 이전에 생성된 알림 삭제
++    void deleteByCreatedAtBefore(java.time.LocalDateTime dateTime);
+ }
+\ No newline at end of file
+diff --git a/message-service/src/main/java/com/playdata/messageservice/service/NotificationService.java b/notification-service/src/main/java/com/playdata/notificationservice/service/NotificationService.java
+similarity index 73%
+rename from message-service/src/main/java/com/playdata/messageservice/service/NotificationService.java
+rename to notification-service/src/main/java/com/playdata/notificationservice/service/NotificationService.java
+index 16ddd89..2d07e56 100644
+--- a/message-service/src/main/java/com/playdata/messageservice/service/NotificationService.java
++++ b/notification-service/src/main/java/com/playdata/notificationservice/service/NotificationService.java
+@@ -1,8 +1,8 @@
+-package com.playdata.messageservice.service;
++package com.playdata.notificationservice.service;
+ 
+-import com.playdata.messageservice.dto.NotificationResponse;
+-import com.playdata.messageservice.entity.Notification;
+-import com.playdata.messageservice.type.NotificationType;
++import com.playdata.notificationservice.dto.NotificationResponse;
++import com.playdata.notificationservice.entity.Notification;
++import com.playdata.notificationservice.type.NotificationType;
+ import org.springframework.transaction.annotation.Transactional;
+ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+ 
+@@ -13,7 +13,7 @@ public interface NotificationService {
+     SseEmitter subscribe(String employeeNo);
+ 
+     @Transactional
+-    void createNotification(String employeeNo, NotificationType type, String message, Long messageId);
++    NotificationResponse createNotification(String employeeNo, NotificationType type, String message, Long messageId);
+ 
+     // 클라이언트에게 알림 전송
+     void sendNotificationToClient(Notification notification);
+diff --git a/message-service/src/main/java/com/playdata/messageservice/service/NotificationServiceImpl.java b/notification-service/src/main/java/com/playdata/notificationservice/service/NotificationServiceImpl.java
+similarity index 92%
+rename from message-service/src/main/java/com/playdata/messageservice/service/NotificationServiceImpl.java
+rename to notification-service/src/main/java/com/playdata/notificationservice/service/NotificationServiceImpl.java
+index 7e781ff..e52454e 100644
+--- a/message-service/src/main/java/com/playdata/messageservice/service/NotificationServiceImpl.java
++++ b/notification-service/src/main/java/com/playdata/notificationservice/service/NotificationServiceImpl.java
+@@ -1,9 +1,9 @@
+-package com.playdata.messageservice.service;
++package com.playdata.notificationservice.service;
+ 
+-import com.playdata.messageservice.dto.NotificationResponse;
+-import com.playdata.messageservice.entity.Notification;
+-import com.playdata.messageservice.repository.NotificationRepository;
+-import com.playdata.messageservice.type.NotificationType; // NotificationType import 추가
++import com.playdata.notificationservice.dto.NotificationResponse;
++import com.playdata.notificationservice.entity.Notification;
++import com.playdata.notificationservice.repository.NotificationRepository;
++import com.playdata.notificationservice.type.NotificationType; // NotificationType import 추가
+ import lombok.RequiredArgsConstructor;
+ import lombok.extern.slf4j.Slf4j;
+ import org.springframework.stereotype.Service;
+@@ -65,7 +65,7 @@ public class NotificationServiceImpl implements NotificationService {
+ 
+     @Transactional
+     @Override
+-    public void createNotification(String employeeNo, NotificationType type, String message, Long messageId) { // String -> NotificationType 변경
++    public NotificationResponse createNotification(String employeeNo, NotificationType type, String message, Long messageId) { // String -> NotificationType 변경
+         // 1. 알림을 데이터베이스에 저장
+         Notification notification = Notification.builder()
+                 .employeeNo(employeeNo)
+@@ -80,6 +80,7 @@ public class NotificationServiceImpl implements NotificationService {
+ 
+         // 2. 알림 생성 후 해당 사용자에게 SSE 이벤트 전송 (온라인 사용자만)
+         sendNotificationToClient(savedNotification);
++        return convertToDto(savedNotification);
+     }
+ 
+     // 클라이언트에게 알림 전송
+@@ -170,4 +171,4 @@ public class NotificationServiceImpl implements NotificationService {
+                 .readAt(notification.getReadAt())
+                 .build();
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/notification-service/src/main/java/com/playdata/notificationservice/type/NotificationType.java b/notification-service/src/main/java/com/playdata/notificationservice/type/NotificationType.java
+new file mode 100644
+index 0000000..f656283
+--- /dev/null
++++ b/notification-service/src/main/java/com/playdata/notificationservice/type/NotificationType.java
+@@ -0,0 +1,14 @@
++package com.playdata.notificationservice.type;
++
++import lombok.Getter;
++import lombok.RequiredArgsConstructor;
++
++@Getter
++@RequiredArgsConstructor
++public enum NotificationType {
++    MESSAGE("쪽지"),
++    ATTENDANCE("근태"),
++    E_APPROVAL("전자결재");
++
++    private final String description; // 알림 유형에 대한 설명
++}
+diff --git a/notification-service/src/main/resources/application.yml b/notification-service/src/main/resources/application.yml
+new file mode 100644
+index 0000000..6950f97
+--- /dev/null
++++ b/notification-service/src/main/resources/application.yml
+@@ -0,0 +1,6 @@
++server:
++  port: 0
++
++spring:
++  application:
++    name: notification-service
+diff --git a/notification-service/src/main/resources/bootstrap.yml b/notification-service/src/main/resources/bootstrap.yml
+new file mode 100644
+index 0000000..144365a
+--- /dev/null
++++ b/notification-service/src/main/resources/bootstrap.yml
+@@ -0,0 +1,5 @@
++spring:
++  cloud:
++    config:
++      uri: http://localhost:8888
++      profile: default
+\ No newline at end of file
+diff --git a/payroll-service/src/main/java/com/playdata/payrollservice/client/AttendanceClient.java b/payroll-service/src/main/java/com/playdata/payrollservice/client/AttendanceClient.java
+new file mode 100644
+index 0000000..08a00bd
+--- /dev/null
++++ b/payroll-service/src/main/java/com/playdata/payrollservice/client/AttendanceClient.java
+@@ -0,0 +1,24 @@
++package com.playdata.payrollservice.client;
++
++import com.playdata.payrollservice.common.configs.FeignClientConfig;
++import com.playdata.payrollservice.common.dto.CommonResDto;
++import com.playdata.payrollservice.payroll.dto.AttendanceResDto;
++import org.springframework.cloud.openfeign.FeignClient;
++import org.springframework.web.bind.annotation.GetMapping;
++import org.springframework.web.bind.annotation.PathVariable;
++import org.springframework.web.bind.annotation.RequestParam;
++
++import java.util.List;
++
++@FeignClient(name = "attendance-service")
++public interface AttendanceClient {
++
++    @GetMapping("/attendance/monthly/{year}/{month}")
++    CommonResDto<List<AttendanceResDto>> getMonthlyAttendanceForFeign(
++            @RequestParam("userId") Long userId,
++            @PathVariable("year") int year,
++            @PathVariable("month") int month
++    );
++}
++
++
+diff --git a/payroll-service/src/main/java/com/playdata/payrollservice/client/HrClient.java b/payroll-service/src/main/java/com/playdata/payrollservice/client/HrClient.java
+new file mode 100644
+index 0000000..8ebe080
+--- /dev/null
++++ b/payroll-service/src/main/java/com/playdata/payrollservice/client/HrClient.java
+@@ -0,0 +1,14 @@
++package com.playdata.payrollservice.client;
++
++import com.playdata.payrollservice.common.dto.CommonResDto;
++import com.playdata.payrollservice.payroll.dto.UserResDto;
++import org.springframework.cloud.openfeign.FeignClient;
++import org.springframework.web.bind.annotation.GetMapping;
++import org.springframework.web.bind.annotation.PathVariable;
++
++@FeignClient(name = "hr-service")
++public interface HrClient {
++
++    @GetMapping("/hr/user/{id}")
++    CommonResDto<UserResDto> getUserById(@PathVariable("id") Long employeeNo);
++}
+diff --git a/payroll-service/src/main/java/com/playdata/payrollservice/common/configs/FeignClientConfig.java b/payroll-service/src/main/java/com/playdata/payrollservice/common/configs/FeignClientConfig.java
+new file mode 100644
+index 0000000..6e95630
+--- /dev/null
++++ b/payroll-service/src/main/java/com/playdata/payrollservice/common/configs/FeignClientConfig.java
+@@ -0,0 +1,35 @@
++package com.playdata.payrollservice.common.configs;
++
++import feign.RequestInterceptor;
++import feign.RequestTemplate;
++import jakarta.servlet.http.HttpServletRequest;
++import lombok.RequiredArgsConstructor;
++import org.springframework.context.annotation.Bean;
++import org.springframework.context.annotation.Configuration;
++import org.springframework.web.context.request.RequestContextHolder;
++import org.springframework.web.context.request.ServletRequestAttributes;
++
++@Configuration
++@RequiredArgsConstructor
++public class FeignClientConfig {
++
++    @Bean
++    public RequestInterceptor userHeaderForwardingInterceptor() {
++        return template -> {
++            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
++            if (attributes == null) return;
++
++            HttpServletRequest request = attributes.getRequest();
++            copyHeader(request, template, "X-User-Email");
++            copyHeader(request, template, "X-User-Employee-No");
++            copyHeader(request, template, "X-User-Role");
++        };
++    }
++
++    private void copyHeader(HttpServletRequest request, RequestTemplate template, String headerName) {
++        String value = request.getHeader(headerName);
++        if (value != null) {
++            template.header(headerName, value);
++        }
++    }
++}
+diff --git a/payroll-service/src/main/java/com/playdata/payrollservice/payroll/PayrollTestDataInitializer.java b/payroll-service/src/main/java/com/playdata/payrollservice/payroll/PayrollTestDataInitializer.java
+index 6920efd..36c37ff 100644
+--- a/payroll-service/src/main/java/com/playdata/payrollservice/payroll/PayrollTestDataInitializer.java
++++ b/payroll-service/src/main/java/com/playdata/payrollservice/payroll/PayrollTestDataInitializer.java
+@@ -17,22 +17,22 @@ public class PayrollTestDataInitializer implements CommandLineRunner {
+     @Override
+     public void run(String... args) {
+         // userId 1
+-        createPayroll(1L, 2025, 7, 8400000, 300000, 220000, 1000000);
++        createPayroll(1L, 2025, 7, null, 300000, 220000, 1000000);
+         createPayroll(1L, 2025, 6, 8800000, 350000, 300000);
+         createPayroll(1L, 2025, 5, 7700000, 300000, 280000);
+ 
+         // userId 2
+-        createPayroll(2L, 2025, 7, 7100000, 280000, 110000, 800000);
++        createPayroll(2L, 2025, 7, null, 280000, 110000, 800000);
+         createPayroll(2L, 2025, 6, 7700000, 230000, 130000, 1000000);
+         createPayroll(2L, 2025, 5, 7500000, 200000, 130000);
+ 
+         // userId 3
+-        createPayroll(3L, 2025, 7, 5900000, 160000, 105000, 500000);
++        createPayroll(3L, 2025, 7, null, 160000, 105000, 500000);
+         createPayroll(3L, 2025, 6, 5600000, 120000, 105000);
+         createPayroll(3L, 2025, 5, 5400000, 100000, 115000);
+ 
+         // userId 4
+-        createPayroll(4L, 2025, 7, 3900000, 120000, 110000, 500000);
++        createPayroll(4L, 2025, 7, null, 120000, 110000, 500000);
+         createPayroll(4L, 2025, 6, 3300000, 150000, 105000);
+         createPayroll(4L, 2025, 5, 3400000, 160000, 115000, 200000);
+ 
+@@ -44,19 +44,18 @@ public class PayrollTestDataInitializer implements CommandLineRunner {
+ 
+ 
+     // bonus 없는 버전
+-    private void createPayroll(Long userId, int year, int month, int base, int allowance, Integer meal) {
++    private void createPayroll(Long userId, int year, int month, Integer base, int allowance, Integer meal) {
+         createPayroll(userId, year, month, base, allowance, meal, null); // bonus를 null로 처리
+     }
+ 
+     // bonus 있는 버전
+-    private void createPayroll(Long userId, int year, int month, int base, int allowance, int meal, Integer bonus) {
++    private void createPayroll(Long userId, int year, int month, Integer base, int allowance, int meal, Integer bonus) {
+         boolean exists = payrollRepository.findByUserIdAndPayYearAndPayMonth(userId, year, month).isPresent();
+         if (!exists) {
+             Payroll payroll = Payroll.builder()
+                     .userId(userId)
+                     .payYear(year)
+                     .payMonth(month)
+-                    .basePayroll(base)
+                     .positionAllowance(allowance)
+                     .mealAllowance(meal)
+                     .bonus(bonus)
+diff --git a/payroll-service/src/main/java/com/playdata/payrollservice/payroll/dto/AttendanceResDto.java b/payroll-service/src/main/java/com/playdata/payrollservice/payroll/dto/AttendanceResDto.java
+new file mode 100644
+index 0000000..2119f36
+--- /dev/null
++++ b/payroll-service/src/main/java/com/playdata/payrollservice/payroll/dto/AttendanceResDto.java
+@@ -0,0 +1,17 @@
++package com.playdata.payrollservice.payroll.dto;
++
++import lombok.Data;
++
++import java.time.LocalDate;
++import java.time.LocalDateTime;
++
++@Data
++public class AttendanceResDto {
++    private LocalDate attendanceDate;
++    private LocalDateTime checkInTime;
++    private LocalDateTime checkOutTime;
++    private String totalWorkTime; // 예: "08:30"
++    private String normalWorkTime;
++    private String overtimeWorkTime;
++    private String nightWorkTime;
++}
+diff --git a/payroll-service/src/main/java/com/playdata/payrollservice/payroll/dto/PayrollRequestDto.java b/payroll-service/src/main/java/com/playdata/payrollservice/payroll/dto/PayrollRequestDto.java
+index 27f274f..a53653d 100644
+--- a/payroll-service/src/main/java/com/playdata/payrollservice/payroll/dto/PayrollRequestDto.java
++++ b/payroll-service/src/main/java/com/playdata/payrollservice/payroll/dto/PayrollRequestDto.java
+@@ -15,6 +15,10 @@ public class PayrollRequestDto {
+     private Integer mealAllowance;
+     private Integer bonus;
+ 
++    private String positionName;
++
++    private Integer overtimePay;
++
+     private Integer payYear;
+     private Integer payMonth;
+ }
+diff --git a/payroll-service/src/main/java/com/playdata/payrollservice/payroll/dto/PayrollResponseDto.java b/payroll-service/src/main/java/com/playdata/payrollservice/payroll/dto/PayrollResponseDto.java
+index 77ed281..0394f43 100644
+--- a/payroll-service/src/main/java/com/playdata/payrollservice/payroll/dto/PayrollResponseDto.java
++++ b/payroll-service/src/main/java/com/playdata/payrollservice/payroll/dto/PayrollResponseDto.java
+@@ -21,6 +21,11 @@ public class PayrollResponseDto {
+     private Integer payYear;
+     private Integer payMonth;
+ 
++    private Long totalWorkMinutes;
++    private Long finalPayAmount;
++
++    private Integer overtimePay;
++
+     private LocalDateTime updatedAt;
+ 
+ }
+diff --git a/payroll-service/src/main/java/com/playdata/payrollservice/payroll/dto/UserResDto.java b/payroll-service/src/main/java/com/playdata/payrollservice/payroll/dto/UserResDto.java
+index ae0f82f..5a751e5 100644
+--- a/payroll-service/src/main/java/com/playdata/payrollservice/payroll/dto/UserResDto.java
++++ b/payroll-service/src/main/java/com/playdata/payrollservice/payroll/dto/UserResDto.java
+@@ -1,10 +1,5 @@
+ package com.playdata.payrollservice.payroll.dto;
+ 
+-
+-
+-
+-
+-import com.playdata.payrollservice.common.auth.Role;
+ import lombok.*;
+ 
+ import java.time.LocalDate;
+@@ -17,15 +12,15 @@ import java.time.LocalDate;
+ @Builder
+ public class UserResDto {
+ 
+-    private Long userid;
++    private Long employeeNo;
++    private String userName;
+     private String email;
+-    private String name;
+-    private Role role;
+-    private String address;
++    private String positionName;
+     private String profileImage;
+-    private String socialProvider;
+     private String phone;
+-    private LocalDate birthdate;
+-
++    private LocalDate birthDate;
+ 
++    private String bankName;
++    private String accountNumber;
++    private String accountHolder;
+ }
+diff --git a/payroll-service/src/main/java/com/playdata/payrollservice/payroll/entity/Payroll.java b/payroll-service/src/main/java/com/playdata/payrollservice/payroll/entity/Payroll.java
+index 04fabcd..bda8c47 100644
+--- a/payroll-service/src/main/java/com/playdata/payrollservice/payroll/entity/Payroll.java
++++ b/payroll-service/src/main/java/com/playdata/payrollservice/payroll/entity/Payroll.java
+@@ -46,6 +46,14 @@ public class Payroll {
+     @UpdateTimestamp
+     private LocalDateTime updatedAt;
+ 
++    @Column(name = "total_work_minutes")
++    private Long totalWorkMinutes;
++
++    @Column(name = "final_pay_amount")
++    private Long finalPayAmount;
++
++    @Column(name = "overtime_pay")
++    private Integer overtimePay;
+ 
+ 
+ 
+diff --git a/payroll-service/src/main/java/com/playdata/payrollservice/payroll/service/PayrollServiceImpl.java b/payroll-service/src/main/java/com/playdata/payrollservice/payroll/service/PayrollServiceImpl.java
+index 1121d14..b9c3dd6 100644
+--- a/payroll-service/src/main/java/com/playdata/payrollservice/payroll/service/PayrollServiceImpl.java
++++ b/payroll-service/src/main/java/com/playdata/payrollservice/payroll/service/PayrollServiceImpl.java
+@@ -1,13 +1,20 @@
+ package com.playdata.payrollservice.payroll.service;
+ 
++import com.playdata.payrollservice.client.AttendanceClient;
++import com.playdata.payrollservice.client.HrClient;
++import com.playdata.payrollservice.common.dto.CommonResDto;
++import com.playdata.payrollservice.payroll.dto.AttendanceResDto;
+ import com.playdata.payrollservice.payroll.dto.PayrollRequestDto;
+ import com.playdata.payrollservice.payroll.dto.PayrollResponseDto;
++import com.playdata.payrollservice.payroll.dto.UserResDto;
+ import com.playdata.payrollservice.payroll.entity.Payroll;
+ import com.playdata.payrollservice.payroll.repository.PayrollRepository;
+ import lombok.RequiredArgsConstructor;
+ import lombok.extern.slf4j.Slf4j;
+ import org.springframework.stereotype.Service;
+ 
++import java.util.List;
++import java.util.Map;
+ import java.util.Optional;
+ 
+ @Service
+@@ -15,6 +22,7 @@ import java.util.Optional;
+ @Slf4j
+ public class PayrollServiceImpl implements PayrollService {
+ 
++    private final AttendanceClient attendanceClient;
+     private final PayrollRepository payrollRepository;
+ 
+     @Override
+@@ -22,72 +30,148 @@ public class PayrollServiceImpl implements PayrollService {
+         Long userId = requestDto.getUserId();
+         int payYear = requestDto.getPayYear();
+         int payMonth = requestDto.getPayMonth();
++        int positionAllowance = Optional.ofNullable(requestDto.getPositionAllowance()).orElse(0);
++        int mealAllowance = Optional.ofNullable(requestDto.getMealAllowance()).orElse(0);
++        int bonus = Optional.ofNullable(requestDto.getBonus()).orElse(0);
+ 
+-        Optional<Payroll> existing = payrollRepository.findByUserIdAndPayYearAndPayMonth(
+-                userId, payYear, payMonth
+-        );
++        log.info("🚀 급여 저장 요청: userId={}, year={}, month={}", userId, payYear, payMonth);
++
++
++        // 근무시간 조회
++        CommonResDto<List<AttendanceResDto>> res =
++                attendanceClient.getMonthlyAttendanceForFeign(userId, payYear, payMonth);
++        List<AttendanceResDto> attendanceList = res.getResult();
++
++        long totalWorkMinutes = attendanceList.stream()
++                .mapToLong(dto -> parseToMinutes(dto.getTotalWorkTime()))
++                .sum();
++
++        // ✅ 기본급: 직급 우선, HR 입력이 있으면 override
++        log.info("🔍 입력된 positionName: {}", requestDto.getPositionName());
++
++        String positionName = requestDto.getPositionName();
++        if (positionName == null || !POSITION_BASE_PAY_MAP.containsKey(positionName)) {
++            positionName = getUserPosition(userId); // 🔥 HR 연동으로 조회
++        }
++
++        log.info("🔍 결정된 positionName: {}", positionName); // 직급 결정 결과
+ 
+-        Payroll payroll;
++        Integer defaultBasePayroll = POSITION_BASE_PAY_MAP.get(positionName);
++        int basePayroll = (requestDto.getBasePayroll() == null || requestDto.getBasePayroll() == 0)
++                ? (defaultBasePayroll != null ? defaultBasePayroll : 0)
++                : requestDto.getBasePayroll();
++
++        log.info("💰 기본급 계산 - userId={}, 직급={}, defaultBasePayroll={}, 최종 basePayroll={}",
++                userId, positionName, defaultBasePayroll, basePayroll);
++
++        if (basePayroll == 0) {
++            log.warn("⚠️ 기본급이 0원으로 계산됨: userId={}, position={}", userId, positionName);
++        }
++
++        // ✅ 통상시급 계산 (월 209시간 기준)
++        double hourlyWage = basePayroll / 209.0;
++
++        // ✅ 야근시간 (연장 + 심야 근무 합산)
++        long totalOvertimeMinutes = attendanceList.stream()
++                .mapToLong(dto ->
++                        parseToMinutes(dto.getOvertimeWorkTime()) +
++                                parseToMinutes(dto.getNightWorkTime())
++                )
++                .sum();
++
++        long overtimePay = 0;
++        if (totalOvertimeMinutes >= 60) {
++            overtimePay = Math.round((totalOvertimeMinutes / 60.0) * hourlyWage * 1.5);
++        }
+ 
++
++        // 저장 or 수정
++        Optional<Payroll> existing = payrollRepository.findByUserIdAndPayYearAndPayMonth(userId, payYear, payMonth);
++        Payroll payroll = existing.orElseGet(Payroll::new);
++
++        payroll.setUserId(userId);
++        payroll.setPayYear(payYear);
++        payroll.setPayMonth(payMonth);
++        payroll.setBasePayroll(basePayroll);
++
++// ⬇️ 수당 값부터 세팅
+         if (existing.isPresent()) {
+-            // ✅ 이미 존재 → 수정
+-            payroll = existing.get();
+-
+-            if (requestDto.getBasePayroll() != null)
+-                payroll.setBasePayroll(requestDto.getBasePayroll());
+-            if (requestDto.getPositionAllowance() != null)
+-                payroll.setPositionAllowance(requestDto.getPositionAllowance());
+-            if (requestDto.getMealAllowance() != null)
+-                payroll.setMealAllowance(requestDto.getMealAllowance());
+-            if (requestDto.getBonus() != null)
+-                payroll.setBonus(requestDto.getBonus());
++            Payroll old = existing.get();
++            payroll.setPositionAllowance(requestDto.getPositionAllowance() != null
++                    ? requestDto.getPositionAllowance() : old.getPositionAllowance());
++            payroll.setMealAllowance(requestDto.getMealAllowance() != null
++                    ? requestDto.getMealAllowance() : old.getMealAllowance());
++            payroll.setBonus(requestDto.getBonus() != null
++                    ? requestDto.getBonus() : old.getBonus());
+         } else {
+-            // ✅ 존재하지 않으면 새로 등록
+-            payroll = Payroll.builder()
+-                    .userId(userId)
+-                    .payYear(payYear)
+-                    .payMonth(payMonth)
+-                    .basePayroll(requestDto.getBasePayroll())
+-                    .positionAllowance(requestDto.getPositionAllowance())
+-                    .mealAllowance(requestDto.getMealAllowance())
+-                    .bonus(requestDto.getBonus())
+-                    .build();
++            payroll.setPositionAllowance(Optional.ofNullable(requestDto.getPositionAllowance()).orElse(0));
++            payroll.setMealAllowance(Optional.ofNullable(requestDto.getMealAllowance()).orElse(0));
++            payroll.setBonus(Optional.ofNullable(requestDto.getBonus()).orElse(0));
+         }
+ 
+-        Payroll saved = payrollRepository.save(payroll);
+-        return toDto(saved);
++// ⬇️ 수당 세팅된 후에야 계산 가능
++        long finalPay = basePayroll
++                + Optional.ofNullable(payroll.getPositionAllowance()).orElse(0)
++                + Optional.ofNullable(payroll.getMealAllowance()).orElse(0)
++                + Optional.ofNullable(payroll.getBonus()).orElse(0)
++                + overtimePay;
++        payroll.setFinalPayAmount(finalPay);
++
++        payroll.setOvertimePay((int) overtimePay); // ✅ 누락되었을 가능성 높음
++
++        log.info("⏰ 총 야근 시간: {}분", totalOvertimeMinutes);
++
++
++        return toDto(payrollRepository.save(payroll));
+     }
+ 
+-    // 2. 급여 정보 조회 (userId로)
++
++
++
++
++    // 2. 급여 정보 조회 (userId 기준)
+     @Override
+-    public PayrollResponseDto getPayrollByUserId(Long userid) {
+-        Payroll payroll = payrollRepository.findByUserId(userid)
++    public PayrollResponseDto getPayrollByUserId(Long userId) {
++        Payroll payroll = payrollRepository.findByUserId(userId)
+                 .orElseThrow(() -> new IllegalArgumentException("해당 직원의 급여 정보가 없습니다."));
+-//        SalaryResponseDto responseDto = toDto(salary);
+-//        return responseDto;
+-        log.info("payroll:{}", payroll);
++
++        if (payroll.getBasePayroll() == null || payroll.getBasePayroll() == 0) {
++            String positionName = getUserPosition(userId);
++            Integer basePay = POSITION_BASE_PAY_MAP.getOrDefault(positionName, 0);
++            payroll.setBasePayroll(basePay);
++
++            // 💾 DB에 저장
++            payrollRepository.save(payroll);
++
++            log.info("💾 기본급 자동 설정 및 DB 저장 완료: userId={}, position={}, basePay={}",
++                    userId, positionName, basePay);
++        }
++
+         return toDto(payroll);
+     }
+ 
+-
+     // 3. 급여 정보 수정
+     @Override
+     public PayrollResponseDto updatePayroll(PayrollRequestDto requestDto) {
+-        Payroll payroll = payrollRepository.findByUserIdAndPayYearAndPayMonth(requestDto.getUserId(),
+-                        requestDto.getPayYear(), requestDto.getPayMonth())
++        Payroll payroll = payrollRepository.findByUserIdAndPayYearAndPayMonth(
++                        requestDto.getUserId(), requestDto.getPayYear(), requestDto.getPayMonth())
+                 .orElseThrow(() -> new IllegalArgumentException("수정할 급여 정보가 없습니다."));
+ 
+-        if (requestDto.getBasePayroll() != null)
+-            payroll.setBasePayroll(requestDto.getBasePayroll());
+-        if (requestDto.getPositionAllowance() != null)
+-            payroll.setPositionAllowance(requestDto.getPositionAllowance());
+-        if (requestDto.getMealAllowance() != null)
+-            payroll.setMealAllowance(requestDto.getMealAllowance());
+-        if (requestDto.getBonus() != null)
+-            payroll.setBonus(requestDto.getBonus());
+-
+-        Payroll updated = payrollRepository.save(payroll);
+-        return toDto(updated);
++        payroll.setBasePayroll(
++                requestDto.getBasePayroll() != null ? requestDto.getBasePayroll() : payroll.getBasePayroll()
++        );
++        payroll.setPositionAllowance(
++                requestDto.getPositionAllowance() != null ? requestDto.getPositionAllowance() : payroll.getPositionAllowance()
++        );
++        payroll.setMealAllowance(
++                requestDto.getMealAllowance() != null ? requestDto.getMealAllowance() : payroll.getMealAllowance()
++        );
++        payroll.setBonus(
++                requestDto.getBonus() != null ? requestDto.getBonus() : payroll.getBonus()
++        );
++
++
++        return toDto(payrollRepository.save(payroll));
+     }
+ 
+     // 4. 급여 정보 삭제
+@@ -98,25 +182,83 @@ public class PayrollServiceImpl implements PayrollService {
+         payrollRepository.delete(payroll);
+     }
+ 
+-    // 특정 연 /월 급여 조회
++    // 5. 특정 연/월 기준 급여 조회
+     @Override
+     public PayrollResponseDto getPayrollByMonth(Long userId, int year, int month) {
+         Payroll payroll = payrollRepository.findByUserIdAndPayYearAndPayMonth(userId, year, month)
+                 .orElseThrow(() -> new IllegalArgumentException("해당 월의 급여 정보가 존재하지 않습니다."));
++
++        if (payroll.getBasePayroll() == null || payroll.getBasePayroll() == 0) {
++            String positionName = getUserPosition(userId);
++            Integer basePay = POSITION_BASE_PAY_MAP.getOrDefault(positionName, 0);
++            payroll.setBasePayroll(basePay);
++
++            // 💾 DB에 저장
++            payrollRepository.save(payroll);
++
++            log.info("💾 기본급 자동 설정 및 DB 저장 완료: userId={}, yearMonth={}/{} position={}, basePay={}",
++                    userId, year, month, positionName, basePay);
++        }
++
+         return toDto(payroll);
+     }
+ 
+-    // Entity -> Dto 변환 메서드
++
++    // 🔧 totalWorkTime "08:30" 형식 문자열 → 분으로 변환
++    private long parseToMinutes(String timeStr) {
++        if (timeStr == null || !timeStr.contains(":")) return 0;
++        try {
++            String[] parts = timeStr.split(":");
++            return Integer.parseInt(parts[0]) * 60 + Integer.parseInt(parts[1]);
++        } catch (Exception e) {
++            log.warn("근무 시간 파싱 실패: {}", timeStr);
++            return 0;
++        }
++    }
++
++    private static final Map<String, Integer> POSITION_BASE_PAY_MAP = Map.of(
++            "사장", 9000000,
++            "부장", 7000000,
++            "책임", 6000000,
++            "선임", 4500000,
++            "사원", 3000000
++    );
++
++    private final HrClient hrClient;
++
++    private String getUserPosition(Long userId) {
++        try {
++            CommonResDto<UserResDto> res = hrClient.getUserById(userId);
++            log.info("📦 HR 응답: {}", res); // 전체 응답 확인
++            if (res.getResult() != null) {
++                log.info("✅ HR 직급 정보: userId={}, position={}", userId, res.getResult().getPositionName()); // 직급 확인
++                return res.getResult().getPositionName();
++            } else {
++                log.warn("⚠️ HR 응답에서 result가 null: userId={}", userId);
++            }
++        } catch (Exception e) {
++            log.warn("❌ 직급 조회 실패: userId={}, error={}", userId, e.getMessage());
++        }
++        return null;
++    }
++
++
++
++
++    // 🧾 Entity → Dto 변환
+     private PayrollResponseDto toDto(Payroll payroll) {
+         return PayrollResponseDto.builder()
+                 .payrollId(payroll.getPayrollId())
+                 .userId(payroll.getUserId())
+                 .basePayroll(payroll.getBasePayroll())
+                 .positionAllowance(payroll.getPositionAllowance())
++                .mealAllowance(payroll.getMealAllowance())
+                 .bonus(payroll.getBonus())
++                .overtimePay(payroll.getOvertimePay())
+                 .payYear(payroll.getPayYear())
+                 .payMonth(payroll.getPayMonth())
+-                .mealAllowance(payroll.getMealAllowance())
++                .totalWorkMinutes(payroll.getTotalWorkMinutes())
++                .finalPayAmount(payroll.getFinalPayAmount())
+                 .updatedAt(payroll.getUpdatedAt())
+                 .build();
+     }

@@ -2,7 +2,7 @@ package com.playdata.vacationservice.vacation.service;
 
 import com.playdata.vacationservice.client.ApprovalServiceClient;
 import com.playdata.vacationservice.client.HrServiceClient;
-import com.playdata.vacationservice.client.dto.ApprovalRequestDto;
+import com.playdata.vacationservice.client.dto.VacationApprovalRequestCreateDto;
 import com.playdata.vacationservice.client.dto.ApprovalRequestResponseDto;
 import com.playdata.vacationservice.client.dto.UserDetailDto;
 import com.playdata.vacationservice.client.dto.UserFeignResDto; // 추가
@@ -348,7 +348,7 @@ public class VacationService {
         // 결재 서비스에 상태 업데이트 요청
         try {
             approvalServiceClient.rejectApprovalRequest(vacation.getApprovalRequestId(), requestDto); // requestDto를 직접 전달
-            log.info("휴가 신청 (ID: {})이 반려되었습니다. 결재 서비스에 상태 업데이트 요청 완료. 사유: {}", vacationId, requestDto.getComment());
+            log.info("휴가 신청 (ID: {})이 반려되었습니다. 결재 서비스에 상태 업데이트 요청 완료. 사유: {}", vacationId, requestDto.getRejectComment());
         } catch (FeignException e) {
             log.error("결재 서비스 통신 오류 (rejectVacation): {}", e.getMessage());
             throw new IllegalStateException("결재 서비스 통신 중 오류가 발생했습니다. 다시 시도해주세요.");
@@ -513,18 +513,22 @@ public class VacationService {
     }
 
     /**
-     * 휴가 엔티티의 상태를 업데이트합니다.
+     * 휴가 엔티티의 상태와 반려 사유를 업데이트합니다.
      *
      * @param vacationId 휴가 ID
      * @param status 업데이트할 휴가 상태
+     * @param rejectComment 반려 사유 (반려 시에만 사용)
      */
     @Transactional
-    public void updateVacationStatus(Long vacationId, VacationStatus status) {
+    public void updateVacationStatus(Long vacationId, VacationStatus status, String rejectComment) {
         Vacation vacation = vacationRepository.findById(vacationId)
                 .orElseThrow(() -> new IllegalArgumentException("해당 휴가 신청을 찾을 수 없습니다: " + vacationId));
         vacation.setVacationStatus(status);
+        if (status == VacationStatus.REJECTED) {
+            vacation.setRejectComment(rejectComment);
+        }
         vacationRepository.save(vacation);
-        log.info("휴가 (ID: {})의 상태가 {}로 업데이트되었습니다.", vacationId, status);
+        log.info("휴가 (ID: {})의 상태가 {}로 업데이트되었습니다. 반려 사유: {}", vacationId, status, rejectComment);
     }
 
     /**
@@ -566,8 +570,8 @@ public class VacationService {
 
         String title = String.format("%s 휴가 신청 (%s ~ %s)", vacationType.getDescription(), startDate, endDate);
 
-        ApprovalRequestDto approvalRequest = ApprovalRequestDto.builder()
-                .requestType(RequestType.VACATION)
+        VacationApprovalRequestCreateDto approvalRequest = VacationApprovalRequestCreateDto.builder()
+                .requestType(RequestType.VACATION.name())
                 .applicantId(userInfo.getEmployeeNo())
                 .reason(reason)
                 .vacationsId(vacationId)

@@ -235,7 +235,8 @@ public class VacationController {
             @RequestParam("userId") Long userId,
             @RequestParam("vacationType") String vacationTypeStr,
             @RequestParam("startDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam("endDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+            @RequestParam("endDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(value = "rejectComment", required = false) String rejectComment) {
 
         VacationType vacationType = VacationType.valueOf(vacationTypeStr);
         VacationStatus newStatus = VacationStatus.valueOf(status);
@@ -254,7 +255,7 @@ public class VacationController {
         }
 
         // 휴가 상태 업데이트
-        vacationService.updateVacationStatus(vacationId, newStatus);
+        vacationService.updateVacationStatus(vacationId, newStatus, rejectComment);
 
         return ResponseEntity.ok().build();
     }

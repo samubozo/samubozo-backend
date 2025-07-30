@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
 
 @SpringBootApplication
-@EnableFeignClients
+@EnableFeignClients(basePackages = "com.playdata.certificateservice.client")
 @EnableJpaAuditing
 public class CertificateServiceApplication {
 

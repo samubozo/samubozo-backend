@@ -185,7 +185,10 @@ public class UserServiceImpl implements UserService {
     public UserFeignResDto getEmployeeById(Long employeeNo) {
         User user = userRepository.findByEmployeeNo(employeeNo).orElse(null);
         if (user != null) {
-            return user.toUserFeignResDto();
+            log.info("Found user in DB: {}", user);
+            UserFeignResDto dto = user.toUserFeignResDto();
+            log.info("Converted UserFeignResDto: {}", dto);
+            return dto;
         }
         return null;
     }

@@ -1,14 +1,12 @@
 package com.playdata.approvalservice.approval.entity;
 
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter; // 추가
+import lombok.*;
 
 import java.time.LocalDateTime;
 
+@AllArgsConstructor
+@Builder
 @Entity
 @Table(name = "approval_requests")
 @Getter
@@ -26,7 +24,7 @@ public class ApprovalRequest {
     @Column(name = "applicant_id", nullable = false)
     private Long applicantId;
 
-    @Setter // 추가
+    @Setter
     @Column(name = "approver_id")
     private Long approverId;
 
@@ -38,7 +36,7 @@ public class ApprovalRequest {
     private LocalDateTime requestedAt;
 
     @Column(name = "processed_at")
-    @Setter // 추가
+    @Setter
     private LocalDateTime processedAt;
 
     @Column(name = "reason", columnDefinition = "TEXT")
@@ -56,28 +54,33 @@ public class ApprovalRequest {
     @Column(name = "certificates_id")
     private Long certificateId;
 
-    @Column(name = "start_date") // 추가
-    private java.time.LocalDate startDate; // 추가
+    @Column(name = "start_date")
+    private java.time.LocalDate startDate;
 
-    @Column(name = "end_date") // 추가
-    private java.time.LocalDate endDate; // 추가
+    @Column(name = "end_date")
+    private java.time.LocalDate endDate;
 
-    @Builder
-    public ApprovalRequest(RequestType requestType, Long applicantId, Long approverId, ApprovalStatus status, LocalDateTime requestedAt, LocalDateTime processedAt, String reason, String title, Long vacationsId, String vacationType, Long certificatesId, java.time.LocalDate startDate, java.time.LocalDate endDate) {
-        this.requestType = requestType;
-        this.applicantId = applicantId;
-        this.approverId = approverId;
-        this.status = status;
-        this.requestedAt = requestedAt;
-        this.processedAt = processedAt;
-        this.reason = reason;
-        this.title = title;
-        this.vacationsId = vacationsId;
-        this.vacationType = vacationType;
-        this.certificateId = certificatesId;
-        this.startDate = startDate; // 빌더에 추가
-        this.endDate = endDate; // 빌더에 추가
-    }
+    @Setter
+    @Column(name = "reject_comment")
+    private String rejectComment;
+
+    // ===== 부재 관련 필드들 추가 =====
+    @Column(name = "absences_id")
+    private Long absencesId; // absence-service의 부재 ID
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "absence_type")
+    private AbsenceType absenceType; // 부재 종류
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "urgency")
+    private UrgencyType urgency; // 긴급도
+
+    @Column(name = "start_time")
+    private java.time.LocalTime startTime; // 부재 시작 시간
+
+    @Column(name = "end_time")
+    private java.time.LocalTime endTime; // 부재 종료 시간
 
     // 결재 상태 변경 메소드
     public void approve() {
@@ -85,8 +88,10 @@ public class ApprovalRequest {
         this.processedAt = LocalDateTime.now();
     }
 
-    public void reject() {
+    public void reject(String rejectComment) {
         this.status = ApprovalStatus.REJECTED;
-        this.processedAt = LocalDateTime.now(); // 반려 시점도 기록
+        this.processedAt = LocalDateTime.now();
+        this.rejectComment = rejectComment;
     }
+
 }

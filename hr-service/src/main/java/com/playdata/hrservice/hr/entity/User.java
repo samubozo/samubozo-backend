@@ -113,7 +113,7 @@ public class User {
                 .accountNumber(accountNumber)
                 .accountHolder(accountHolder)
                 .activate(activate)
-                .hrRole(position.getHrRole())
+                .hrRole(position != null ? position.getHrRole() : null) // NullPointerException 방지
                 .build();
     }
 
@@ -124,7 +124,7 @@ public class User {
                 .email(email)
                 .password(password)
                 .activate(activate)
-                .hrRole(position.getHrRole())
+                .hrRole(position != null ? position.getHrRole() : null) // NullPointerException 방지
                 .build();
     }
 
@@ -148,7 +148,7 @@ public class User {
                 .hireDate(hireDate)
                 .retireDate(retireDate)
                 .activate(activate)
-                .hrRole(position.getHrRole())
+                .hrRole(position != null ? position.getHrRole() : null) // NullPointerException 방지
                 .build();
     }
 
