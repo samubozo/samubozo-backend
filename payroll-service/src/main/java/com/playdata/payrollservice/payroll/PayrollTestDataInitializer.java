@@ -17,24 +17,29 @@ public class PayrollTestDataInitializer implements CommandLineRunner {
     @Override
     public void run(String... args) {
         // userId 1
+        createPayroll(1L, 2025, 7, null, 350000, 280000, 300000);
         createPayroll(1L, 2025, 6, null, 350000, 280000);
         createPayroll(1L, 2025, 5, 7700000, 300000, 280000);
 
         // userId 2
-        createPayroll(2L, 2025, 6, 7700000, 230000, 130000, 1000000);
-        createPayroll(2L, 2025, 5, 7500000, 200000, 130000);
+        createPayroll(2L, 2025, 7, 7700000, 230000, 260000, 1000000);
+        createPayroll(2L, 2025, 6, 7600000, 230000, 260000, 1000000);
+        createPayroll(2L, 2025, 5, 7500000, 200000, 260000);
 
         // userId 3
-        createPayroll(3L, 2025, 6, 5600000, 120000, 105000);
-        createPayroll(3L, 2025, 5, 5400000, 100000, 115000);
+        createPayroll(3L, 2025, 7, 5600000, 120000, 260000);
+        createPayroll(3L, 2025, 6, 5500000, 120000, 260000);
+        createPayroll(3L, 2025, 5, 5400000, 100000, 260000);
 
         // userId 4
-        createPayroll(4L, 2025, 6, 3300000, 150000, 105000);
-        createPayroll(4L, 2025, 5, 3400000, 160000, 115000, 200000);
+        createPayroll(4L, 2025, 7, 3300000, 150000, 260000);
+        createPayroll(4L, 2025, 6, 3500000, 150000, 260000);
+        createPayroll(4L, 2025, 5, 3400000, 160000, 260000, 200000);
 
         // userId 5
-        createPayroll(5L, 2025, 6, 2600000, 120000, 105000);
-        createPayroll(5L, 2025, 5, 2500000, 100000, 100000, 300000);
+        createPayroll(5L, 2025, 7, 2600000, 120000, 260000);
+        createPayroll(5L, 2025, 6, 2700000, 120000, 260000);
+        createPayroll(5L, 2025, 5, 2500000, 100000, 260000, 300000);
     }
 
 
