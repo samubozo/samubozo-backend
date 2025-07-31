@@ -17,3 +17,8 @@ spec:
           image: {{ .Values.image }}
           ports:
             - containerPort: {{ .Values.port }}
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "dev,deploy"
+            - name: SPRING_CLOUD_CONFIG_PROFILE_ACTIVE
+              value: "default,deploy"

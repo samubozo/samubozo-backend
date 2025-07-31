@@ -1,5 +1,6 @@
 .gradle
 .application-dev.yml
+.application-prod.yml
 build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
