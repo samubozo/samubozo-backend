@@ -28,6 +28,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize ->
                         authorize
                                 .requestMatchers("/notifications/subscribe/**").authenticated()
+                                .requestMatchers("/notifications/mark-read-by-message-id").permitAll()
                                 .anyRequest().authenticated()
 
                 )
