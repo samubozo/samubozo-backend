@@ -59,6 +59,9 @@ public class PayrollServiceImpl implements PayrollService {
         //  이미 존재하면 아무 작업도 하지 않음
         Optional<Payroll> existing = payrollRepository.findByUserIdAndPayYearAndPayMonth(userId, payYear, payMonth);
         boolean isSystemCall = "system@s.com".equalsIgnoreCase(userInfo.getEmail());
+
+        Payroll payroll = existing.orElseGet(Payroll::new);
+
         if (isSystemCall && existing.isPresent() && existing.get().getBasePayroll() != null && existing.get().getBasePayroll() != 0) {
             log.info("⏩ 시스템 호출: 이미 생성된 급여가 존재하여 스킵: userId={}, {}/{}", userId, payYear, payMonth);
             return toDto(existing.get());
@@ -67,19 +70,28 @@ public class PayrollServiceImpl implements PayrollService {
             log.info("✅ 사용자 요청: 기존 급여 정보가 존재 → 수정/덮어쓰기 진행: userId={}, {}/{}", userId, payYear, payMonth);
         }
 
-
         String positionName = Optional.ofNullable(requestDto.getPositionName())
                 .filter(POSITION_BASE_PAY_MAP::containsKey)
                 .orElseGet(() -> getUserPosition(userId));
-        int positionAllowance = Optional.ofNullable(requestDto.getPositionAllowance())
-                .filter(p -> p != 0) // 0이면 무시
-                .orElse(POSITION_ALLOWANCE_MAP.getOrDefault(positionName, 0)); // 직급에 맞는 수당
 
-        int mealAllowance = Optional.ofNullable(requestDto.getMealAllowance())
-                .filter(m -> m != 0)
-                .orElse(POSITION_MEAL_ALLOWANCE_MAP.getOrDefault(positionName, 0)); // 식대도 고정값 적용
+        // 1. 요청 값 추출
+        Integer basePayroll = requestDto.getBasePayroll();
+        Integer positionAllowance = requestDto.getPositionAllowance();
+        Integer mealAllowance = requestDto.getMealAllowance();
+        Integer bonus = requestDto.getBonus(); // null 허용
 
-        int bonus = Optional.ofNullable(requestDto.getBonus()).orElse(0);
+        // 2. 시스템 호출이면 기본값 설정
+        if (isSystemCall) {
+            if (basePayroll == null) basePayroll = POSITION_BASE_PAY_MAP.getOrDefault(positionName, 0);
+            if (positionAllowance == null) positionAllowance = POSITION_ALLOWANCE_MAP.getOrDefault(positionName, 0);
+            if (mealAllowance == null) mealAllowance = POSITION_MEAL_ALLOWANCE_MAP.getOrDefault(positionName, 0);
+        }
+
+        // 3. 사용자 호출이면 기존 값 유지
+        if (basePayroll == null) basePayroll = payroll.getBasePayroll();
+        if (positionAllowance == null) positionAllowance = payroll.getPositionAllowance();
+        if (mealAllowance == null) mealAllowance = payroll.getMealAllowance();
+        if (bonus == null) bonus = payroll.getBonus();
 
         log.info("🪾 Attendance 조회 요청 - 대상 userId={}, 로그인한 userId={}, HR 여부={}",
                 userId, userInfo.getEmployeeNo(), userInfo.isHrAdmin());
@@ -99,33 +111,33 @@ public class PayrollServiceImpl implements PayrollService {
 
         log.info("🔍 결정된 positionName: {}", positionName);
 
-        Integer defaultBasePayroll = POSITION_BASE_PAY_MAP.get(positionName);
-        int basePayroll = Optional.ofNullable(requestDto.getBasePayroll()).filter(b -> b != 0)
-                .orElse(Optional.ofNullable(defaultBasePayroll).orElse(0));
+        double hourlyWage = (basePayroll != null ? basePayroll : 0) / 209.0;
 
-        double hourlyWage = basePayroll / 209.0;
         long totalOvertimeMinutes = attendanceList.stream()
                 .mapToLong(dto -> parseToMinutes(dto.getOvertimeWorkTime()) + parseToMinutes(dto.getNightWorkTime()))
                 .sum();
 
         long overtimePay = (totalOvertimeMinutes >= 60)
-                ? Math.round((totalOvertimeMinutes / 60.0) * hourlyWage * 1.5) : 0;
+                ? Math.round((totalOvertimeMinutes / 60.0) * hourlyWage * 1.5)
+                : 0;
 
-        Payroll payroll = existing.orElseGet(Payroll::new);
+        long finalPay =
+                (basePayroll != null ? basePayroll : 0) +
+                        (positionAllowance != null ? positionAllowance : 0) +
+                        (mealAllowance != null ? mealAllowance : 0) +
+                        (bonus != null ? bonus : 0) +
+                        overtimePay;
 
+        // 4. 엔티티 저장
         payroll.setUserId(userId);
         payroll.setPayYear(payYear);
         payroll.setPayMonth(payMonth);
         payroll.setBasePayroll(basePayroll);
-
-        payroll.setPositionAllowance(Optional.ofNullable(requestDto.getPositionAllowance()).orElse(positionAllowance));
-        payroll.setMealAllowance(Optional.ofNullable(requestDto.getMealAllowance()).orElse(mealAllowance));
-        payroll.setBonus(Optional.ofNullable(requestDto.getBonus()).orElse(bonus));
-
-        long finalPay = basePayroll + positionAllowance + mealAllowance + bonus + overtimePay;
-
-        payroll.setFinalPayAmount(finalPay);
+        payroll.setPositionAllowance(positionAllowance);
+        payroll.setMealAllowance(mealAllowance);
+        payroll.setBonus(bonus);
         payroll.setOvertimePay((int) overtimePay);
+        payroll.setFinalPayAmount(finalPay);
         payroll.setTotalWorkMinutes(totalWorkMinutes);
 
         return toDto(payrollRepository.save(payroll));
