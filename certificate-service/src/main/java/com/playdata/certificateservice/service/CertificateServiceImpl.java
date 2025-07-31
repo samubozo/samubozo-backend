@@ -1,24 +1,23 @@
 package com.playdata.certificateservice.service;
 
 
-import com.playdata.certificateservice.client.dto.ApprovalRequestCreateDto; // 이 DTO는 이제 사용하지 않습니다.
-import com.playdata.certificateservice.client.dto.CertificateApprovalRequestCreateDto; // 추가
-import com.playdata.certificateservice.client.dto.RequestType;
-import com.playdata.certificateservice.common.auth.TokenUserInfo;
-import com.playdata.certificateservice.common.dto.CommonResDto;
-import com.playdata.certificateservice.dto.CertificateRejectRequestDto; // 추가
-import com.playdata.certificateservice.dto.CertificateReqDto;
-import com.playdata.certificateservice.dto.CertificateResDto;
 import com.playdata.certificateservice.client.ApprovalServiceClient;
+import com.playdata.certificateservice.client.dto.ApprovalRequestResponseDto;
+import com.playdata.certificateservice.client.dto.CertificateApprovalRequestCreateDto;
+import com.playdata.certificateservice.client.dto.RequestType;
 import com.playdata.certificateservice.client.hr.HrServiceClient;
 import com.playdata.certificateservice.client.hr.dto.UserFeignResDto;
 import com.playdata.certificateservice.client.hr.dto.UserResDto;
-import com.playdata.certificateservice.client.dto.ApprovalRequestResponseDto;
-import feign.FeignException;
+import com.playdata.certificateservice.common.auth.TokenUserInfo;
+import com.playdata.certificateservice.common.dto.CommonResDto;
+import com.playdata.certificateservice.dto.CertificateRejectRequestDto;
+import com.playdata.certificateservice.dto.CertificateReqDto;
+import com.playdata.certificateservice.dto.CertificateResDto;
 import com.playdata.certificateservice.entity.Certificate;
 import com.playdata.certificateservice.entity.Status;
 import com.playdata.certificateservice.entity.Type;
 import com.playdata.certificateservice.repository.CertificateRepository;
+import feign.FeignException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,20 +30,18 @@ import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.http.HttpStatus;
 
 import java.io.ByteArrayOutputStream;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.LocalDateTime; // 추가
 import java.util.HashMap;
-import java.util.Objects;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -57,8 +54,6 @@ public class CertificateServiceImpl implements CertificateService {
     private final CertificateRepository certificateRepository;
     private final HrServiceClient hrServiceClient;
     private final ApprovalServiceClient approvalServiceClient;
-
-
 
     // 증명서 신청 (사용자)
     @Transactional
