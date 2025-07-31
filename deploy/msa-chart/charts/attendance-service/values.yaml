@@ -1,0 +1,3 @@
+replicaCount: 2
+image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/attendance-service:latest
+port: 8002

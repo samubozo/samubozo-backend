@@ -1,0 +1,12 @@
+
+
+
+# Helm 차트를 정의하는 메타데이터 포함
+# v2 로 필수 지정 helm 3 이상부터 무조건 써야함
+
+apiVersion: v2
+name: config-service
+description: chart for deploying Config-service all services in the Spring Cloud MSA
+type: application
+version: 1.0.0
+appVersion: 1.0.0

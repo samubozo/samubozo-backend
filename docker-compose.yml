@@ -1,8 +1,9 @@
 # Docker Compose 파일 포맷의 버전을 지정합니다.
 version: '3.8'
 services:
+  # --- 기존 서비스 ---
   config-service:
-    image: 940791490007.dkr.ecr.ap-northeast-2.amazonaws.com/config-service:latest
+    image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/config-service:latest
     container_name: config-service
     networks:
       - msa-network
@@ -16,65 +17,180 @@ services:
       start_period: 30s # 컨테이너 시작 후 60초 동안은 health check 실패를 무시.
     restart: always # 컨테이너가 모종의 이유로 중지되면 무조건 재시작 시도.
 
-  discovery-service:
-    image: 940791490007.dkr.ecr.ap-northeast-2.amazonaws.com/discovery-service:latest
-    container_name: discovery-service
-    networks:
-      - msa-network
-    ports:
-      - "8761:8761"
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://discovery-service:8761" ]
-      interval: 15s # 15초마다 한번씩 체크
-      timeout: 5s # 5초 안에 완료되어야 한다.
-      retries: 3 # 3번까지 재시도 하기
-      start_period: 30s # 컨테이너 시작 후 60초 동안은 health check 실패를 무시.
-    restart: always # 컨테이너가 모종의 이유로 중지되면 무조건 재시작 시도.
-
   gateway-service:
-    image: 940791490007.dkr.ecr.ap-northeast-2.amazonaws.com/gateway-service:latest
+    image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/gateway-service:latest
     container_name: gateway-service
     networks:
       - msa-network
     ports:
       - "8000:8000"
     depends_on:
-      # gateway는 discovery와 config가 건강해야지만 컨테이너가 시작됩니다.
       discovery-service:
         condition: service_healthy
       config-service:
         condition: service_healthy
     restart: always
 
-  user-service:
-    image: 940791490007.dkr.ecr.ap-northeast-2.amazonaws.com/user-service:latest
+  # --- 추가/업데이트된 서비스 ---
+  approval-service:
+    image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/approval-service:latest
+    container_name: approval-service
+    networks:
+      - msa-network
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      config-service:
+        condition: service_healthy
+    restart: always
+
+  attendance-service:
+    image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/attendance-service:latest
+    container_name: attendance-service
+    networks:
+      - msa-network
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      config-service:
+        condition: service_healthy
+    restart: always
+
+  auth-service:
+    image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/auth-service:latest
+    container_name: auth-service
+    networks:
+      - msa-network
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      config-service:
+        condition: service_healthy
+    restart: always
+
+  certificate-service:
+    image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/certificate-service:latest
+    container_name: certificate-service
+    networks:
+      - msa-network
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      config-service:
+        condition: service_healthy
+    restart: always
+
+  chatbot-service:
+    image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/chatbot-service:latest
+    container_name: chatbot-service
+    networks:
+      - msa-network
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      config-service:
+        condition: service_healthy
+    restart: always
+
+  hr-service:
+    image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/hr-service:latest
+    container_name: hr-service
+    networks:
+      - msa-network
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      config-service:
+        condition: service_healthy
+    restart: always
+
+  message-service:
+    image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/message-service:latest
+    container_name: message-service
+    networks:
+      - msa-network
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      config-service:
+        condition: service_healthy
+    restart: always
+
+  notification-service:
+    image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/notification-service:latest
+    container_name: notification-service
+    networks:
+      - msa-network
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      config-service:
+        condition: service_healthy
+    restart: always
+
+  ordering-service: # 기존 서비스지만 ECR 경로 업데이트
+    image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/ordering-service:latest
+    container_name: ordering-service # 오타 수정: order-service -> ordering-service
+    networks:
+      - msa-network
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      config-service:
+        condition: service_healthy
+    restart: always
+
+  payroll-service:
+    image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/payroll-service:latest
+    container_name: payroll-service
+    networks:
+      - msa-network
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      config-service:
+        condition: service_healthy
+    restart: always
+
+  product-service: # 기존 서비스지만 ECR 경로 업데이트
+    image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/product-service:latest
+    container_name: product-service
+    networks:
+      - msa-network
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      config-service:
+        condition: service_healthy
+    restart: always
+
+  schedule-service:
+    image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/schedule-service:latest
+    container_name: schedule-service
+    networks:
+      - msa-network
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      config-service:
+        condition: service_healthy
+    restart: always
+
+  user-service: # 기존 서비스지만 ECR 경로 업데이트
+    image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/user-service:latest
     container_name: user-service
     networks:
       - msa-network
     depends_on:
-      # gateway는 discovery와 config가 건강해야지만 컨테이너가 시작됩니다.
       discovery-service:
         condition: service_healthy
       config-service:
         condition: service_healthy
     restart: always
 
-  ordering-service:
-    image: 940791490007.dkr.ecr.ap-northeast-2.amazonaws.com/ordering-service:latest
-    container_name: order-service
-    networks:
-      - msa-network
-    depends_on:
-      # gateway는 discovery와 config가 건강해야지만 컨테이너가 시작됩니다.
-      discovery-service:
-        condition: service_healthy
-      config-service:
-        condition: service_healthy
-    restart: always
-
-  product-service:
-    image: 940791490007.dkr.ecr.ap-northeast-2.amazonaws.com/product-service:latest
-    container_name: product-service
+  vacation-service:
+    image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/vacation-service:latest
+    container_name: vacation-service
     networks:
       - msa-network
     depends_on:

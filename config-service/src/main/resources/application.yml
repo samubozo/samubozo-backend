@@ -1,3 +1,6 @@
 spring:
   profiles:
-    active: dev
+    # 로컬일경우
+    active: local
+    # 배포일경우
+    # active: deploy

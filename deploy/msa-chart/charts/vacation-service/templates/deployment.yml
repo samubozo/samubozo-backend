@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vacation-service
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: vacation-service
+  template:
+    metadata:
+      labels:
+        app: vacation-service
+    spec:
+      containers:
+        - name: vacation-service
+          image: {{ .Values.image }}
+          ports:
+            - containerPort: {{ .Values.port }}
