@@ -22,4 +22,13 @@ public class TokenUserInfo {
     public String getHrRole() {
         return role == Role.HR ? "Y" : "N";
     }
+
+    public static TokenUserInfo system() {
+        return TokenUserInfo.builder()
+                .employeeNo(-1L) // 시스템 전용 사용자 번호
+                .email("system@s.com")
+                .role(Role.HR)     // HR 권한 있음
+                .build();
+    }
+
 }
