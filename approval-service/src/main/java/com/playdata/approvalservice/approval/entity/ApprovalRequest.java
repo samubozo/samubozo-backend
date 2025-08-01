@@ -54,6 +54,10 @@ public class ApprovalRequest {
     @Column(name = "certificates_id")
     private Long certificateId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "certificate_type") // [추가] 증명서 종류를 저장하기 위한 필드
+    private Type certificateType;
+
     @Column(name = "start_date")
     private java.time.LocalDate startDate;
 

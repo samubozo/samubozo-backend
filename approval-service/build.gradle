@@ -58,7 +58,8 @@ dependencies {
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
 	// 쿼리 파라미터 추가 외부 로그 남기기 (콘솔에서 sql 자세히 보기)
-	implementation 'com.github.gavlyukovskiy:p6spy-spring-boot-starter:1.9.0'
+    implementation 'com.github.gavlyukovskiy:p6spy-spring-boot-starter:1.9.0'
+    implementation 'jakarta.annotation:jakarta.annotation-api'
 	// --- 여기에 JWT 라이브러리를 추가합니다. ---
 	implementation 'io.jsonwebtoken:jjwt-api:0.11.2'
 	implementation 'io.jsonwebtoken:jjwt-impl:0.11.2'

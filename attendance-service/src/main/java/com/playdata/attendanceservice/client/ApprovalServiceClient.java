@@ -1,6 +1,6 @@
 package com.playdata.attendanceservice.client;
 
-import com.playdata.attendanceservice.attendance.absence.entity.Absence;
+import com.playdata.attendanceservice.attendance.absence.dto.request.AbsenceApprovalRequestCreateDto;
 import com.playdata.attendanceservice.common.dto.CommonResDto;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
@@ -10,11 +10,11 @@ public interface ApprovalServiceClient {
 
     /**
      * 부재 전자결재 요청을 생성합니다.
-     * @param absence 부재 엔티티
+     * @param createDto 부재 결재 생성 DTO
      * @return 결재 요청 생성 결과
      */
-    @PostMapping("/absence-requests")
-    CommonResDto<Void> createAbsenceApprovalRequest(@RequestBody Absence absence);
+    @PostMapping("/approvals/absence")
+    CommonResDto<Void> createAbsenceApprovalRequest(@RequestBody AbsenceApprovalRequestCreateDto createDto);
 
     /**
      * 부재 전자결재를 승인합니다.

@@ -39,7 +39,7 @@ public class AbsenceRequestDto {
 
     private String reason;
 
-    public Absence toEntity(String userId) {
+    public Absence toEntity(Long userId) {
         return Absence.builder()
                 .userId(userId)
                 .type(type)
@@ -68,7 +68,7 @@ public class AbsenceRequestDto {
     }
 
     // 전자결재 시스템으로 전송할 데이터 생성
-    public ApprovalRequestDto toApprovalRequestDto(String userId, String userDepartment) {
+    public ApprovalRequestDto toApprovalRequestDto(Long userId, String userDepartment) {
         return ApprovalRequestDto.builder()
                 .absenceId(null) // 저장 후 ID 설정
                 .requestType("ABSENCE")

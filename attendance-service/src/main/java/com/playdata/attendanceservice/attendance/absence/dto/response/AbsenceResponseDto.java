@@ -3,6 +3,7 @@ package com.playdata.attendanceservice.attendance.absence.dto.response;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.playdata.attendanceservice.attendance.absence.entity.Absence;
 import com.playdata.attendanceservice.attendance.absence.entity.AbsenceType;
+import com.playdata.attendanceservice.attendance.absence.entity.ApprovalStatus;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -15,7 +16,7 @@ import java.time.LocalTime;
 public class AbsenceResponseDto {
 
     private Long id;
-    private String userId;
+    private Long userId;
     private AbsenceType type;
     private LocalDate startDate;
     private LocalDate endDate;
@@ -25,6 +26,8 @@ public class AbsenceResponseDto {
     private LocalTime endTime;
     private String reason;
     private LocalDateTime createdAt;
+    private ApprovalStatus approvalStatus;
+
 
     public static AbsenceResponseDto from(Absence absence) {
         return AbsenceResponseDto.builder()
@@ -37,6 +40,7 @@ public class AbsenceResponseDto {
                 .endTime(absence.getEndTime())
                 .reason(absence.getReason())
                 .createdAt(absence.getCreatedAt())
+                .approvalStatus(absence.getApprovalStatus())
                 .build();
     }
 }

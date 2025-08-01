@@ -53,7 +53,7 @@ public class AbsenceUpdateRequestDto {
     }
 
     // 전자결재 시스템으로 전송할 데이터 생성 (수정용)
-    public ApprovalRequestDto toApprovalRequestDto(String userId, String userDepartment, Long absenceId) {
+    public ApprovalRequestDto toApprovalRequestDto(Long userId, String userDepartment, Long absenceId) {
         return ApprovalRequestDto.builder()
                 .absenceId(absenceId)
                 .requestType("ABSENCE")

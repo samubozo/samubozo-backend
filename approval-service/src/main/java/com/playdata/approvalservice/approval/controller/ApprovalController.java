@@ -1,19 +1,12 @@
 package com.playdata.approvalservice.approval.controller;
 
-import com.playdata.approvalservice.approval.dto.ApprovalRejectRequestDto;
-import com.playdata.approvalservice.approval.dto.ApprovalRequestResponseDto;
-import com.playdata.approvalservice.approval.dto.CertificateApprovalRequestCreateDto;
-import com.playdata.approvalservice.approval.dto.VacationApprovalRequestCreateDto;
-import com.playdata.approvalservice.approval.dto.AbsenceApprovalRequestCreateDto;
-import com.playdata.approvalservice.approval.dto.AbsenceApprovalStatisticsDto;
+import com.playdata.approvalservice.approval.dto.*;
 import com.playdata.approvalservice.approval.entity.RequestType;
 import com.playdata.approvalservice.approval.service.ApprovalService;
 import com.playdata.approvalservice.common.auth.TokenUserInfo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -21,10 +14,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * 결재 요청 관련 API를 처리하는 컨트롤러입니다.
+ * 타입별로 명확하게 분리된 구조로 리팩터링되었습니다.
  */
 @RestController
 @RequestMapping("/approvals")
@@ -34,7 +27,11 @@ public class ApprovalController {
 
     private final ApprovalService approvalService;
 
-    // 특정 사용자가 특정 날짜에 승인된 휴가의 종류를 조회합니다.
+    // ===== 공통 조회 메서드들 =====
+
+    /**
+     * 특정 사용자가 특정 날짜에 승인된 휴가의 종류를 조회합니다.
+     */
     @GetMapping("/leaves/approved-type")
     public ResponseEntity<String> getApprovedLeaveType(
             @RequestParam("userId") Long userId,
@@ -43,47 +40,15 @@ public class ApprovalController {
         return ResponseEntity.ok(leaveType);
     }
 
-    // 특정 사용자가 특정 날짜에 승인된 휴가(연차, 반차, 조퇴 등)가 있는지 확인합니다.
+    /**
+     * 특정 사용자가 특정 날짜에 승인된 휴가(연차, 반차, 조퇴 등)가 있는지 확인합니다.
+     */
     @GetMapping("/leaves/approved")
     public ResponseEntity<Boolean> hasApprovedLeave(
             @RequestParam("userId") Long userId,
             @RequestParam("date") String date) {
         boolean hasLeave = approvalService.hasApprovedLeave(userId, LocalDate.parse(date));
         return ResponseEntity.ok(hasLeave);
-    }
-
-    /**
-     * 새로운 휴가 결재 요청을 생성합니다.
-     */
-    @PostMapping("/vacation")
-    public ResponseEntity<ApprovalRequestResponseDto> createVacationApprovalRequest(
-            @AuthenticationPrincipal TokenUserInfo userInfo,
-            @RequestBody VacationApprovalRequestCreateDto createDto) {
-        ApprovalRequestResponseDto responseDto = approvalService.createVacationApprovalRequest(userInfo, createDto);
-        return buildCreatedResponse(responseDto);
-    }
-
-    /**
-     * 새로운 증명서 결재 요청을 생성합니다.
-     */
-    @PostMapping("/certificate")
-    public ResponseEntity<ApprovalRequestResponseDto> createCertificateApprovalRequest(
-            @AuthenticationPrincipal TokenUserInfo userInfo,
-            @RequestBody CertificateApprovalRequestCreateDto createDto) {
-        ApprovalRequestResponseDto responseDto = approvalService.createCertificateApprovalRequest(userInfo, createDto);
-        return buildCreatedResponse(responseDto);
-    }
-
-    /**
-     * 새로운 부재 결재 요청을 생성합니다.
-     */
-    @PostMapping("/absence")
-    public ResponseEntity<ApprovalRequestResponseDto> createAbsenceApprovalRequest(
-            @AuthenticationPrincipal TokenUserInfo userInfo,
-            @RequestBody AbsenceApprovalRequestCreateDto createDto) {
-        log.info("Creating absence approval request for user: {}", userInfo.getEmployeeNo());
-        ApprovalRequestResponseDto responseDto = approvalService.createAbsenceApprovalRequest(userInfo, createDto);
-        return buildCreatedResponse(responseDto);
     }
 
     /**
@@ -95,15 +60,24 @@ public class ApprovalController {
         List<ApprovalRequestResponseDto> allRequests;
         if (requestTypeStr != null && !requestTypeStr.isEmpty()) {
             try {
-                com.playdata.approvalservice.approval.entity.RequestType requestType = com.playdata.approvalservice.approval.entity.RequestType.valueOf(requestTypeStr.toUpperCase());
+                RequestType requestType = RequestType.valueOf(requestTypeStr.toUpperCase());
                 allRequests = approvalService.getAllApprovalRequests(requestType);
             } catch (IllegalArgumentException e) {
-                return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+                return ResponseEntity.badRequest().build();
             }
         } else {
             allRequests = approvalService.getAllApprovalRequests();
         }
         return ResponseEntity.ok(allRequests);
+    }
+
+    /**
+     * 특정 ID를 가진 결재 요청을 조회합니다.
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<ApprovalRequestResponseDto> getApprovalRequestById(@PathVariable Long id) {
+        ApprovalRequestResponseDto responseDto = approvalService.getApprovalRequestById(id);
+        return ResponseEntity.ok(responseDto);
     }
 
     /**
@@ -117,69 +91,64 @@ public class ApprovalController {
     }
 
     /**
-     * 특정 ID를 가진 결재 요청을 조회합니다.
+     * 특정 결재자가 처리한 모든 결재 요청 목록을 조회합니다. (hrRole='Y' 사용자용)
      */
-    @GetMapping("/{id}")
-    public ResponseEntity<ApprovalRequestResponseDto> getApprovalRequestById(@PathVariable Long id) {
-        ApprovalRequestResponseDto responseDto = approvalService.getApprovalRequestById(id);
-        return buildOkResponse(responseDto);
+    @GetMapping("/processed-by-me")
+    public ResponseEntity<List<ApprovalRequestResponseDto>> getProcessedApprovalRequestsByApproverId(
+            @AuthenticationPrincipal TokenUserInfo userInfo) {
+        List<ApprovalRequestResponseDto> processedRequests = approvalService.getProcessedApprovalRequestsByApproverId(userInfo);
+        return ResponseEntity.ok(processedRequests);
     }
 
-    /**
-     * 특정 결재 요청을 승인 처리합니다.
-     */
-    @PutMapping("/{id}/approve")
-    public ResponseEntity<ApprovalRequestResponseDto> approveApprovalRequest(
-            @PathVariable Long id,
-            @RequestHeader("X-User-Employee-No") Long employeeNo) {
-        ApprovalRequestResponseDto responseDto = approvalService.approveApprovalRequest(id, employeeNo);
-        return buildOkResponse(responseDto);
-    }
+    // ===== 휴가 관련 엔드포인트 =====
 
     /**
-     * 특정 결재 요청을 반려 처리합니다.
+     * 새로운 휴가 결재 요청을 생성합니다.
      */
-    @PutMapping("/{id}/reject")
-    public ResponseEntity<ApprovalRequestResponseDto> rejectApprovalRequest(
-            @PathVariable Long id,
+    @PostMapping("/vacation")
+    public ResponseEntity<ApprovalRequestResponseDto> createVacationApprovalRequest(
             @AuthenticationPrincipal TokenUserInfo userInfo,
-            @RequestBody ApprovalRejectRequestDto rejectRequestDto) {
-        ApprovalRequestResponseDto responseDto = approvalService.rejectApprovalRequest(id, userInfo, rejectRequestDto);
-        return buildOkResponse(responseDto);
+            @RequestBody VacationApprovalRequestCreateDto createDto) {
+        ApprovalRequestResponseDto responseDto = approvalService.createVacationApprovalRequest(userInfo, createDto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(responseDto);
     }
 
-    // ===== 부재 관련 엔드포인트들 추가 =====
+    // ===== 증명서 관련 엔드포인트 =====
 
     /**
-     * 부재 결재 요청을 승인 처리합니다.
+     * 새로운 증명서 결재 요청을 생성합니다.
      */
-    @PutMapping("/absence/{id}/approve")
-    public ResponseEntity<ApprovalRequestResponseDto> approveAbsenceApprovalRequest(
-            @PathVariable Long id,
-            @RequestHeader("X-User-Employee-No") Long employeeNo) {
-        log.info("Approving absence approval request: {}, by employee: {}", id, employeeNo);
-        ApprovalRequestResponseDto responseDto = approvalService.approveAbsenceApprovalRequest(id, employeeNo);
-        return buildOkResponse(responseDto);
-    }
-
-    /**
-     * 부재 결재 요청을 반려 처리합니다.
-     */
-    @PutMapping("/absence/{id}/reject")
-    public ResponseEntity<ApprovalRequestResponseDto> rejectAbsenceApprovalRequest(
-            @PathVariable Long id,
+    @PostMapping("/certificate")
+    public ResponseEntity<ApprovalRequestResponseDto> createCertificateApprovalRequest(
             @AuthenticationPrincipal TokenUserInfo userInfo,
-            @RequestBody ApprovalRejectRequestDto rejectRequestDto) {
-        log.info("Rejecting absence approval request: {}, by employee: {}", id, userInfo.getEmployeeNo());
-        ApprovalRequestResponseDto responseDto = approvalService.rejectAbsenceApprovalRequest(id, userInfo, rejectRequestDto);
-        return buildOkResponse(responseDto);
+            @RequestBody CertificateApprovalRequestCreateDto certificateDto) { // 간결해진 DTO를 받습니다.
+
+        // 서비스가 필요로 하는 범용 DTO(ApprovalRequestCreateDto)를 컨트롤러에서 직접 생성합니다.
+        ApprovalRequestCreateDto createDto = ApprovalRequestCreateDto.builder()
+                .applicantId(userInfo.getEmployeeNo())      // 1. DTO에 없던 applicantId를 토큰에서 설정
+                .requestType(RequestType.CERTIFICATE)       // 2. DTO에 없던 requestType을 서버에서 직접 설정
+                .title(certificateDto.getTitle())           // 3. 나머지 정보는 받은 DTO에서 가져옴
+                .reason(certificateDto.getReason())
+                .certificateId(certificateDto.getCertificateId())
+                .build();
+
+        // 이제 특정 타입이 아닌, 범용 결재 생성 서비스를 호출합니다.
+        ApprovalRequestResponseDto responseDto = approvalService.createApprovalRequest(userInfo, createDto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(responseDto);
     }
 
-    @GetMapping("/requests/{requestType}")
-    public ResponseEntity<List<ApprovalRequestResponseDto>> getAllApprovalRequestsByType(
-            @PathVariable RequestType requestType) {
-        List<ApprovalRequestResponseDto> requests = approvalService.getAllApprovalRequests(requestType);
-        return ResponseEntity.ok(requests);
+    // ===== 부재 관련 엔드포인트 =====
+
+    /**
+     * 새로운 부재 결재 요청을 생성합니다.
+     */
+    @PostMapping("/absence")
+    public ResponseEntity<ApprovalRequestResponseDto> createAbsenceApprovalRequest(
+            @AuthenticationPrincipal TokenUserInfo userInfo,
+            @RequestBody AbsenceApprovalRequestCreateDto createDto) {
+        log.info("Creating absence approval request for user: {}", userInfo.getEmployeeNo());
+        ApprovalRequestResponseDto responseDto = approvalService.createAbsenceApprovalRequest(userInfo, createDto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(responseDto);
     }
 
     /**
@@ -256,27 +225,65 @@ public class ApprovalController {
         return ResponseEntity.ok(statistics);
     }
 
-    /**
-     * 특정 결재자가 처리한 모든 결재 요청 목록을 조회합니다. (hrRole='Y' 사용자용)
-     */
-    @GetMapping("/processed-by-me")
-    public ResponseEntity<List<ApprovalRequestResponseDto>> getProcessedApprovalRequestsByApproverId(
-            @AuthenticationPrincipal TokenUserInfo userInfo) {
-        List<ApprovalRequestResponseDto> processedRequests = approvalService.getProcessedApprovalRequestsByApproverId(userInfo);
-        return ResponseEntity.ok(processedRequests);
-    }
+    // ===== 공통 승인/반려 엔드포인트 =====
 
     /**
-     * HTTP 200 OK 응답을 생성하는 헬퍼 메서드입니다.
+     * 특정 결재 요청을 승인 처리합니다.
      */
-    private ResponseEntity<ApprovalRequestResponseDto> buildOkResponse(ApprovalRequestResponseDto responseDto) {
+    @PutMapping("/{id}/approve")
+    public ResponseEntity<ApprovalRequestResponseDto> approveApprovalRequest(
+            @PathVariable Long id,
+            @RequestHeader("X-User-Employee-No") Long employeeNo) {
+        ApprovalRequestResponseDto responseDto = approvalService.approveApprovalRequest(id, employeeNo);
         return ResponseEntity.ok(responseDto);
     }
 
     /**
-     * HTTP 201 Created 응답을 생성하는 헬퍼 메서드입니다.
+     * 특정 결재 요청을 반려 처리합니다.
      */
-    private ResponseEntity<ApprovalRequestResponseDto> buildCreatedResponse(ApprovalRequestResponseDto responseDto) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(responseDto);
+    @PutMapping("/{id}/reject")
+    public ResponseEntity<ApprovalRequestResponseDto> rejectApprovalRequest(
+            @PathVariable Long id,
+            @AuthenticationPrincipal TokenUserInfo userInfo,
+            @RequestBody ApprovalRejectRequestDto rejectRequestDto) {
+        ApprovalRequestResponseDto responseDto = approvalService.rejectApprovalRequest(id, userInfo, rejectRequestDto);
+        return ResponseEntity.ok(responseDto);
+    }
+
+    // ===== 타입별 특화 엔드포인트 =====
+
+    /**
+     * 특정 타입의 결재 요청 목록을 조회합니다.
+     */
+    @GetMapping("/requests/{requestType}")
+    public ResponseEntity<List<ApprovalRequestResponseDto>> getAllApprovalRequestsByType(
+            @PathVariable RequestType requestType) {
+        List<ApprovalRequestResponseDto> requests = approvalService.getAllApprovalRequests(requestType);
+        return ResponseEntity.ok(requests);
+    }
+
+    /**
+     * 특정 부재 결재 요청을 승인 처리합니다.
+     */
+    @PutMapping("/absence/{id}/approve")
+    public ResponseEntity<ApprovalRequestResponseDto> approveAbsenceRequest(
+            @PathVariable Long id,
+            @AuthenticationPrincipal TokenUserInfo userInfo) {
+        log.info("Approving absence request id: {} by user: {}", id, userInfo.getEmployeeNo());
+        ApprovalRequestResponseDto responseDto = approvalService.approveAbsenceApprovalRequest(id, userInfo.getEmployeeNo());
+        return ResponseEntity.ok(responseDto);
+    }
+
+    /**
+     * 특정 부재 결재 요청을 반려 처리합니다.
+     */
+    @PutMapping("/absence/{id}/reject")
+    public ResponseEntity<ApprovalRequestResponseDto> rejectAbsenceRequest(
+            @PathVariable Long id,
+            @AuthenticationPrincipal TokenUserInfo userInfo,
+            @RequestBody ApprovalRejectRequestDto rejectRequestDto) {
+        log.info("Rejecting absence request id: {} by user: {}", id, userInfo.getEmployeeNo());
+        ApprovalRequestResponseDto responseDto = approvalService.rejectAbsenceApprovalRequest(id, userInfo, rejectRequestDto);
+        return ResponseEntity.ok(responseDto);
     }
 }

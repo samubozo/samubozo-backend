@@ -1,13 +1,13 @@
 package com.playdata.attendanceservice.attendance.entity;
 
-
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.playdata.attendanceservice.common.domain.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
+import lombok.Setter; // 추가
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -18,8 +18,9 @@ import java.time.LocalTime;
         @UniqueConstraint(columnNames = {"user_id", "date"})
 })
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class WorkStatus extends com.playdata.attendanceservice.common.domain.BaseEntity {
+@Setter
+@NoArgsConstructor(access = AccessLevel.PUBLIC)
+public class WorkStatus extends BaseEntity {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -44,7 +45,6 @@ public class WorkStatus extends com.playdata.attendanceservice.common.domain.Bas
     @Column(name = "check_in_time")
     private LocalTime checkInTime;
 
-
     @Column(name = "check_out_time")
     private LocalTime checkOutTime;
 
@@ -54,13 +54,17 @@ public class WorkStatus extends com.playdata.attendanceservice.common.domain.Bas
     @Column(name = "return_time")
     private LocalTime returnTime;
 
-    @JsonIgnore // JSON 직렬화 시 이 필드를 무시하여 순환 참조를 방지합니다.
+    @JsonIgnore
     @OneToOne
     @JoinColumn(name = "attendance_id")
     private Attendance attendance;
 
     @Column(name = "is_late", nullable = false)
-    private boolean isLate; // 지각 여부
+    private boolean isLate;
+
+    public void setIsLate(boolean isLate) {
+        this.isLate = isLate;
+    }
 
     @Builder
     public WorkStatus(Long id, Long userId, LocalDate date, WorkStatusType statusType, WorkDayType workDayType, String reason, LocalTime checkInTime, LocalTime checkOutTime, LocalTime outTime, LocalTime returnTime, Attendance attendance, boolean isLate) {
@@ -87,7 +91,6 @@ public class WorkStatus extends com.playdata.attendanceservice.common.domain.Bas
         this.reason = reason;
     }
 
-
     public WorkStatus(Long userId, LocalDate date, WorkStatusType type, String reason) {
         this.userId = userId;
         this.date = date;
@@ -109,25 +112,16 @@ public class WorkStatus extends com.playdata.attendanceservice.common.domain.Bas
         return status;
     }
 
-    public void setAttendance(Attendance attendance) {
-        this.attendance = attendance;
-    }
-
-    public void setCheckInTime(LocalTime checkInTime) {
-        this.checkInTime = checkInTime;
-    }
-
-    public void setCheckOutTime(LocalTime checkOutTime) {
-        this.checkOutTime = checkOutTime;
-    }
-
-    public void setStatusType(WorkStatusType statusType) {
+    // 편의 메서드들 (선택사항)
+    public void setAbsenceStatus(WorkStatusType statusType, String reason) {
         this.statusType = statusType;
+        this.reason = reason;
+        this.isLate = false; // 부재는 지각 아님
     }
 
-    public void setWorkDayType(WorkDayType workDayType) {
-        this.workDayType = workDayType;
+    public void setVacationStatus(WorkStatusType statusType, String reason) {
+        this.statusType = statusType;
+        this.reason = reason;
+        this.isLate = false; // 휴가는 지각 아님
     }
-
-    
 }
