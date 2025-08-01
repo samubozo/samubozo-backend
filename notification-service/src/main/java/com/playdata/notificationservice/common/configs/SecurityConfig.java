@@ -31,6 +31,7 @@ public class SecurityConfig {
                                         "/swagger-ui.html", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-resources/**"
                                 ).permitAll()
                                 .requestMatchers("/notifications/subscribe/**").authenticated()
+                                .requestMatchers("/notifications/mark-read-by-message-id").permitAll()
                                 .anyRequest().authenticated()
 
                 )

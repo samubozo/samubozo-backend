@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payroll-service
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: payroll-service
+  template:
+    metadata:
+      labels:
+        app: payroll-service
+    spec:
+      containers:
+        - name: payroll-service
+          image: {{ .Values.image }}
+          ports:
+            - containerPort: {{ .Values.port }}
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "dev,deploy"
+            - name: SPRING_CLOUD_CONFIG_PROFILE_ACTIVE
+              value: "default,deploy"
