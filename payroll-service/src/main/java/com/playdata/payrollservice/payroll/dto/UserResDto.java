@@ -19,6 +19,7 @@ public class UserResDto {
     private String profileImage;
     private String phone;
     private LocalDate birthDate;
+    private String activate;
 
     private String bankName;
     private String accountNumber;

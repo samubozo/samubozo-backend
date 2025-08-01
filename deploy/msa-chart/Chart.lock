@@ -1,0 +1,21 @@
+dependencies:
+- name: rabbitmq
+  repository: file://charts/rabbitmq
+  version: 1.0.0
+- name: config-service
+  repository: file://charts/config-service
+  version: 1.0.0
+- name: user-service
+  repository: file://charts/user-service
+  version: 1.0.0
+- name: ordering-service
+  repository: file://charts/ordering-service
+  version: 1.0.0
+- name: product-service
+  repository: file://charts/product-service
+  version: 1.0.0
+- name: gateway-service
+  repository: file://charts/gateway-service
+  version: 1.0.0
+digest: sha256:67fa321a2b39c87114e9a91f646b310c77b85477904fd1e6c8dd408d640289dd
+generated: "2025-06-04T11:53:40.338891+09:00"

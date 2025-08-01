@@ -6,8 +6,10 @@ def deployHost = "172.31.9.208" // 배포 인스턴스의 private 주소
 pipeline {
     agent any // 어느 젠킨스 서버에서나 실행이 가능
     environment {
-        SERVICE_DIRS = "config-service,discovery-service,gateway-service,user-service,ordering-service,product-service"
-        ECR_URL = "940791490007.dkr.ecr.ap-northeast-2.amazonaws.com"
+        // --- 변경된 부분 시작 ---
+        SERVICE_DIRS = "approval-service,attendance-service,auth-service,certificate-service,chatbot-service,config-service,gateway-service,hr-service,message-service,notification-service,payroll-service,schedule-service,vacation-service"
+        ECR_URL = "886331869898.dkr.ecr.ap-northeast-2.amazonaws.com"
+        // --- 변경된 부분 끝 ---
         REGION = "ap-northeast-2"
     }
     stages {

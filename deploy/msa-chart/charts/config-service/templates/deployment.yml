@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: config-service
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  minReadySeconds: 5
+  selector:
+    matchLabels:
+      app: config-service
+  template:
+    metadata:
+      labels:
+        app: config-service
+    #pod 에 설정되는 컨테이너 설정
+    spec:
+      imagePullSecrets: # 우리의 image 저장소가 private 하기 때문에 계정정보를 secret 오브젝트로 세팅
+        # values.yaml 파일에 imagePullSecret이라는 데이터가 있다면 실행
+        # - name : .(현재 반복중인 항목) | quote(인용부호로 감싸서 적용)
+      {{/*        {{- if $.Values.imagePullSecrets}}*/}}
+      {{/*          {{- range $.Values.imagePullSecrets}}*/}}
+      {{/*        - name: {{ . | quote}}*/}}
+      {{/*          {{- end}}*/}}
+      {{/*          {{- end}}*/}}
+        - name: ecr-secret
+      containers:
+        - name: config-service-container
+          image: {{ .Values.image}}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: {{ .Values.port}}
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "dev,deploy"
+            - name: SPRING_CLOUD_CONFIG_PROFILE_ACTIVE
+              value: "default,deploy"

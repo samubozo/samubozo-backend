@@ -40,6 +40,9 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
             ,"/auth/reset-password"
             ,"/auth/refresh"
             ,"/notifications/mark-read-by-message-id"
+            ,"/swagger-ui.html",
+            "/swagger-ui/**",
+            "/v3/api-docs/**"
     );
 
     @Override

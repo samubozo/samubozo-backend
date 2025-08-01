@@ -4,3 +4,16 @@ server:
 spring:
   application: # spring은 Map이고, application은 그 Map의 키입니다.
     name: schedule-service # application은 Map이고, name은 그 Map의 키입니다.
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    groups:
+      enabled: true
+
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+    display-request-duration: true
+    doc-expansion: none
