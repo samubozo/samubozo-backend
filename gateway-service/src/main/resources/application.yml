@@ -153,3 +153,34 @@ spring:
             - RewritePath=/approval-service/(?<segment>.*), /$\{segment}
             - AuthorizationHeaderFilter
 
+springdoc:
+  swagger-ui:
+    # 게이트웨이의 통합 Swagger UI 페이지 경로
+    path: /swagger-ui.html
+    # 각 마이크로서비스의 API 문서를 찾기 위한 경로 설정
+    urls:
+      - name: HR-SERVICE # UI 드롭다운에 표시될 이름
+        url: /hr-service/v3/api-docs # 이 경로로 요청오면 gateway가 user-service로 라우팅
+      - name: AUTH-SERVICE
+        url: /auth-service/v3/api-docs
+      - name: APPROVAL-SERVICE
+        url: /approval-service/v3/api-docs
+      - name: ATTENDANCE-SERVICE
+        url: /attendance-service/v3/api-docs
+      - name: CERTIFICATE-SERVICE
+        url: /certificate-service/v3/api-docs
+      - name: CHATBOT-SERVICE
+        url: /chatbot-service/v3/api-docs
+      - name: MESSAGE-SERVICE
+        url: /message-service/v3/api-docs
+      - name: NOTIFICATION-SERVICE
+        url: /notification-service/v3/api-docs
+      - name: PAYROLL-SERVICE
+        url: /payroll-service/v3/api-docs
+      - name: SCHEDULE-SERVICE
+        url: /schedule-service/v3/api-docs
+      - name: VACATION-SERVICE
+        url: /vacation-service/v3/api-docs
+
+  # (선택사항) UI 드롭다운에서 기본으로 선택될 서비스 지정
+  urls-primary-name: HR-SERVICE

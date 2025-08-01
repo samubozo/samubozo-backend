@@ -41,7 +41,8 @@ public class SecurityConfig {
                             "/auth/verify",
                             "/auth/find-password",
                             "/auth/reset-password",
-                            "/auth/verify-code").permitAll()
+                            "/auth/verify-code",
+                            "/swagger-ui.html", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-resources/**").permitAll()
                     .anyRequest().authenticated();
         });
 

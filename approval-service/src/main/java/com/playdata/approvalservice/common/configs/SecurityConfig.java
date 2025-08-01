@@ -39,7 +39,8 @@ public class SecurityConfig {
                             "/auth/email-valid",
                             "/auth/verify",
                             "/auth/verify-code",
-                            "/approvals").permitAll()
+                            "/approvals",
+                            "/swagger-ui.html", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-resources/**").permitAll()
                     .anyRequest().authenticated();
         });
 

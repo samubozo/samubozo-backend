@@ -6,7 +6,6 @@ import com.playdata.payrollservice.common.exception.CustomAuthenticationEntryPoi
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -35,7 +34,8 @@ public class SecurityConfig {
         //여기에 권한 없이 접근해야할 URL을 명시해주세요. "/actuator/**" 는 건드시면 안됩니다.
         http.authorizeHttpRequests(auth -> {
             auth
-                    .requestMatchers("/actuator/**", "/payroll","/payroll/**").permitAll()
+                    .requestMatchers("/actuator/**", "/payroll","/payroll/**",
+                            "/swagger-ui.html", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-resources/**").permitAll()
                     .requestMatchers(
                                 "/payroll/admin/**").hasAnyRole("USER", "ADMIN")
                     .anyRequest().authenticated();

@@ -1,17 +1,15 @@
 package com.playdata.certificateservice.controller;
 
+import com.playdata.certificateservice.client.hr.HrServiceClient;
+import com.playdata.certificateservice.client.hr.dto.UserFeignResDto;
 import com.playdata.certificateservice.common.auth.TokenUserInfo;
 import com.playdata.certificateservice.common.dto.CommonResDto;
 import com.playdata.certificateservice.dto.CertificateRejectRequestDto;
 import com.playdata.certificateservice.dto.CertificateReqDto;
+import com.playdata.certificateservice.dto.CertificateResDto;
+import com.playdata.certificateservice.entity.Certificate;
 import com.playdata.certificateservice.entity.Status;
 import com.playdata.certificateservice.service.CertificateService;
-import com.playdata.certificateservice.entity.Certificate;
-import com.playdata.certificateservice.client.hr.dto.UserFeignResDto;
-import com.playdata.certificateservice.client.dto.ApprovalRequestResponseDto;
-import com.playdata.certificateservice.dto.CertificateResDto;
-import com.playdata.certificateservice.client.hr.HrServiceClient;
-import com.playdata.certificateservice.client.ApprovalServiceClient;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,7 +32,6 @@ public class CertificateController {
 
     private final CertificateService certificateService;
     private final HrServiceClient hrServiceClient;
-    private final ApprovalServiceClient approvalServiceClient;
 
     // 증명서 발급 (사용자)
     @PostMapping("/application")

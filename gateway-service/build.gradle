@@ -41,11 +41,12 @@ dependencies {
 	implementation 'org.springframework.cloud:spring-cloud-starter-bootstrap'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
-
 	// json web token 라이브러리
 	implementation 'io.jsonwebtoken:jjwt-api:0.11.2'
 	implementation 'io.jsonwebtoken:jjwt-impl:0.11.2'
 	implementation 'io.jsonwebtoken:jjwt-jackson:0.11.2'
+
+	implementation("org.springdoc:springdoc-openapi-starter-webflux-ui:2.5.0") // Webflux 기반이므로 webflux-ui를 사용합니다.
 }
 
 dependencyManagement {

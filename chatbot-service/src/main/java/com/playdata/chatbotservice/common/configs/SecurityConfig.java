@@ -27,7 +27,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize ->
                         authorize
                                 .requestMatchers(
-                                        "/chatbot/hello"
+                                        "/chatbot/hello",
+                                        "/swagger-ui.html", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-resources/**"
                                 ).permitAll()
                                 .anyRequest().authenticated()
                 )
