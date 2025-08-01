@@ -4,3 +4,16 @@ server:
 spring:
   application:
     name: notification-service
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    groups:
+      enabled: true
+
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+    display-request-duration: true
+    doc-expansion: none

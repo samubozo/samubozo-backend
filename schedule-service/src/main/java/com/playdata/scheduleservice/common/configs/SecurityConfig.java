@@ -27,6 +27,9 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(authorize ->
                         authorize
+                                .requestMatchers(
+                                        "/swagger-ui.html", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-resources/**"
+                                ).permitAll()
                                 .anyRequest().authenticated() // 메시지 관련 API는 인증 필요
 
                 )

@@ -1,7 +1,6 @@
 package com.playdata.payrollservice.common.auth;
 
 
-
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,7 +15,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
 
@@ -77,10 +75,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid user info");
                 return;
             }
-        } else {
-            log.warn("[VacationService JwtAuthFilter] Missing headers");
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Missing authentication info");
-            return;
         }
         filterChain.doFilter(request, response);
     }
