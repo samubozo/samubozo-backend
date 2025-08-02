@@ -229,46 +229,24 @@ public class ApprovalService {
     public ApprovalRequestResponseDto createApprovalRequest(TokenUserInfo userInfo, ApprovalRequestCreateDto createDto) {
         log.info("createApprovalRequest 메서드 진입. userInfo: {}, createDto: {}", userInfo, createDto);
 
-        // 1. 보안 검증 (기존과 동일)
+        // 1. 보안 검증
         if (!userInfo.getEmployeeNo().equals(createDto.getApplicantId())) {
             log.warn("보안 검증 실패: 인증된 사용자 ID({})와 신청자 ID({})가 일치하지 않습니다.",
                     userInfo.getEmployeeNo(), createDto.getApplicantId());
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                     "Authenticated user ID does not match the applicant ID in the request.");
         }
+        log.info("--- 2. 보안 검증 통과 ---");
 
-        // 2. [신규] 증명서 요청일 경우, DB에서 실제 타입을 조회하여 DTO를 마저 채웁니다.
-        if (createDto.getRequestType() == RequestType.CERTIFICATE) {
-            if (createDto.getCertificateId() == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "증명서 ID는 필수입니다.");
-            }
-            try {
-                // Feign Client로 certificate-service에 문의하여 증명서 타입을 가져옵니다.
-                com.playdata.approvalservice.client.dto.Certificate certDetails =
-                        certificateServiceClient.getCertificateById(createDto.getCertificateId());
-
-                // 1. certificate-service로부터 받은 Enum의 '이름'을 문자열로 가져옵니다. (예: "EMPLOYMENT")
-                String typeName = certDetails.getType().name();
-
-                // 2. 그 이름(문자열)을 사용해 현재 서비스(approval-service)의 Type Enum으로 '변환'합니다.
-                Type targetType = Type.valueOf(typeName);
-
-                // 3. 최종 변환된 타입으로 DTO에 설정합니다.
-                createDto.setCertificateType(targetType);
-
-            } catch (Exception e) {
-                log.error("CertificateService 통신 오류: {}", e.getMessage());
-                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "증명서 정보 조회 중 오류가 발생했습니다.");
-            }
-        }
-
-        // 3. [순서 변경] 모든 정보가 준비된 후, 중복 검증을 수행합니다.
+        // 2. 이제 클라이언트가 모든 정보를 전달해주므로, 바로 중복 검증을 수행합니다.
         validateDuplicateRequest(createDto);
+        log.info("--- 3. 유효성 검사 통과 ---");
 
-        // 4. 승인자 ID 설정 (기존과 동일)
+        // 3. 승인자 ID 설정
         Long approverId = determineApproverId(createDto);
+        log.info("--- 4. 승인자 ID 설정 완료 ---");
 
-        // 5. ApprovalRequest 엔티티 생성 (기존과 동일, certificateType 추가)
+        // 4. ApprovalRequest 엔티티 생성
         ApprovalRequest approvalRequest = ApprovalRequest.builder()
                 .requestType(createDto.getRequestType())
                 .applicantId(createDto.getApplicantId())
@@ -277,7 +255,7 @@ public class ApprovalService {
                 .vacationsId(createDto.getVacationsId())
                 .vacationType(createDto.getVacationType())
                 .certificateId(createDto.getCertificateId())
-                .certificateType(createDto.getCertificateType()) // DTO에 채워진 타입으로 저장
+                .certificateType(createDto.getCertificateType()) // 클라이언트가 전달한 타입으로 저장
                 .absencesId(createDto.getAbsencesId())
                 .absenceType(createDto.getAbsenceType())
                 .urgency(createDto.getUrgency())
@@ -289,8 +267,9 @@ public class ApprovalService {
                 .requestedAt(LocalDateTime.now())
                 .approverId(approverId)
                 .build();
+        log.info("--- 5. 엔티티 생성 완료 ---");
 
-        // 6. 저장 및 응답 생성 (기존과 동일)
+        // 5. 저장 및 응답 생성
         ApprovalRequest savedRequest = approvalRepository.save(approvalRequest);
         log.info("ApprovalRequest 엔티티 저장 성공. ID: {}", savedRequest.getId());
 

@@ -35,10 +35,15 @@ public class CertificateController {
 
     // 증명서 발급 (사용자)
     @PostMapping("/application")
-    public ResponseEntity<?> createCertificate(@AuthenticationPrincipal TokenUserInfo userInfo, @RequestBody CertificateReqDto dto) {
+    public ResponseEntity<Certificate> createCertificate(@AuthenticationPrincipal TokenUserInfo userInfo, @RequestBody CertificateReqDto dto) {
         log.info("Create certificate request by user {}: {}", userInfo.getEmployeeNo(), dto);
-        certificateService.createCertificate(userInfo, dto);
-        return ResponseEntity.ok().build();
+
+        // 1. 서비스가 반환하는 Certificate 객체를 변수에 저장합니다.
+        Certificate createdCertificate = certificateService.createCertificate(userInfo, dto);
+
+        // 2. 이 객체를 body에 담아 프론트엔드로 보내줍니다.
+        // (참고: 성공적인 '생성'에는 200 OK보다 201 Created 상태 코드가 더 적합합니다.)
+        return ResponseEntity.status(HttpStatus.CREATED).body(createdCertificate);
     }
 
     // 내 증명서 조회 (사용자)
@@ -188,7 +193,7 @@ public class CertificateController {
                 .approveDate(certificate.getApproveDate())
                 .processedAt(certificate.getProcessedAt())
                 .status(certificate.getStatus())
-                .purpose(certificate.getPurpose())
+                .reason(certificate.getPurpose())
                 .applicantName(applicantName)
                 .departmentName(departmentName)
                 .approverName(certificate.getApproverName())

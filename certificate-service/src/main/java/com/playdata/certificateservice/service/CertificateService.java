@@ -18,7 +18,7 @@ import java.io.InputStream;
 public interface CertificateService {
     // 증명서 신청
     @Transactional
-    void createCertificate(TokenUserInfo userInfo, CertificateReqDto dto);
+    Certificate createCertificate(TokenUserInfo userInfo, CertificateReqDto dto);
 
     // 내 증명서 조회
     Page<CertificateResDto> listMyCertificates(TokenUserInfo userInfo, Pageable pageable);
