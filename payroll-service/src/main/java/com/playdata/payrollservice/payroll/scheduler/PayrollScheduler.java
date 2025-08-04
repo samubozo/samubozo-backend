@@ -19,7 +19,6 @@ public class PayrollScheduler {
     //@Scheduled(cron = "0 0 */2 * * ?") // 매 2시간마다
 
     public void generateMonthlyPayroll() {
-        log.info("📌 스케줄러: 매일 11시 급여 자동 생성 시작");
 
         payrollService.generateMonthlyPayrollForAll();
 
