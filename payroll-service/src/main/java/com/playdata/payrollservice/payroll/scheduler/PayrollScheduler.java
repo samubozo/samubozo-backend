@@ -14,10 +14,11 @@ public class PayrollScheduler {
 
     private final PayrollService payrollService;
     
-    @Scheduled(cron = "0 0 10 1 * ?")
+    @Scheduled(cron = "0 0 11 1 * ?") // 매 오전 11시
     //@Scheduled(cron = "0/30 * * * * ?")  // 매 30초마다 실행
+    //@Scheduled(cron = "0 0 */2 * * ?") // 매 2시간마다
+
     public void generateMonthlyPayroll() {
-        log.info("📌 스케줄러: 매달 25일 급여 자동 생성 시작");
 
         payrollService.generateMonthlyPayrollForAll();
 
