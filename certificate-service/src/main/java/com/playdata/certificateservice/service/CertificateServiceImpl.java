@@ -129,10 +129,21 @@ public class CertificateServiceImpl implements CertificateService {
             if (certificate.getApprovalRequestId() != null) {
                 try {
                     ApprovalRequestResponseDto approvalResponse = approvalServiceClient.getApprovalRequestById(certificate.getApprovalRequestId());
-                    log.info("ApprovalRequestResponseDto from approval-service (listMyCertificates): approverId={}, approverName={}", approvalResponse.getApproverId(), approvalResponse.getApproverName());
-                    approverName = approvalResponse.getApproverName();
+                    // [수정] 요청 타입이 'CERTIFICATE'인 경우에만 결재자 이름을 가져옵니다.
+                    if (approvalResponse != null && "CERTIFICATE".equals(approvalResponse.getRequestType())) {
+                        log.info("ApprovalRequestResponseDto from approval-service (listMyCertificates): approverId={}, approverName={}", approvalResponse.getApproverId(), approvalResponse.getApproverName());
+                        approverName = approvalResponse.getApproverName();
+                    } else {
+                        log.warn("조회된 결재 요청(ID: {})이 증명서 타입이 아닙니다. (타입: {})",
+                                certificate.getApprovalRequestId(), approvalResponse != null ? approvalResponse.getRequestType() : "null");
+                    }
                 } catch (FeignException e) {
-                    log.error("결재 서비스 통신 오류 (getApprovalRequestById) for approvalRequestId {}: {}", certificate.getApprovalRequestId(), e.getMessage());
+                    // 404 Not Found는 다른 서비스에서 해당 ID를 찾지 못한 경우이므로 경고로 처리하고 계속 진행합니다.
+                    if (e.status() == 404) {
+                        log.warn("결재 서비스에서 ID {}에 해당하는 결재 요청을 찾을 수 없습니다.", certificate.getApprovalRequestId());
+                    } else {
+                        log.error("결재 서비스 통신 오류 (getApprovalRequestById) for approvalRequestId {}: {}", certificate.getApprovalRequestId(), e.getMessage());
+                    }
                 }
             }
 
@@ -548,9 +559,21 @@ public class CertificateServiceImpl implements CertificateService {
                         .filter(cert -> cert.getApprovalRequestId() != null)
                         .map(cert -> {
                             try {
-                                return approvalServiceClient.getApprovalRequestById(cert.getApprovalRequestId()).getApproverId();
+                                ApprovalRequestResponseDto approvalResponse = approvalServiceClient.getApprovalRequestById(cert.getApprovalRequestId());
+                                // [수정] 요청 타입이 'CERTIFICATE'인 경우에만 ID를 반환합니다.
+                                if (approvalResponse != null && "CERTIFICATE".equals(approvalResponse.getRequestType())) {
+                                    return approvalResponse.getApproverId();
+                                } else {
+                                    log.warn("조회된 결재 요청(ID: {})이 증명서 타입이 아닙니다. (타입: {})",
+                                            cert.getApprovalRequestId(), approvalResponse != null ? approvalResponse.getRequestType() : "null");
+                                    return null;
+                                }
                             } catch (FeignException e) {
-                                log.error("결재 서비스 통신 오류 (getApprovalRequestById) for approvalRequestId {}: {}", cert.getApprovalRequestId(), e.getMessage());
+                                if (e.status() == 404) {
+                                    log.warn("결재 서비스에서 ID {}에 해당하는 결재 요청을 찾을 수 없습니다.", cert.getApprovalRequestId());
+                                } else {
+                                    log.error("결재 서비스 통신 오류 (getApprovalRequestById) for approvalRequestId {}: {}", cert.getApprovalRequestId(), e.getMessage());
+                                }
                                 return null;
                             }
                         })
@@ -585,19 +608,31 @@ public class CertificateServiceImpl implements CertificateService {
             if (certificate.getApprovalRequestId() != null) {
                 try {
                     ApprovalRequestResponseDto approvalResponse = approvalServiceClient.getApprovalRequestById(certificate.getApprovalRequestId());
-                    log.info("ApprovalRequestResponseDto from approval-service (listAllCertificates): approverId={}, approverName={}", approvalResponse.getApproverId(), approvalResponse.getApproverName());
-                    if (approvalResponse.getApproverId() != null) {
-                        UserResDto approverInfo = userMap.get(approvalResponse.getApproverId());
-                        if (approverInfo != null) {
-                            approverName = approverInfo.getUserName();
+                    // [수정] 요청 타입이 'CERTIFICATE'인 경우에만 결재자 정보를 사용합니다.
+                    if (approvalResponse != null && "CERTIFICATE".equals(approvalResponse.getRequestType())) {
+                        log.info("ApprovalRequestResponseDto from approval-service (listAllCertificates): approverId={}, approverName={}", approvalResponse.getApproverId(), approvalResponse.getApproverName());
+                        if (approvalResponse.getApproverId() != null) {
+                            UserResDto approverInfo = userMap.get(approvalResponse.getApproverId());
+                            if (approverInfo != null) {
+                                approverName = approverInfo.getUserName();
+                            } else {
+                                // userMap에 정보가 없는 경우, 결재 응답에 이름이 있으면 사용
+                                approverName = approvalResponse.getApproverName();
+                                log.warn("HR 서비스에서 approverId {} 에 해당하는 사용자 정보를 찾을 수 없어 결재 응답의 이름을 사용합니다.", approvalResponse.getApproverId());
+                            }
                         } else {
-                            log.warn("HR 서비스에서 approverId {} 에 해당하는 사용자 정보를 찾을 수 없습니다.", approvalResponse.getApproverId());
+                            log.warn("ApprovalRequestResponseDto에서 approverId가 null입니다. approvalRequestId: {}", certificate.getApprovalRequestId());
                         }
                     } else {
-                        log.warn("ApprovalRequestResponseDto에서 approverId가 null입니다. approvalRequestId: {}", certificate.getApprovalRequestId());
+                        log.warn("조회된 결재 요청(ID: {})이 증명서 타입이 아닙니다. (타입: {})",
+                                certificate.getApprovalRequestId(), approvalResponse != null ? approvalResponse.getRequestType() : "null");
                     }
                 } catch (FeignException e) {
-                    log.error("결재 서비스 통신 오류 (getApprovalRequestById) for approvalRequestId {}: {}", certificate.getApprovalRequestId(), e.getMessage());
+                    if (e.status() == 404) {
+                        log.warn("결재 서비스에서 ID {}에 해당하는 결재 요청을 찾을 수 없습니다.", certificate.getApprovalRequestId());
+                    } else {
+                        log.error("결재 서비스 통신 오류 (getApprovalRequestById) for approvalRequestId {}: {}", certificate.getApprovalRequestId(), e.getMessage());
+                    }
                 }
             }
 

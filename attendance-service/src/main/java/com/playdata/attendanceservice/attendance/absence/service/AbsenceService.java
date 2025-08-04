@@ -1,9 +1,7 @@
 package com.playdata.attendanceservice.attendance.absence.service;
 
 import com.playdata.attendanceservice.attendance.absence.dto.request.AbsenceRequestDto;
-import com.playdata.attendanceservice.attendance.absence.dto.request.AbsenceApprovalRequestCreateDto;
 import com.playdata.attendanceservice.attendance.absence.dto.request.AbsenceUpdateRequestDto;
-import com.playdata.attendanceservice.attendance.absence.dto.request.ApprovalRequestDto;
 import com.playdata.attendanceservice.attendance.absence.dto.response.AbsenceResponseDto;
 import com.playdata.attendanceservice.attendance.absence.dto.response.AbsenceStatisticsDto;
 import com.playdata.attendanceservice.attendance.absence.entity.Absence;
@@ -12,6 +10,10 @@ import com.playdata.attendanceservice.attendance.absence.repository.AbsenceRepos
 import com.playdata.attendanceservice.attendance.entity.WorkStatus;
 import com.playdata.attendanceservice.attendance.repository.WorkStatusRepository;
 import com.playdata.attendanceservice.client.ApprovalServiceClient;
+import com.playdata.attendanceservice.client.dto.AbsenceApprovalRequestCreateDto;
+import com.playdata.attendanceservice.client.dto.AbsenceApprovalRequestUpdateDto;
+import com.playdata.attendanceservice.client.dto.ApprovalRequestResponseDto;
+import com.playdata.attendanceservice.common.dto.CommonResDto;
 import com.playdata.attendanceservice.common.exception.BusinessException;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +22,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -68,12 +71,25 @@ public class AbsenceService {
 
             // Feign Client를 통해 approval-service 호출
             try {
-                approvalServiceClient.createAbsenceApprovalRequest(approvalDto);
-                log.info("Approval request created successfully for absence: {}", savedAbsence.getId());
-            } catch (FeignException e) {
-                log.error("Approval service call failed for absenceId: {}. Exception: {}", savedAbsence.getId(), e.getMessage());
-                // Feign 호출 실패 시, AbsenceService의 트랜잭션을 롤백
-                throw new BusinessException("결재 요청 실패: " + e.getMessage(), e);
+                CommonResDto<ApprovalRequestResponseDto> response = approvalServiceClient.createAbsenceApprovalRequest(approvalDto);
+                if (response != null && response.getResult() != null && response.getResult().getId() != null) {
+                    savedAbsence.setApprovalRequestId(response.getResult().getId());
+                    absenceRepository.save(savedAbsence); // approvalRequestId 업데이트 저장
+                    log.info("Approval request created successfully for absence: {}, approvalRequestId: {}", savedAbsence.getId(), savedAbsence.getApprovalRequestId());
+                } else {
+                    log.error("Failed to get valid approvalRequestId from approval-service response for absenceId: {}. Response: {}", savedAbsence.getId(), response);
+                    throw new BusinessException("결재 요청 ID를 받아오지 못했습니다. (응답 결과 또는 ID가 null)");
+                }
+            } catch (ResponseStatusException e) {
+                // FeignErrorDecoder에 의해 변환된 예외를 처리합니다.
+                // 원본 상태 코드와 메시지를 그대로 클라이언트에게 전달하기 위해 다시 던집니다.
+                log.warn("결재 서비스에서 오류 응답을 받았습니다. Status: {}, Reason: {}", e.getStatusCode(), e.getReason());
+                throw e;
+            } catch (Exception e) {
+                // 예상치 못한 그 외 모든 예외를 처리합니다.
+                log.error("Approval service call failed for absenceId: {}. Exception: {}", savedAbsence.getId(), e.getMessage(), e);
+                // 일반적인 오류 메시지와 함께 500 서버 오류로 변환하여 트랜잭션을 롤백합니다.
+                throw new BusinessException("결재 요청 중 알 수 없는 오류가 발생했습니다.", e);
             }
         }
         return AbsenceResponseDto.from(savedAbsence);
@@ -112,6 +128,32 @@ public class AbsenceService {
         );
 
         log.info("Absence updated: {}", absence);
+
+        // 부재가 대기 상태이고 결재 요청 ID가 있다면, approval-service의 결재 요청도 업데이트
+        if (absence.isPending() && absence.getApprovalRequestId() != null) {
+            log.info("Approval request update condition met. absenceId: {}, approvalRequestId: {}", absence.getId(), absence.getApprovalRequestId());
+            try {
+                AbsenceApprovalRequestUpdateDto updateApprovalDto = AbsenceApprovalRequestUpdateDto.builder()
+                        .absenceType(requestDto.getType())
+                        .urgency(requestDto.getUrgency())
+                        .startDate(requestDto.getStartDate())
+                        .endDate(requestDto.getEndDate())
+                        .startTime(requestDto.getStartTime())
+                        .endTime(requestDto.getEndTime())
+                        .reason(requestDto.getReason())
+                        .title(requestDto.getType().getDescription() + " 부재 신청") // 제목도 업데이트
+                        .build();
+                log.info("Calling approvalServiceClient.updateAbsenceApprovalRequest with DTO: {}", updateApprovalDto);
+                approvalServiceClient.updateAbsenceApprovalRequest(absence.getApprovalRequestId(), updateApprovalDto);
+                log.info("Approval request updated successfully for absence: {}", absence.getId());
+            } catch (FeignException e) {
+                log.error("Failed to update approval request for absence {}: {}", absence.getId(), e.getMessage());
+                throw new BusinessException("결재 요청 업데이트 실패: " + e.getMessage(), e);
+            }
+        } else {
+            log.warn("Approval request update condition NOT met. isPending: {}, approvalRequestId: {}", absence.isPending(), absence.getApprovalRequestId());
+        }
+
         return AbsenceResponseDto.from(absence);
     }
 
@@ -162,6 +204,17 @@ public class AbsenceService {
 
         absenceRepository.delete(absence);
         log.info("Absence deleted: {}", absenceId);
+
+        // 부재가 대기 상태이고 결재 요청 ID가 있다면, approval-service의 결재 요청도 취소
+        if (absence.isPending() && absence.getApprovalRequestId() != null) {
+            try {
+                approvalServiceClient.cancelApprovalRequest(absence.getApprovalRequestId());
+                log.info("Approval request cancelled successfully for absence: {}", absence.getId());
+            } catch (FeignException e) {
+                log.error("Failed to cancel approval request for absence {}: {}", absence.getId(), e.getMessage());
+                throw new BusinessException("결재 요청 취소 실패: " + e.getMessage(), e);
+            }
+        }
     }
 
     /**

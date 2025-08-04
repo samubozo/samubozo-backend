@@ -1,4 +1,4 @@
-package com.playdata.attendanceservice.client;
+package com.playdata.vacationservice.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

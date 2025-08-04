@@ -98,4 +98,15 @@ public class ApprovalRequest {
         this.rejectComment = rejectComment;
     }
 
+    public void updateAbsenceRequest(com.playdata.approvalservice.client.dto.AbsenceApprovalRequestUpdateDto dto) {
+        this.absenceType = dto.getAbsenceType();
+        this.urgency = dto.getUrgency();
+        this.startDate = dto.getStartDate();
+        this.endDate = dto.getEndDate();
+        this.startTime = dto.getStartTime();
+        this.endTime = dto.getEndTime();
+        this.reason = dto.getReason();
+        this.title = dto.getTitle();
+    }
+
 }

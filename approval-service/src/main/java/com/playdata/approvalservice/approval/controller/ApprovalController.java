@@ -4,6 +4,7 @@ import com.playdata.approvalservice.approval.dto.*;
 import com.playdata.approvalservice.approval.entity.RequestType;
 import com.playdata.approvalservice.approval.service.ApprovalService;
 import com.playdata.approvalservice.common.auth.TokenUserInfo;
+import com.playdata.approvalservice.common.dto.CommonResDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -52,23 +53,20 @@ public class ApprovalController {
     }
 
     /**
-     * 모든 결재 요청 목록을 조회합니다. 선택적으로 요청 유형(requestType)으로 필터링할 수 있습니다.
+     * 조건에 따라 결재 요청 목록을 동적으로 조회합니다.
+     * 관리자는 이 API를 사용하여 특정 사용자의 특정 상태(대기/완료)에 있는 특정 종류(휴가/증명서/부재)의 결재 내역을 조회할 수 있습니다.
+     * @param applicantId 조회할 직원의 사원 번호 (선택)
+     * @param status 조회할 결재 상태 (PENDING, PROCESSED) (선택)
+     * @param requestType 조회할 요청 종류 (VACATION, CERTIFICATE, ABSENCE) (선택)
+     * @return 조건에 맞는 결재 요청 목록
      */
     @GetMapping
-    public ResponseEntity<List<ApprovalRequestResponseDto>> getAllApprovalRequests(
-            @RequestParam(value = "requestType", required = false) String requestTypeStr) {
-        List<ApprovalRequestResponseDto> allRequests;
-        if (requestTypeStr != null && !requestTypeStr.isEmpty()) {
-            try {
-                RequestType requestType = RequestType.valueOf(requestTypeStr.toUpperCase());
-                allRequests = approvalService.getAllApprovalRequests(requestType);
-            } catch (IllegalArgumentException e) {
-                return ResponseEntity.badRequest().build();
-            }
-        } else {
-            allRequests = approvalService.getAllApprovalRequests();
-        }
-        return ResponseEntity.ok(allRequests);
+    public ResponseEntity<List<ApprovalRequestResponseDto>> getApprovalRequests(
+            @RequestParam(value = "applicantId", required = false) Long applicantId,
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "requestType", required = false) String requestType) {
+        List<ApprovalRequestResponseDto> requests = approvalService.getApprovalRequests(applicantId, status, requestType);
+        return ResponseEntity.ok(requests);
     }
 
     /**
@@ -143,12 +141,19 @@ public class ApprovalController {
      * 새로운 부재 결재 요청을 생성합니다.
      */
     @PostMapping("/absence")
-    public ResponseEntity<ApprovalRequestResponseDto> createAbsenceApprovalRequest(
+    public ResponseEntity<CommonResDto<ApprovalRequestResponseDto>> createAbsenceApprovalRequest(
             @AuthenticationPrincipal TokenUserInfo userInfo,
             @RequestBody AbsenceApprovalRequestCreateDto createDto) {
-        log.info("Creating absence approval request for user: {}", userInfo.getEmployeeNo());
+
         ApprovalRequestResponseDto responseDto = approvalService.createAbsenceApprovalRequest(userInfo, createDto);
-        return ResponseEntity.status(HttpStatus.CREATED).body(responseDto);
+
+        // [수정된 부분]
+        // 숫자 1 대신, 생성(POST)에 성공했다는 의미인 HttpStatus.CREATED를 사용합니다.
+        // 상태 메시지도 조금 더 명확하게 바꿨습니다.
+        CommonResDto<ApprovalRequestResponseDto> finalResponse =
+                new CommonResDto<>(HttpStatus.CREATED, "결재 요청이 성공적으로 생성되었습니다.", responseDto);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(finalResponse);
     }
 
     /**
@@ -285,5 +290,30 @@ public class ApprovalController {
         log.info("Rejecting absence request id: {} by user: {}", id, userInfo.getEmployeeNo());
         ApprovalRequestResponseDto responseDto = approvalService.rejectAbsenceApprovalRequest(id, userInfo, rejectRequestDto);
         return ResponseEntity.ok(responseDto);
+    }
+
+    /**
+     * [신규 추가] 특정 부재 결재 요청을 수정합니다.
+     */
+    @PutMapping("/absence/{id}")
+    public ResponseEntity<ApprovalRequestResponseDto> updateAbsenceApprovalRequest(
+            @PathVariable Long id,
+            @RequestBody com.playdata.approvalservice.client.dto.AbsenceApprovalRequestUpdateDto updateDto,
+            @AuthenticationPrincipal TokenUserInfo userInfo) {
+        log.info("Updating absence approval request id: {} by user: {}", id, userInfo.getEmployeeNo());
+        ApprovalRequestResponseDto responseDto = approvalService.updateAbsenceApprovalRequest(id, updateDto, userInfo);
+        return ResponseEntity.ok(responseDto);
+    }
+
+    /**
+     * [신규 추가] 특정 결재 요청을 취소(삭제)합니다.
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> cancelApprovalRequest(
+            @PathVariable Long id,
+            @AuthenticationPrincipal TokenUserInfo userInfo) {
+        log.info("Cancelling approval request id: {} by user: {}", id, userInfo.getEmployeeNo());
+        approvalService.cancelApprovalRequest(id, userInfo);
+        return ResponseEntity.noContent().build(); // 204 No Content 응답
     }
 }

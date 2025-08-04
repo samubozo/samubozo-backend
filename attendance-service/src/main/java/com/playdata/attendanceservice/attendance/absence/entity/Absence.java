@@ -46,6 +46,10 @@ public class Absence {
 
     private String reason;
 
+    @Setter // AbsenceService에서 접근 가능하도록 public setter 추가
+    @Column
+    private Long approvalRequestId; // 결재 요청 ID 추가
+
     // 결재 관련 필드 추가
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

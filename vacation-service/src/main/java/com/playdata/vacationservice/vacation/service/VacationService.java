@@ -23,6 +23,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -584,8 +586,9 @@ public class VacationService {
         try {
             return approvalServiceClient.createApproval(approvalRequest);
         } catch (FeignException e) {
-            log.error("결재 서비스 통신 오류: {}", e.getMessage());
-            throw new IllegalStateException("결재 서비스 통신 중 오류가 발생했습니다. 다시 시도해주세요.");
+            log.error("결재 서비스 통신 오류: [{}]{}", e.status(), e.getMessage());
+            // FeignException의 상태 코드를 기반으로 ResponseStatusException을 던져 프론트엔드에 정확한 오류 전달
+            throw new ResponseStatusException(HttpStatus.valueOf(e.status()), e.getMessage());
         }
     }
 

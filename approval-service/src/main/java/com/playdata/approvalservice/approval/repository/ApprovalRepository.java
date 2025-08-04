@@ -15,8 +15,10 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+
 @Repository
-public interface ApprovalRepository extends JpaRepository<ApprovalRequest, Long> {
+public interface ApprovalRepository extends JpaRepository<ApprovalRequest, Long>, JpaSpecificationExecutor<ApprovalRequest> {
 
     // ===== 기본 조회 메서드들 =====
 

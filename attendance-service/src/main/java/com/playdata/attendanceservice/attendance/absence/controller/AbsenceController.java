@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 
 import java.util.List;
 
@@ -54,8 +55,10 @@ public class AbsenceController {
     @PutMapping("/{absenceId}")
     public ResponseEntity<AbsenceResponseDto> updateAbsence(
             @PathVariable Long absenceId,
-            @RequestBody AbsenceUpdateRequestDto request,
+            @RequestBody @Valid AbsenceUpdateRequestDto request,
             @AuthenticationPrincipal TokenUserInfo userInfo) {
+        log.info("AbsenceController.updateAbsence called for absenceId: {}, userId: {}", absenceId, userInfo != null ? userInfo.getEmployeeNo() : "null");
+        log.info("Request DTO: {}", request);
         return ResponseEntity.ok(absenceService.updateAbsence(absenceId, request, userInfo.getEmployeeNo()));
     }
 

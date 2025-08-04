@@ -19,6 +19,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.playdata.approvalservice.approval.repository.ApprovalSpecification;
+import org.springframework.data.jpa.domain.Specification;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -124,15 +127,25 @@ public class ApprovalService {
         );
 
         if (!existingRequests.isEmpty()) {
-            ApprovalRequest overlappedRequest = existingRequests.get(0);
-            String requestTypeKorean = overlappedRequest.getRequestType() == RequestType.VACATION ? "휴가" : "부재";
+            // [수정] requestedAt이 null일 경우를 대비하여 null-safe한 비교 로직으로 변경
+            ApprovalRequest representativeRequest = existingRequests.stream()
+                    .min(Comparator.comparing(ApprovalRequest::getRequestedAt, Comparator.nullsLast(Comparator.naturalOrder())))
+                    .orElse(existingRequests.get(0)); // 만약의 경우 첫 번째 항목 사용
+
+            String requestTypeKorean = "요청"; // 기본값
+            if (representativeRequest.getRequestType() != null) {
+                 requestTypeKorean = switch (representativeRequest.getRequestType()) {
+                    case VACATION -> "휴가";
+                    case ABSENCE -> "부재";
+                    case CERTIFICATE -> "증명서";
+                };
+            }
 
             String errorMessage = String.format(
-                    "해당 기간은 이미 처리 중이거나 승인된 '%s' 요청과 중복됩니다. (상태: %s, 기간: %s ~ %s)",
-                    requestTypeKorean,
-                    overlappedRequest.getStatus(),
-                    overlappedRequest.getStartDate(),
-                    overlappedRequest.getEndDate()
+                    "해당 기간(%s ~ %s)은 이미 처리 중이거나 승인된 '%s' 요청과 중복됩니다.",
+                    createDto.getStartDate(),
+                    createDto.getEndDate(),
+                    requestTypeKorean
             );
             throw new ResponseStatusException(HttpStatus.CONFLICT, errorMessage);
         }
@@ -236,50 +249,90 @@ public class ApprovalService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                     "Authenticated user ID does not match the applicant ID in the request.");
         }
-        log.info("--- 2. 보안 검증 통과 ---");
+        log.info("--- 1. 보안 검증 통과 ---");
 
-        // 2. 이제 클라이언트가 모든 정보를 전달해주므로, 바로 중복 검증을 수행합니다.
-        validateDuplicateRequest(createDto);
-        log.info("--- 3. 유효성 검사 통과 ---");
+        // 2. 중복 검증 수행
+        try {
+            validateDuplicateRequest(createDto);
+            log.info("--- 2. 유효성 검사 통과 ---");
+        } catch (ResponseStatusException e) {
+            log.error("중복 검증 중 오류 발생: Status: {}, Reason: {}", e.getStatusCode(), e.getReason());
+            throw e; // 유효성 검증 실패 시 바로 예외를 던집니다.
+        } catch (Exception e) {
+            log.error("예상치 못한 중복 검증 오류 발생: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "중복 검증 중 알 수 없는 오류 발생", e);
+        }
 
         // 3. 승인자 ID 설정
-        Long approverId = determineApproverId(createDto);
-        log.info("--- 4. 승인자 ID 설정 완료 ---");
+        Long approverId = null;
+        try {
+            approverId = determineApproverId(createDto);
+            log.info("--- 3. 승인자 ID 설정 완료: {}", approverId);
+        } catch (Exception e) {
+            log.error("승인자 ID 결정 중 오류 발생: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "승인자 결정 중 오류 발생", e);
+        }
 
         // 4. ApprovalRequest 엔티티 생성
-        ApprovalRequest approvalRequest = ApprovalRequest.builder()
-                .requestType(createDto.getRequestType())
-                .applicantId(createDto.getApplicantId())
-                .reason(createDto.getReason())
-                .title(createDto.getTitle())
-                .vacationsId(createDto.getVacationsId())
-                .vacationType(createDto.getVacationType())
-                .certificateId(createDto.getCertificateId())
-                .certificateType(createDto.getCertificateType()) // 클라이언트가 전달한 타입으로 저장
-                .absencesId(createDto.getAbsencesId())
-                .absenceType(createDto.getAbsenceType())
-                .urgency(createDto.getUrgency())
-                .startDate(createDto.getStartDate())
-                .endDate(createDto.getEndDate())
-                .startTime(createDto.getStartTime())
-                .endTime(createDto.getEndTime())
-                .status(ApprovalStatus.PENDING)
-                .requestedAt(LocalDateTime.now())
-                .approverId(approverId)
-                .build();
-        log.info("--- 5. 엔티티 생성 완료 ---");
+        ApprovalRequest approvalRequest = null;
+        try {
+            approvalRequest = ApprovalRequest.builder()
+                    .requestType(createDto.getRequestType())
+                    .applicantId(createDto.getApplicantId())
+                    .reason(createDto.getReason())
+                    .title(createDto.getTitle())
+                    .vacationsId(createDto.getVacationsId())
+                    .vacationType(createDto.getVacationType())
+                    .certificateId(createDto.getCertificateId())
+                    .certificateType(createDto.getCertificateType()) // 클라이언트가 전달한 타입으로 저장
+                    .absencesId(createDto.getAbsencesId())
+                    .absenceType(createDto.getAbsenceType())
+                    .urgency(createDto.getUrgency())
+                    .startDate(createDto.getStartDate())
+                    .endDate(createDto.getEndDate())
+                    .startTime(createDto.getStartTime())
+                    .endTime(createDto.getEndTime())
+                    .status(ApprovalStatus.PENDING)
+                    .requestedAt(LocalDateTime.now())
+                    .approverId(approverId)
+                    .build();
+            log.info("--- 4. 엔티티 생성 완료: {}", approvalRequest);
+        } catch (Exception e) {
+            log.error("ApprovalRequest 엔티티 생성 중 오류 발생: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "결재 요청 엔티티 생성 중 오류 발생", e);
+        }
 
-        // 5. 저장 및 응답 생성
-        ApprovalRequest savedRequest = approvalRepository.save(approvalRequest);
-        log.info("ApprovalRequest 엔티티 저장 성공. ID: {}", savedRequest.getId());
+        // 5. 저장
+        ApprovalRequest savedRequest = null;
+        try {
+            savedRequest = approvalRepository.save(approvalRequest);
+            log.info("--- 5. ApprovalRequest 엔티티 저장 성공. ID: {}", savedRequest.getId());
+        } catch (Exception e) {
+            log.error("ApprovalRequest 엔티티 저장 중 오류 발생: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "결재 요청 엔티티 저장 중 오류 발생", e);
+        }
 
+        // 6. 응답 생성에 필요한 사용자 정보 조회
         List<Long> userIds = new ArrayList<>(List.of(savedRequest.getApplicantId()));
         if (savedRequest.getApproverId() != null) {
             userIds.add(savedRequest.getApproverId());
         }
-        Map<Long, UserResDto> userMap = getUserMap(userIds);
+        Map<Long, UserResDto> userMap = null;
+        try {
+            userMap = getUserMap(userIds);
+            log.info("--- 6. 사용자 정보 조회 완료. userMap size: {}", userMap.size());
+        } catch (Exception e) {
+            log.error("사용자 정보 조회 중 오류 발생: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "사용자 정보 조회 중 오류 발생", e);
+        }
 
-        return buildResponseDto(savedRequest, userMap);
+        // 7. 최종 응답 DTO 빌드 및 반환
+        try {
+            return buildResponseDto(savedRequest, userMap);
+        } catch (Exception e) {
+            log.error("응답 DTO 빌드 중 오류 발생: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "응답 DTO 빌드 중 오류 발생", e);
+        }
     }
 
     /**
@@ -349,13 +402,17 @@ public class ApprovalService {
     }
 
     /**
-     * 모든 결재 요청 조회
+     * 조건에 따라 결재 요청 목록을 동적으로 조회합니다.
+     * @param applicantId 신청자 ID
+     * @param status 결재 상태 (PENDING, PROCESSED)
+     * @param requestType 요청 종류 (VACATION, CERTIFICATE, ABSENCE)
+     * @return 조건에 맞는 결재 요청 DTO 목록
      */
-    @Transactional(readOnly = true)
-    @Cacheable("approvalRequests")
-    public List<ApprovalRequestResponseDto> getAllApprovalRequests() {
-        List<ApprovalRequest> allRequests = approvalRepository.findAll();
-        return buildResponseDtoList(allRequests);
+    public List<ApprovalRequestResponseDto> getApprovalRequests(Long applicantId, String status, String requestType) {
+        log.info("getApprovalRequests 호출: applicantId={}, status={}, requestType={}", applicantId, status, requestType);
+        Specification<ApprovalRequest> spec = ApprovalSpecification.withFilter(applicantId, status, requestType);
+        List<ApprovalRequest> requests = approvalRepository.findAll(spec);
+        return buildResponseDtoList(requests);
     }
 
     /**
@@ -599,6 +656,62 @@ public class ApprovalService {
                 .findByRequestTypeAndApproverIdOrderByProcessedAtDesc(RequestType.ABSENCE, userInfo.getEmployeeNo());
 
         return createPagedResponse(processedByMeRequests, pageable);
+    }
+
+    /**
+     * [신규 추가] 부재 결재 요청 수정
+     */
+    @Transactional
+    @CacheEvict(value = "approvalRequests", allEntries = true)
+    public ApprovalRequestResponseDto updateAbsenceApprovalRequest(Long id, com.playdata.approvalservice.client.dto.AbsenceApprovalRequestUpdateDto updateDto, TokenUserInfo userInfo) {
+        log.info("부재 결재 요청 수정 시작. 요청 ID: {}, 사용자: {}", id, userInfo.getEmployeeNo());
+
+        ApprovalRequest approvalRequest = approvalRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "결재 요청을 찾을 수 없습니다: " + id));
+
+        // 요청자 본인인지, PENDING 상태인지 검증
+        if (!approvalRequest.getApplicantId().equals(userInfo.getEmployeeNo())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "본인의 결재 요청만 수정할 수 있습니다.");
+        }
+        if (approvalRequest.getStatus() != ApprovalStatus.PENDING) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "대기 중인 결재 요청만 수정할 수 있습니다.");
+        }
+        if (approvalRequest.getRequestType() != RequestType.ABSENCE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "부재 유형의 결재 요청만 수정할 수 있습니다.");
+        }
+
+        // 내용 업데이트
+        log.info("업데이트 전: reason={}, title={}", approvalRequest.getReason(), approvalRequest.getTitle());
+        log.info("수신된 updateDto: reason={}, title={}", updateDto.getReason(), updateDto.getTitle());
+        approvalRequest.updateAbsenceRequest(updateDto);
+
+        ApprovalRequest updatedRequest = approvalRepository.save(approvalRequest);
+        log.info("부재 결재 요청 수정 완료. 요청 ID: {}, 업데이트 후: reason={}, title={}", updatedRequest.getId(), updatedRequest.getReason(), updatedRequest.getTitle());
+
+        return buildResponseDto(updatedRequest, getUserMapForRequest(updatedRequest));
+    }
+
+    /**
+     * [신규 추가] 결재 요청 취소(삭제)
+     */
+    @Transactional
+    @CacheEvict(value = "approvalRequests", allEntries = true)
+    public void cancelApprovalRequest(Long id, TokenUserInfo userInfo) {
+        log.info("결재 요청 취소 시작. 요청 ID: {}, 사용자: {}", id, userInfo.getEmployeeNo());
+
+        ApprovalRequest approvalRequest = approvalRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "결재 요청을 찾을 수 없습니다: " + id));
+
+        // 요청자 본인인지, PENDING 상태인지 검증
+        if (!approvalRequest.getApplicantId().equals(userInfo.getEmployeeNo())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "본인의 결재 요청만 취소할 수 있습니다.");
+        }
+        if (approvalRequest.getStatus() != ApprovalStatus.PENDING) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "대기 중인 결재 요청만 취소할 수 있습니다.");
+        }
+
+        approvalRepository.delete(approvalRequest);
+        log.info("결재 요청 취소(삭제) 완료. 요청 ID: {}", id);
     }
 
     // ===== 휴가 관련 메서드들 =====
