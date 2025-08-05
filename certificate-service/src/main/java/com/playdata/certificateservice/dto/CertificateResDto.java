@@ -22,7 +22,7 @@ public class CertificateResDto {
     private LocalDate approveDate;
     private LocalDateTime processedAt;
     private Status status;
-    private String purpose;
+    private String reason;
     private String applicantName;
     private String departmentName;
     private String approverName;

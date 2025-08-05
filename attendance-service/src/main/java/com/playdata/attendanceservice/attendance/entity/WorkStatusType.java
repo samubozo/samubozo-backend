@@ -14,14 +14,23 @@ import java.util.stream.Collectors;
 @Getter
 @RequiredArgsConstructor
 public enum WorkStatusType {
-    REGULAR("정상"), // 정상 출근
-    LATE("지각"),  // 지각
-    EARLY_LEAVE("조퇴"),  // 조퇴
-    ABSENCE("부재"), // 일반 부재 (병가, 경조사 등 구체적이지 않은 경우)
-    BUSINESS_TRIP("출장"), // 출장
-    TRAINING("연수"), // 연수
-    HALF_DAY_LEAVE("반차"), // 반차
-    OUT_OF_OFFICE("외출"); // 외출
+    REGULAR("정상"),           // 정상 출근
+    LATE("지각"),             // 지각
+    EARLY_LEAVE("조퇴"),      // 조퇴
+    ABSENCE("부재"),          // 일반 부재 (구체적이지 않은 경우)
+
+    // 휴가 관련 (연차 잔여일수 차감)
+    ANNUAL_LEAVE("연차"),     // 연차
+    AM_HALF_DAY("오전 반차"), // 오전 반차
+    PM_HALF_DAY("오후 반차"), // 오후 반차
+
+    // 부재 관련 (급여 차감 없음)
+    SICK_LEAVE("병가"),       // 병가
+    OFFICIAL_LEAVE("공가"),   // 공가
+    BUSINESS_TRIP("출장"),    // 출장
+    TRAINING("연수"),         // 연수
+    SHORT_LEAVE("외출"),      // 외출
+    ETC("기타");              // 기타
 
     private final String description;
 
@@ -38,5 +47,22 @@ public enum WorkStatusType {
     @JsonValue
     public String getDescription() {
         return description;
+    }
+
+    // 휴가인지 확인하는 메서드
+    public boolean isVacation() {
+        return this == ANNUAL_LEAVE || this == AM_HALF_DAY || this == PM_HALF_DAY;
+    }
+
+    // 부재인지 확인하는 메서드
+    public boolean isAbsence() {
+        return this == SICK_LEAVE || this == OFFICIAL_LEAVE ||
+                this == BUSINESS_TRIP || this == TRAINING ||
+                this == SHORT_LEAVE || this == ETC || this == ABSENCE;
+    }
+
+    // 연차 잔여일수 차감이 필요한지 확인하는 메서드
+    public boolean requiresVacationBalanceDeduction() {
+        return this == ANNUAL_LEAVE || this == AM_HALF_DAY || this == PM_HALF_DAY;
     }
 }

@@ -54,6 +54,10 @@ public class ApprovalRequest {
     @Column(name = "certificates_id")
     private Long certificateId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "certificate_type") // [추가] 증명서 종류를 저장하기 위한 필드
+    private Type certificateType;
+
     @Column(name = "start_date")
     private java.time.LocalDate startDate;
 
@@ -92,6 +96,17 @@ public class ApprovalRequest {
         this.status = ApprovalStatus.REJECTED;
         this.processedAt = LocalDateTime.now();
         this.rejectComment = rejectComment;
+    }
+
+    public void updateAbsenceRequest(com.playdata.approvalservice.client.dto.AbsenceApprovalRequestUpdateDto dto) {
+        this.absenceType = dto.getAbsenceType();
+        this.urgency = dto.getUrgency();
+        this.startDate = dto.getStartDate();
+        this.endDate = dto.getEndDate();
+        this.startTime = dto.getStartTime();
+        this.endTime = dto.getEndTime();
+        this.reason = dto.getReason();
+        this.title = dto.getTitle();
     }
 
 }

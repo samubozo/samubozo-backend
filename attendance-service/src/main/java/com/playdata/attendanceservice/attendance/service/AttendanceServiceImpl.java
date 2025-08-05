@@ -91,14 +91,38 @@ public class AttendanceServiceImpl implements AttendanceService {
                     case "TRAINING":
                         initialStatusType = WorkStatusType.TRAINING;
                         break;
+                    case "SICK_LEAVE":
+                        initialStatusType = WorkStatusType.SICK_LEAVE;
+                        break;
+                    case "OFFICIAL_LEAVE":
+                        initialStatusType = WorkStatusType.OFFICIAL_LEAVE;
+                        break;
+                    case "SHORT_LEAVE":
+                        initialStatusType = WorkStatusType.SHORT_LEAVE;
+                        break;
+                    case "ETC":
+                        initialStatusType = WorkStatusType.ETC;
+                        break;
                     default:
-                        initialStatusType = WorkStatusType.OUT_OF_OFFICE;
+                        initialStatusType = WorkStatusType.ABSENCE; // OUT_OF_OFFICE → ABSENCE로 변경
                         break;
                 }
             } else {
                 String approvedLeaveType = approvalServiceClient.getApprovedLeaveType(userId, checkInDateTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE));
-                if (approvedLeaveType != null && approvedLeaveType.equals("HALF_DAY_LEAVE_AM")) {
-                    initialStatusType = WorkStatusType.HALF_DAY_LEAVE;
+                if (approvedLeaveType != null) {
+                    switch (approvedLeaveType) {
+                        case "AM_HALF_DAY":
+                            initialStatusType = WorkStatusType.AM_HALF_DAY; // HALF_DAY_LEAVE → AM_HALF_DAY
+                            break;
+                        case "PM_HALF_DAY":
+                            initialStatusType = WorkStatusType.PM_HALF_DAY; // 새로운 타입
+                            break;
+                        case "ANNUAL_LEAVE":
+                            initialStatusType = WorkStatusType.ANNUAL_LEAVE; // 새로운 타입
+                            break;
+                        default:
+                            break;
+                    }
                 } else if (currentCheckInTime.isAfter(standardCheckInTime)) {
                     initialStatusType = WorkStatusType.LATE;
                     isLate = true;
@@ -132,7 +156,6 @@ public class AttendanceServiceImpl implements AttendanceService {
             throw new RuntimeException("출근 기록 중 예상치 못한 오류가 발생했습니다.", e);
         }
     }
-
 
     @Override
     @Transactional
@@ -170,8 +193,8 @@ public class AttendanceServiceImpl implements AttendanceService {
             String approvedLeaveType = approvalServiceClient.getApprovedLeaveType(userId, checkOutDateTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE));
             if (approvedLeaveType != null) {
                 switch (approvedLeaveType) {
-                    case "HALF_DAY_LEAVE_PM":
-                        workStatus.setStatusType(WorkStatusType.HALF_DAY_LEAVE);
+                    case "PM_HALF_DAY":
+                        workStatus.setStatusType(WorkStatusType.PM_HALF_DAY); // HALF_DAY_LEAVE → PM_HALF_DAY
                         break;
                     case "EARLY_LEAVE":
                         workStatus.setStatusType(WorkStatusType.EARLY_LEAVE);
@@ -246,7 +269,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         WorkStatus workStatus = attendance.getWorkStatus();
         if (workStatus != null) {
             if (workStatus.getStatusType() != WorkStatusType.LATE) {
-                workStatus.setStatusType(WorkStatusType.OUT_OF_OFFICE);
+                workStatus.setStatusType(WorkStatusType.SHORT_LEAVE); // OUT_OF_OFFICE → SHORT_LEAVE로 변경
             }
             workStatusRepository.save(workStatus);
         }
@@ -274,7 +297,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         WorkStatus workStatus = attendance.getWorkStatus();
         if (workStatus != null) {
             if (workStatus.getStatusType() != WorkStatusType.LATE) {
-                workStatus.setStatusType(WorkStatusType.OUT_OF_OFFICE);
+                workStatus.setStatusType(WorkStatusType.SHORT_LEAVE); // OUT_OF_OFFICE → SHORT_LEAVE로 변경
             }
             workStatusRepository.save(workStatus);
         }

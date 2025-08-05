@@ -4,7 +4,6 @@ package com.playdata.certificateservice.service;
 import com.playdata.certificateservice.client.ApprovalServiceClient;
 import com.playdata.certificateservice.client.dto.ApprovalRequestResponseDto;
 import com.playdata.certificateservice.client.dto.CertificateApprovalRequestCreateDto;
-import com.playdata.certificateservice.client.dto.RequestType;
 import com.playdata.certificateservice.client.hr.HrServiceClient;
 import com.playdata.certificateservice.client.hr.dto.UserFeignResDto;
 import com.playdata.certificateservice.client.hr.dto.UserResDto;
@@ -58,35 +57,46 @@ public class CertificateServiceImpl implements CertificateService {
     // 증명서 신청 (사용자)
     @Transactional
     @Override
-    public void createCertificate(TokenUserInfo userInfo, CertificateReqDto dto) {
-        // 1. Certificate 객체 생성 및 저장
+    public Certificate createCertificate(TokenUserInfo userInfo, CertificateReqDto dto) {
+        // 1. Certificate 엔티티 생성 및 저장
         Certificate certificate = Certificate.builder()
-                .employeeNo(userInfo.getEmployeeNo()) // 인증된 사용자 ID 사용
+                .employeeNo(userInfo.getEmployeeNo())
                 .type(Type.valueOf(dto.getType().name()))
-                .status(Status.PENDING) // 기본값
+                .status(Status.PENDING)
                 .purpose(dto.getPurpose())
                 .requestDate(dto.getRequestDate())
                 .build();
-
         Certificate savedCertificate = certificateRepository.save(certificate);
-        log.info("Saved certificate: {}", savedCertificate);
+        log.info("1단계: 증명서 신청 내용 저장 성공. Certificate ID: {}", savedCertificate.getCertificateId());
 
-        // 2. Approval-service 에 결재 요청 (CertificateApprovalRequestCreateDto 사용)
-        CertificateApprovalRequestCreateDto approvalRequestDto = CertificateApprovalRequestCreateDto.builder() // DTO 타입 변경
-                .requestType(RequestType.CERTIFICATE)
-                .applicantId(savedCertificate.getEmployeeNo())
-                .title(savedCertificate.getType().name() + " 증명서 발급 요청")
-                .reason(savedCertificate.getPurpose())
+        // 2. Approval-Service에 결재 요청을 보내기 위한 DTO 생성
+        String title = savedCertificate.getType().name() + " 신청";
+        CertificateApprovalRequestCreateDto approvalRequestDto = CertificateApprovalRequestCreateDto.builder()
                 .certificateId(savedCertificate.getCertificateId())
-                .startDate(savedCertificate.getRequestDate())
-                .endDate(savedCertificate.getRequestDate())
+                .title(title)
+                .reason(savedCertificate.getPurpose()) // 증명서의 'purpose'를 결재 요청의 'reason'으로 사용
                 .build();
+        log.info("2단계: Approval-Service로 보낼 결재 요청 DTO 생성 완료. DTO: {}", approvalRequestDto);
 
-        ApprovalRequestResponseDto approvalResponse = approvalServiceClient.createCertificateApprovalRequest(approvalRequestDto); // 메서드 호출 변경
-        savedCertificate.setApprovalRequestId(approvalResponse.getId()); // approvalRequestId 저장
-        certificateRepository.save(savedCertificate); // approvalRequestId 업데이트
-        log.info("Certificate ID: {}, Saved Approval Request ID: {}", savedCertificate.getCertificateId(), savedCertificate.getApprovalRequestId()); // Added log
-        log.info("Sent approval request to approval-service: {}", approvalRequestDto);
+        try {
+            // 3. Approval-Service의 결재 요청 생성 API 호출
+            log.info("3단계: Approval-Service API 호출 시작.");
+            ApprovalRequestResponseDto approvalResponse = approvalServiceClient.createCertificateApprovalRequest(approvalRequestDto);
+            log.info("4단계: Approval-Service API 호출 성공. Response: {}", approvalResponse);
+
+            // 4. 결재 요청 ID를 Certificate 엔티티에 업데이트
+            savedCertificate.setApprovalRequestId(approvalResponse.getId());
+            certificateRepository.save(savedCertificate);
+            log.info("5단계: Certificate에 ApprovalRequest ID 업데이트 성공. ApprovalRequest ID: {}", approvalResponse.getId());
+
+        } catch (FeignException e) {
+            log.error("Approval-Service API 호출 실패. Status: {}, Response: {}", e.status(), e.contentUTF8(), e);
+            // 트랜잭션 롤백을 위해 런타임 예외 발생
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "결재 요청 생성에 실패했습니다.", e);
+        }
+
+        // 5. 최종적으로 결재 요청 정보까지 포함된 Certificate 객체 반환
+        return savedCertificate;
     }
 
     // 내 증명서 조회 (사용자)
@@ -119,10 +129,21 @@ public class CertificateServiceImpl implements CertificateService {
             if (certificate.getApprovalRequestId() != null) {
                 try {
                     ApprovalRequestResponseDto approvalResponse = approvalServiceClient.getApprovalRequestById(certificate.getApprovalRequestId());
-                    log.info("ApprovalRequestResponseDto from approval-service (listMyCertificates): approverId={}, approverName={}", approvalResponse.getApproverId(), approvalResponse.getApproverName());
-                    approverName = approvalResponse.getApproverName();
+                    // [수정] 요청 타입이 'CERTIFICATE'인 경우에만 결재자 이름을 가져옵니다.
+                    if (approvalResponse != null && "CERTIFICATE".equals(approvalResponse.getRequestType())) {
+                        log.info("ApprovalRequestResponseDto from approval-service (listMyCertificates): approverId={}, approverName={}", approvalResponse.getApproverId(), approvalResponse.getApproverName());
+                        approverName = approvalResponse.getApproverName();
+                    } else {
+                        log.warn("조회된 결재 요청(ID: {})이 증명서 타입이 아닙니다. (타입: {})",
+                                certificate.getApprovalRequestId(), approvalResponse != null ? approvalResponse.getRequestType() : "null");
+                    }
                 } catch (FeignException e) {
-                    log.error("결재 서비스 통신 오류 (getApprovalRequestById) for approvalRequestId {}: {}", certificate.getApprovalRequestId(), e.getMessage());
+                    // 404 Not Found는 다른 서비스에서 해당 ID를 찾지 못한 경우이므로 경고로 처리하고 계속 진행합니다.
+                    if (e.status() == 404) {
+                        log.warn("결재 서비스에서 ID {}에 해당하는 결재 요청을 찾을 수 없습니다.", certificate.getApprovalRequestId());
+                    } else {
+                        log.error("결재 서비스 통신 오류 (getApprovalRequestById) for approvalRequestId {}: {}", certificate.getApprovalRequestId(), e.getMessage());
+                    }
                 }
             }
 
@@ -134,7 +155,7 @@ public class CertificateServiceImpl implements CertificateService {
                     .approveDate(certificate.getApproveDate())
                     .processedAt(certificate.getProcessedAt())
                     .status(Status.valueOf(certificate.getStatus().name()))
-                    .purpose(certificate.getPurpose())
+                    .reason(certificate.getPurpose())
                     .applicantName(finalApplicantName)
                     .departmentName(finalDepartmentName)
                     .approverName(certificate.getApproverName())
@@ -502,13 +523,14 @@ public class CertificateServiceImpl implements CertificateService {
     // [내부호출] 증명서 반려 처리
     @Override
     @Transactional
-    public void rejectCertificateInternal(Long id, String rejectComment, String approverName) {
+    public void rejectCertificateInternal(Long id, String rejectComment, Long approverId, String approverName) {
         Certificate certificate = certificateRepository.findById(id).orElseThrow(
                 () -> new EntityNotFoundException("Certificate not found with id: " + id)
         );
 
         // Certificate 엔티티의 reject 메서드 호출
-        certificate.reject(null, rejectComment, approverName); // 내부 호출이므로 approverId는 null로 전달
+        certificate.reject(approverId, rejectComment, approverName);
+        // certificate.setRejectComment(rejectComment); // reject 메서드에서 이미 처리하므로 이 라인은 제거
 
         certificateRepository.save(certificate);
         log.info("Certificate {} has been rejected by {} with comment: {}.".formatted(id, approverName, rejectComment));
@@ -538,9 +560,21 @@ public class CertificateServiceImpl implements CertificateService {
                         .filter(cert -> cert.getApprovalRequestId() != null)
                         .map(cert -> {
                             try {
-                                return approvalServiceClient.getApprovalRequestById(cert.getApprovalRequestId()).getApproverId();
+                                ApprovalRequestResponseDto approvalResponse = approvalServiceClient.getApprovalRequestById(cert.getApprovalRequestId());
+                                // [수정] 요청 타입이 'CERTIFICATE'인 경우에만 ID를 반환합니다.
+                                if (approvalResponse != null && "CERTIFICATE".equals(approvalResponse.getRequestType())) {
+                                    return approvalResponse.getApproverId();
+                                } else {
+                                    log.warn("조회된 결재 요청(ID: {})이 증명서 타입이 아닙니다. (타입: {})",
+                                            cert.getApprovalRequestId(), approvalResponse != null ? approvalResponse.getRequestType() : "null");
+                                    return null;
+                                }
                             } catch (FeignException e) {
-                                log.error("결재 서비스 통신 오류 (getApprovalRequestById) for approvalRequestId {}: {}", cert.getApprovalRequestId(), e.getMessage());
+                                if (e.status() == 404) {
+                                    log.warn("결재 서비스에서 ID {}에 해당하는 결재 요청을 찾을 수 없습니다.", cert.getApprovalRequestId());
+                                } else {
+                                    log.error("결재 서비스 통신 오류 (getApprovalRequestById) for approvalRequestId {}: {}", cert.getApprovalRequestId(), e.getMessage());
+                                }
                                 return null;
                             }
                         })
@@ -575,19 +609,31 @@ public class CertificateServiceImpl implements CertificateService {
             if (certificate.getApprovalRequestId() != null) {
                 try {
                     ApprovalRequestResponseDto approvalResponse = approvalServiceClient.getApprovalRequestById(certificate.getApprovalRequestId());
-                    log.info("ApprovalRequestResponseDto from approval-service (listAllCertificates): approverId={}, approverName={}", approvalResponse.getApproverId(), approvalResponse.getApproverName());
-                    if (approvalResponse.getApproverId() != null) {
-                        UserResDto approverInfo = userMap.get(approvalResponse.getApproverId());
-                        if (approverInfo != null) {
-                            approverName = approverInfo.getUserName();
+                    // [수정] 요청 타입이 'CERTIFICATE'인 경우에만 결재자 정보를 사용합니다.
+                    if (approvalResponse != null && "CERTIFICATE".equals(approvalResponse.getRequestType())) {
+                        log.info("ApprovalRequestResponseDto from approval-service (listAllCertificates): approverId={}, approverName={}", approvalResponse.getApproverId(), approvalResponse.getApproverName());
+                        if (approvalResponse.getApproverId() != null) {
+                            UserResDto approverInfo = userMap.get(approvalResponse.getApproverId());
+                            if (approverInfo != null) {
+                                approverName = approverInfo.getUserName();
+                            } else {
+                                // userMap에 정보가 없는 경우, 결재 응답에 이름이 있으면 사용
+                                approverName = approvalResponse.getApproverName();
+                                log.warn("HR 서비스에서 approverId {} 에 해당하는 사용자 정보를 찾을 수 없어 결재 응답의 이름을 사용합니다.", approvalResponse.getApproverId());
+                            }
                         } else {
-                            log.warn("HR 서비스에서 approverId {} 에 해당하는 사용자 정보를 찾을 수 없습니다.", approvalResponse.getApproverId());
+                            log.warn("ApprovalRequestResponseDto에서 approverId가 null입니다. approvalRequestId: {}", certificate.getApprovalRequestId());
                         }
                     } else {
-                        log.warn("ApprovalRequestResponseDto에서 approverId가 null입니다. approvalRequestId: {}", certificate.getApprovalRequestId());
+                        log.warn("조회된 결재 요청(ID: {})이 증명서 타입이 아닙니다. (타입: {})",
+                                certificate.getApprovalRequestId(), approvalResponse != null ? approvalResponse.getRequestType() : "null");
                     }
                 } catch (FeignException e) {
-                    log.error("결재 서비스 통신 오류 (getApprovalRequestById) for approvalRequestId {}: {}", certificate.getApprovalRequestId(), e.getMessage());
+                    if (e.status() == 404) {
+                        log.warn("결재 서비스에서 ID {}에 해당하는 결재 요청을 찾을 수 없습니다.", certificate.getApprovalRequestId());
+                    } else {
+                        log.error("결재 서비스 통신 오류 (getApprovalRequestById) for approvalRequestId {}: {}", certificate.getApprovalRequestId(), e.getMessage());
+                    }
                 }
             }
 
@@ -599,7 +645,7 @@ public class CertificateServiceImpl implements CertificateService {
                     .approveDate(certificate.getApproveDate())
                     .processedAt(certificate.getProcessedAt())
                     .status(Status.valueOf(certificate.getStatus().name()))
-                    .purpose(certificate.getPurpose())
+                    .reason(certificate.getPurpose())
                     .applicantName(applicantName)
                     .departmentName(departmentName)
                     .approverName(certificate.getApproverName())

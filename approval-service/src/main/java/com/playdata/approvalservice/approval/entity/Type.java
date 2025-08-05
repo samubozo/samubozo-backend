@@ -1,4 +1,4 @@
-package com.playdata.certificateservice.entity; // 패키지 경로는 그대로 유지
+package com.playdata.approvalservice.approval.entity;
 
 public enum Type {
     EMPLOYMENT("재직증명서"),

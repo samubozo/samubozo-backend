@@ -19,6 +19,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -56,13 +58,15 @@ public class VacationController {
      * 현재 로그인된 사용자의 모든 휴가 신청 내역을 조회합니다.
      *
      * @param userInfo 인증된 사용자 정보
-     * @return 휴가 신청 내역 목록
+     * @param pageable 페이징 정보 (page, size, sort)
+     * @return 페이징 처리된 휴가 신청 내역 목록
      */
     @GetMapping("/my-requests")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<CommonResDto<List<VacationHistoryResDto>>> getMyVacationRequests(
-            @AuthenticationPrincipal TokenUserInfo userInfo) {
-        List<VacationHistoryResDto> myRequests = vacationService.getMyVacationRequests(userInfo.getEmployeeNo());
+    public ResponseEntity<CommonResDto<Page<VacationHistoryResDto>>> getMyVacationRequests(
+            @AuthenticationPrincipal TokenUserInfo userInfo,
+            Pageable pageable) {
+        Page<VacationHistoryResDto> myRequests = vacationService.getMyVacationRequests(userInfo.getEmployeeNo(), pageable);
         return buildSuccessResponse(myRequests, "내 휴가 신청 내역 조회 성공");
     }
 

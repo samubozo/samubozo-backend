@@ -5,6 +5,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter; // 추가
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -15,6 +16,7 @@ import java.time.LocalTime;
 @Entity
 @Table(name = "absence")
 @Getter
+@Setter(AccessLevel.PROTECTED) // 추가: 같은 패키지에서만 setter 사용 가능
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Absence {
 
@@ -23,7 +25,7 @@ public class Absence {
     private Long id;
 
     @Column(nullable = false)
-    private String userId;
+    private Long userId; // String → Long으로 변경
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -44,13 +46,17 @@ public class Absence {
 
     private String reason;
 
+    @Setter // AbsenceService에서 접근 가능하도록 public setter 추가
+    @Column
+    private Long approvalRequestId; // 결재 요청 ID 추가
+
     // 결재 관련 필드 추가
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ApprovalStatus approvalStatus = ApprovalStatus.PENDING;
 
     @Column
-    private String approverId;
+    private Long approverId; // String → Long으로 변경
 
     @Column
     private LocalDateTime approvedAt;
@@ -67,7 +73,7 @@ public class Absence {
     private LocalDateTime updatedAt;
 
     @Builder
-    public Absence(String userId, AbsenceType type, UrgencyType urgency, LocalDate startDate, LocalDate endDate, LocalTime startTime, LocalTime endTime, String reason) {
+    public Absence(Long userId, AbsenceType type, UrgencyType urgency, LocalDate startDate, LocalDate endDate, LocalTime startTime, LocalTime endTime, String reason) {
         this.userId = userId;
         this.type = type;
         this.urgency = urgency;
@@ -90,14 +96,14 @@ public class Absence {
     }
 
     // 결재 승인 메서드
-    public void approve(String approverId) {
+    public void approve(Long approverId) { // String → Long으로 변경
         this.approvalStatus = ApprovalStatus.APPROVED;
         this.approverId = approverId;
         this.approvedAt = LocalDateTime.now();
     }
 
     // 결재 반려 메서드
-    public void reject(String approverId, String rejectComment) {
+    public void reject(Long approverId, String rejectComment) { // String → Long으로 변경
         this.approvalStatus = ApprovalStatus.REJECTED;
         this.approverId = approverId;
         this.rejectComment = rejectComment;
@@ -117,5 +123,14 @@ public class Absence {
     // 반려 상태인지 확인
     public boolean isRejected() {
         return this.approvalStatus == ApprovalStatus.REJECTED;
+    }
+
+    // 편의 메서드 추가
+    public boolean requiresApproval() {
+        return this.type.requiresApproval();
+    }
+
+    public boolean isSelfApproved() {
+        return this.type.isSelfApproved();
     }
 }

@@ -18,7 +18,7 @@ import java.io.InputStream;
 public interface CertificateService {
     // 증명서 신청
     @Transactional
-    void createCertificate(TokenUserInfo userInfo, CertificateReqDto dto);
+    Certificate createCertificate(TokenUserInfo userInfo, CertificateReqDto dto);
 
     // 내 증명서 조회
     Page<CertificateResDto> listMyCertificates(TokenUserInfo userInfo, Pageable pageable);
@@ -45,7 +45,7 @@ public interface CertificateService {
     void approveCertificateInternal(Long id, Long approverId, String approverName);
 
     // [내부호출] 증명서 반려 처리
-    void rejectCertificateInternal(Long id, String rejectComment, String approverName); // 변경
+    void rejectCertificateInternal(Long id, String rejectComment, Long approverId, String approverName);
 
     // 모든 증명서 조회 (HR 전용)
     Page<CertificateResDto> listAllCertificates(TokenUserInfo userInfo, Long employeeNo, Pageable pageable);

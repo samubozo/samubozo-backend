@@ -1,8 +1,8 @@
-package com.playdata.approvalservice.approval.dto;
+package com.playdata.attendanceservice.client.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import com.playdata.approvalservice.approval.entity.AbsenceType;
-import com.playdata.approvalservice.approval.entity.UrgencyType;
+import com.playdata.attendanceservice.attendance.absence.entity.AbsenceType;
+import com.playdata.attendanceservice.attendance.absence.entity.UrgencyType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
