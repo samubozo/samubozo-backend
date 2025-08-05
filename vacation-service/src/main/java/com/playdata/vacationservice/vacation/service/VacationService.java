@@ -50,4 +50,6 @@ public interface VacationService {
 
     // 추가된 메서드
     void restoreVacationBalance(Long employeeNo, BigDecimal restoredDays);
+
+    void createWorkStatusForApprovedVacation(Long vacationId, com.playdata.vacationservice.vacation.entity.VacationType vacationType);
 }
