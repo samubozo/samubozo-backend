@@ -27,6 +27,9 @@ dependencies:
   - name: config-service
     version: 1.0.0
     repository: file://charts/config-service
+  - name: discovery-service
+    version: 1.0.0
+    repository: file://charts/discovery-service
   - name: gateway-service
     version: 1.0.0
     repository: file://charts/gateway-service

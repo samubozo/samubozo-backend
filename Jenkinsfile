@@ -138,28 +138,28 @@ pipeline {
             }
         }
 
-        stage('Deploy Changed Services to AWS EC2') {
-            steps {
-                sshagent(credentials: ["deploy-key"]) {
-                    sh """
-                        echo "[INFO] SCP docker-compose.yml 전송 중..."
-                        scp -vvv -o StrictHostKeyChecking=no docker-compose.yml ubuntu@${deployHost}:/home/ubuntu/docker-compose.yml
-
-                        echo "[INFO] SSH 접속 및 배포 실행..."
-                        ssh -v -o StrictHostKeyChecking=no ubuntu@${deployHost} '
-                            set -e  # 에러 발생 시 즉시 종료
-                            cd /home/ubuntu && \\
-                            echo "[INFO] ECR 로그인 중..." && \\
-                            aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_URL} && \\
-                            echo "[INFO] 이미지 Pull 중: ${env.CHANGED_SERVICES}" && \\
-                            docker-compose pull ${env.CHANGED_SERVICES.replace(",", " ")} && \\
-                            echo "[INFO] 서비스 재시작 중..." && \\
-                            docker-compose up -d ${env.CHANGED_SERVICES.replace(",", " ")}
-                        '
-                    """
-                }
-            }
-        }
+//         stage('Deploy Changed Services to AWS EC2') {
+//             steps {
+//                 sshagent(credentials: ["deploy-key"]) {
+//                     sh """
+//                         echo "[INFO] SCP docker-compose.yml 전송 중..."
+//                         scp -vvv -o StrictHostKeyChecking=no docker-compose.yml ubuntu@${deployHost}:/home/ubuntu/docker-compose.yml
+//
+//                         echo "[INFO] SSH 접속 및 배포 실행..."
+//                         ssh -v -o StrictHostKeyChecking=no ubuntu@${deployHost} '
+//                             set -e  # 에러 발생 시 즉시 종료
+//                             cd /home/ubuntu && \\
+//                             echo "[INFO] ECR 로그인 중..." && \\
+//                             aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_URL} && \\
+//                             echo "[INFO] 이미지 Pull 중: ${env.CHANGED_SERVICES}" && \\
+//                             docker-compose pull ${env.CHANGED_SERVICES.replace(",", " ")} && \\
+//                             echo "[INFO] 서비스 재시작 중..." && \\
+//                             docker-compose up -d ${env.CHANGED_SERVICES.replace(",", " ")}
+//                         '
+//                     """
+//                 }
+//             }
+//         }
 
 
     }
