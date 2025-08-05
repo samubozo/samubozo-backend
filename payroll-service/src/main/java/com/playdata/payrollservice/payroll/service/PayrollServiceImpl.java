@@ -38,7 +38,7 @@ public class PayrollServiceImpl implements PayrollService {
             "사장", 1000000,
             "부장", 800000,
             "책임", 600000,
-            "선임", 400000,
+            "선임", 450000,
             "사원", 300000
     );
     private static final Map<String, Integer> POSITION_MEAL_ALLOWANCE_MAP = Map.of(
@@ -63,7 +63,6 @@ public class PayrollServiceImpl implements PayrollService {
         Payroll payroll = existing.orElseGet(Payroll::new);
 
         if (isSystemCall && existing.isPresent() && existing.get().getBasePayroll() != null && existing.get().getBasePayroll() != 0) {
-            log.info("⏩ 시스템 호출: 이미 생성된 급여가 존재하여 스킵: userId={}, {}/{}", userId, payYear, payMonth);
             return toDto(existing.get());
         }
         if (!isSystemCall && existing.isPresent()) {
@@ -95,7 +94,6 @@ public class PayrollServiceImpl implements PayrollService {
 
         log.info("🪾 Attendance 조회 요청 - 대상 userId={}, 로그인한 userId={}, HR 여부={}",
                 userId, userInfo.getEmployeeNo(), userInfo.isHrAdmin());
-        log.info("🚀 급여 저장 요청: userId={}, year={}, month={}", userId, payYear, payMonth);
 
         CommonResDto<List<AttendanceResDto>> res = attendanceClient.getMonthlyAttendanceForFeign(
                 userId, payYear, payMonth,
@@ -108,8 +106,6 @@ public class PayrollServiceImpl implements PayrollService {
         long totalWorkMinutes = attendanceList.stream()
                 .mapToLong(dto -> parseToMinutes(dto.getTotalWorkTime()))
                 .sum();
-
-        log.info("🔍 결정된 positionName: {}", positionName);
 
         double hourlyWage = (basePayroll != null ? basePayroll : 0) / 209.0;
 
@@ -143,21 +139,6 @@ public class PayrollServiceImpl implements PayrollService {
         return toDto(payrollRepository.save(payroll));
     }
 
-    @Override
-    public PayrollResponseDto getPayrollByUserId(Long userId) {
-        Payroll payroll = payrollRepository.findByUserId(userId)
-                .orElseThrow(() -> new IllegalArgumentException("해당 직원의 급여 정보가 없습니다."));
-
-        if (payroll.getBasePayroll() == null || payroll.getBasePayroll() == 0) {
-            String positionName = getUserPosition(userId);
-            Integer basePay = POSITION_BASE_PAY_MAP.getOrDefault(positionName, 0);
-            payroll.setBasePayroll(basePay);
-            payrollRepository.save(payroll);
-            log.info("💾 기본급 자동 설정 및 DB 저장 완료: userId={}, position={}, basePay={}", userId, positionName, basePay);
-        }
-
-        return toDto(payroll);
-    }
 
     @Override
     public PayrollResponseDto updatePayroll(PayrollRequestDto requestDto) {
@@ -173,12 +154,14 @@ public class PayrollServiceImpl implements PayrollService {
         return toDto(payrollRepository.save(payroll));
     }
 
+
     @Override
     public void deletePayroll(Long userId, int payYear, int payMonth) {
         Payroll payroll = payrollRepository.findByUserIdAndPayYearAndPayMonth(userId, payYear, payMonth)
                 .orElseThrow(() -> new IllegalArgumentException("삭제할 급여 정보가 없습니다."));
         payrollRepository.delete(payroll);
     }
+
 
     @Override
     public PayrollResponseDto getPayrollByMonth(Long userId, int year, int month) {
@@ -190,8 +173,6 @@ public class PayrollServiceImpl implements PayrollService {
             Integer basePay = POSITION_BASE_PAY_MAP.getOrDefault(positionName, 0);
             payroll.setBasePayroll(basePay);
             payrollRepository.save(payroll);
-            log.info("💾 기본급 자동 설정 및 DB 저장 완료: userId={}, yearMonth={}/{} position={}, basePay={}",
-                    userId, year, month, positionName, basePay);
         }
 
         return toDto(payroll);
@@ -235,13 +216,10 @@ public class PayrollServiceImpl implements PayrollService {
         int currentYear = LocalDate.now().getYear();
         int currentMonth = LocalDate.now().getMonthValue();
 
-        log.info("📌 스케줄러: {}년 {}월 전체 재직자 급여 자동 생성 시작 (System 계정 사용)", currentYear, currentMonth);
-
         List<UserResDto> users = getAllActiveUsersFromHR();
 
         for (UserResDto user : users) {
             try {
-                log.info("💼 {} ({}) 급여 생성 시도 중...", user.getUserName(), user.getPositionName());
                 PayrollRequestDto dto = PayrollRequestDto.builder()
                         .userId(user.getEmployeeNo())
                         .payYear(currentYear)
@@ -261,7 +239,6 @@ public class PayrollServiceImpl implements PayrollService {
     }
 
 
-
     private String getUserPosition(Long userId) {
         try {
             CommonResDto<UserResDto> res = hrClient.getUserById(userId);
@@ -273,6 +250,7 @@ public class PayrollServiceImpl implements PayrollService {
         }
         return null;
     }
+
 
     private PayrollResponseDto toDto(Payroll payroll) {
         return PayrollResponseDto.builder()
