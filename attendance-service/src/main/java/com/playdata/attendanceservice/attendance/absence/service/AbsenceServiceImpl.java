@@ -7,8 +7,7 @@ import com.playdata.attendanceservice.attendance.absence.dto.response.AbsenceSta
 import com.playdata.attendanceservice.attendance.absence.entity.Absence;
 import com.playdata.attendanceservice.attendance.absence.entity.ApprovalStatus;
 import com.playdata.attendanceservice.attendance.absence.repository.AbsenceRepository;
-import com.playdata.attendanceservice.attendance.entity.WorkStatus;
-import com.playdata.attendanceservice.attendance.repository.WorkStatusRepository;
+import com.playdata.attendanceservice.attendance.service.WorkStatusService;
 import com.playdata.attendanceservice.client.ApprovalServiceClient;
 import com.playdata.attendanceservice.client.dto.AbsenceApprovalRequestCreateDto;
 import com.playdata.attendanceservice.client.dto.AbsenceApprovalRequestUpdateDto;
@@ -37,7 +36,7 @@ public class AbsenceServiceImpl implements AbsenceService {
 
     private final AbsenceRepository absenceRepository;
     private final ApprovalServiceClient approvalServiceClient;
-    private final WorkStatusRepository workStatusRepository;
+    private final WorkStatusService workStatusService;
 
     /**
      * 새로운 부재 정보를 등록합니다.
@@ -244,47 +243,13 @@ public class AbsenceServiceImpl implements AbsenceService {
 
         log.info("Absence approved successfully: absenceId={}", absenceId);
 
-        // WorkStatus 업데이트
-        updateWorkStatusForAbsence(absence);
+        // WorkStatus 생성을 WorkStatusService에 위임
+        workStatusService.createWorkStatusForAbsence(absence);
 
         log.info("Absence approval process completed: absenceId={}, approverId={}", absenceId, approverId);
     }
 
-    /**
-     * 부재 승인 시 WorkStatus 업데이트
-     * @param absence 승인된 부재 엔티티
-     */
-    private void updateWorkStatusForAbsence(Absence absence) {
-        LocalDate startDate = absence.getStartDate();
-        LocalDate endDate = absence.getEndDate();
-
-        for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
-            Optional<WorkStatus> existingStatus = workStatusRepository
-                    .findByUserIdAndDate(absence.getUserId(), date);
-
-            WorkStatus workStatus;
-            if (existingStatus.isPresent()) {
-                workStatus = existingStatus.get();
-                // 기존 WorkStatus 업데이트
-                workStatus.setStatusType(absence.getType().toWorkStatusType());
-                workStatus.setIsLate(false);
-                workStatus.setReason(absence.getReason());
-            } else {
-                // 새로운 WorkStatus 생성
-                workStatus = WorkStatus.builder()
-                        .userId(absence.getUserId())
-                        .date(date)
-                        .statusType(absence.getType().toWorkStatusType())
-                        .isLate(false)
-                        .reason(absence.getReason())
-                        .build();
-            }
-
-            workStatusRepository.save(workStatus);
-            log.info("WorkStatus updated for userId: {}, date: {}, type: {}",
-                    absence.getUserId(), date, absence.getType());
-        }
-    }
+    
 
     /**
      * 부재 반려 (HR용)
