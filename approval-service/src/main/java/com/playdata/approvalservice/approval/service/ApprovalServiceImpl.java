@@ -413,11 +413,22 @@ public class ApprovalServiceImpl implements ApprovalService {
      * @return 조건에 맞는 결재 요청 DTO 목록
      */
     @Override
-    public List<ApprovalRequestResponseDto> getApprovalRequests(Long applicantId, String status, String requestType) {
-        log.info("getApprovalRequests 호출: applicantId={}, status={}, requestType={}", applicantId, status, requestType);
+    public Page<ApprovalRequestResponseDto> getApprovalRequests(Long applicantId, String status, String requestType, Pageable pageable) {
+        log.info("getApprovalRequests 호출: applicantId={}, status={}, requestType={}, pageable={}", applicantId, status, requestType, pageable);
         Specification<ApprovalRequest> spec = ApprovalSpecification.withFilter(applicantId, status, requestType);
-        List<ApprovalRequest> requests = approvalRepository.findAll(spec);
-        return buildResponseDtoList(requests);
+        Page<ApprovalRequest> requestsPage = approvalRepository.findAll(spec, pageable);
+
+        // 사용자 정보 조회 (신청자와 결재자 모두)
+        List<Long> allUserIds = new ArrayList<>();
+        requestsPage.forEach(request -> {
+            allUserIds.add(request.getApplicantId());
+            if (request.getApproverId() != null) {
+                allUserIds.add(request.getApproverId());
+            }
+        });
+        Map<Long, UserResDto> userMap = getUserMap(allUserIds.stream().distinct().collect(Collectors.toList()));
+
+        return requestsPage.map(request -> buildResponseDto(request, userMap));
     }
 
     /**
@@ -437,14 +448,25 @@ public class ApprovalServiceImpl implements ApprovalService {
      */
     @Override
     @Transactional(readOnly = true)
-    public List<ApprovalRequestResponseDto> getPendingApprovalRequests(TokenUserInfo userInfo) {
+    public Page<ApprovalRequestResponseDto> getPendingApprovalRequests(TokenUserInfo userInfo, Pageable pageable) {
         if (!"Y".equals(userInfo.getHrRole())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                     "Only users with hrRole 'Y' can view pending approval requests.");
         }
 
-        List<ApprovalRequest> pendingRequests = approvalRepository.findByStatus(ApprovalStatus.PENDING);
-        return buildResponseDtoList(pendingRequests);
+        Page<ApprovalRequest> pendingRequestsPage = approvalRepository.findByStatus(ApprovalStatus.PENDING, pageable);
+
+        // 사용자 정보 조회 (신청자와 결재자 모두)
+        List<Long> allUserIds = new ArrayList<>();
+        pendingRequestsPage.forEach(request -> {
+            allUserIds.add(request.getApplicantId());
+            if (request.getApproverId() != null) {
+                allUserIds.add(request.getApproverId());
+            }
+        });
+        Map<Long, UserResDto> userMap = getUserMap(allUserIds.stream().distinct().collect(Collectors.toList()));
+
+        return pendingRequestsPage.map(request -> buildResponseDto(request, userMap));
     }
 
     /**

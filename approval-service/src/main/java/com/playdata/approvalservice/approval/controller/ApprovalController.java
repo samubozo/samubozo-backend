@@ -8,6 +8,7 @@ import com.playdata.approvalservice.common.dto.CommonResDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -53,19 +54,21 @@ public class ApprovalController {
     }
 
     /**
-     * 조건에 따라 결재 요청 목록을 동적으로 조회합니다.
+     * 조건에 따라 결재 요청 목록을 동적으로 조회합니다. (페이징 지원)
      * 관리자는 이 API를 사용하여 특정 사용자의 특정 상태(대기/완료)에 있는 특정 종류(휴가/증명서/부재)의 결재 내역을 조회할 수 있습니다.
      * @param applicantId 조회할 직원의 사원 번호 (선택)
      * @param status 조회할 결재 상태 (PENDING, PROCESSED) (선택)
      * @param requestType 조회할 요청 종류 (VACATION, CERTIFICATE, ABSENCE) (선택)
-     * @return 조건에 맞는 결재 요청 목록
+     * @param pageable 페이징 정보 (page, size, sort)
+     * @return 조건에 맞는 페이징 처리된 결재 요청 목록
      */
     @GetMapping
-    public ResponseEntity<List<ApprovalRequestResponseDto>> getApprovalRequests(
+    public ResponseEntity<Page<ApprovalRequestResponseDto>> getApprovalRequests(
             @RequestParam(value = "applicantId", required = false) Long applicantId,
             @RequestParam(value = "status", required = false) String status,
-            @RequestParam(value = "requestType", required = false) String requestType) {
-        List<ApprovalRequestResponseDto> requests = approvalService.getApprovalRequests(applicantId, status, requestType);
+            @RequestParam(value = "requestType", required = false) String requestType,
+            Pageable pageable) {
+        Page<ApprovalRequestResponseDto> requests = approvalService.getApprovalRequests(applicantId, status, requestType, pageable);
         return ResponseEntity.ok(requests);
     }
 
@@ -82,9 +85,10 @@ public class ApprovalController {
      * 결재 대기 중인 모든 결재 요청 목록을 조회합니다. (hrRole='Y' 사용자용)
      */
     @GetMapping("/pending")
-    public ResponseEntity<List<ApprovalRequestResponseDto>> getPendingApprovalRequests(
-            @AuthenticationPrincipal TokenUserInfo userInfo) {
-        List<ApprovalRequestResponseDto> pendingRequests = approvalService.getPendingApprovalRequests(userInfo);
+    public ResponseEntity<Page<ApprovalRequestResponseDto>> getPendingApprovalRequests(
+            @AuthenticationPrincipal TokenUserInfo userInfo,
+            Pageable pageable) {
+        Page<ApprovalRequestResponseDto> pendingRequests = approvalService.getPendingApprovalRequests(userInfo, pageable);
         return ResponseEntity.ok(pendingRequests);
     }
 

@@ -142,7 +142,7 @@ public interface ApprovalRepository extends JpaRepository<ApprovalRequest, Long>
      * @param status 조회할 결재 상태 (PENDING, APPROVED, REJECTED)
      * @return 해당 상태의 모든 결재 요청 목록
      */
-    List<ApprovalRequest> findByStatus(ApprovalStatus status);
+    Page<ApprovalRequest> findByStatus(ApprovalStatus status, Pageable pageable);
 
     /**
      * 처리된 부재 결재 요청 목록을 페이징하여 조회합니다.

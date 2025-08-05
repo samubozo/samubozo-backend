@@ -28,13 +28,13 @@ public interface ApprovalService {
 
     ApprovalRequestResponseDto getApprovalRequestById(Long id);
 
-    List<ApprovalRequestResponseDto> getApprovalRequests(Long applicantId, String status, String requestType);
+    Page<ApprovalRequestResponseDto> getApprovalRequests(Long applicantId, String status, String requestType, Pageable pageable);
 
     @Transactional(readOnly = true)
     List<ApprovalRequestResponseDto> getAllApprovalRequests(RequestType requestType);
 
     @Transactional(readOnly = true)
-    List<ApprovalRequestResponseDto> getPendingApprovalRequests(TokenUserInfo userInfo);
+    Page<ApprovalRequestResponseDto> getPendingApprovalRequests(TokenUserInfo userInfo, Pageable pageable);
 
     @Transactional(readOnly = true)
     List<ApprovalRequestResponseDto> getProcessedApprovalRequestsByApproverId(TokenUserInfo userInfo);
