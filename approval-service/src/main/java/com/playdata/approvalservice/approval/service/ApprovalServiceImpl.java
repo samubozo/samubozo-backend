@@ -907,7 +907,7 @@ public class ApprovalServiceImpl implements ApprovalService {
                         .map(userMap::get)
                         .map(UserResDto::getUserName).orElse("알 수 없음");
 
-                certificateServiceClient.rejectCertificateInternal(request.getCertificateId(), approverName);
+                certificateServiceClient.rejectCertificateInternal(request.getCertificateId(), request.getRejectComment(), request.getApproverId(), approverName);
                 log.info("CertificateService 증명서 반려 요청 성공. certificateId: {}", request.getCertificateId());
             } catch (Exception e) {
                 log.error("CertificateService 증명서 반려 요청 실패: {}", e.getMessage());

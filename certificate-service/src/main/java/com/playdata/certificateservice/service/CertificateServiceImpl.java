@@ -523,13 +523,14 @@ public class CertificateServiceImpl implements CertificateService {
     // [내부호출] 증명서 반려 처리
     @Override
     @Transactional
-    public void rejectCertificateInternal(Long id, String rejectComment, String approverName) {
+    public void rejectCertificateInternal(Long id, String rejectComment, Long approverId, String approverName) {
         Certificate certificate = certificateRepository.findById(id).orElseThrow(
                 () -> new EntityNotFoundException("Certificate not found with id: " + id)
         );
 
         // Certificate 엔티티의 reject 메서드 호출
-        certificate.reject(null, rejectComment, approverName); // 내부 호출이므로 approverId는 null로 전달
+        certificate.reject(approverId, rejectComment, approverName);
+        // certificate.setRejectComment(rejectComment); // reject 메서드에서 이미 처리하므로 이 라인은 제거
 
         certificateRepository.save(certificate);
         log.info("Certificate {} has been rejected by {} with comment: {}.".formatted(id, approverName, rejectComment));
