@@ -29,7 +29,7 @@ public interface VacationService {
 
     VacationBalanceResDto getVacationBalance(Long userId);
 
-    List<VacationHistoryResDto> getMyVacationRequests(Long userId);
+    org.springframework.data.domain.Page<VacationHistoryResDto> getMyVacationRequests(Long userId, org.springframework.data.domain.Pageable pageable);
 
     List<PendingApprovalDto> getPendingApprovals();
 

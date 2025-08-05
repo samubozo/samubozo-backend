@@ -20,6 +20,9 @@ import com.playdata.vacationservice.vacation.repository.VacationRepository;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -219,10 +222,10 @@ public class VacationServiceImpl implements VacationService {
      * @return 휴가 신청 내역 DTO 목록
      */
     @Override
-    public List<VacationHistoryResDto> getMyVacationRequests(Long userId) {
-        List<Vacation> vacations = vacationRepository.findByUserIdOrderByStartDateDesc(userId);
+    public Page<VacationHistoryResDto> getMyVacationRequests(Long userId, Pageable pageable) {
+        Page<Vacation> vacationsPage = vacationRepository.findByUserId(userId, pageable);
 
-        // 현재 로그인된 사용자의 부서 정보 조회
+        // 현재 로그인된 사용자의 부서 정보 조회 (한 번만 호출)
         String applicantDepartment = null;
         try {
             UserFeignResDto currentUserInfo = hrServiceClient.getMyUserInfo();
@@ -236,26 +239,24 @@ public class VacationServiceImpl implements VacationService {
 
         final String finalApplicantDepartment = applicantDepartment; // 람다 표현식에서 사용하기 위해 final 변수로 선언
 
-        return vacations.stream()
-                .map(vacation -> {
-                    String approverName = null;
-                    Long approverEmployeeNo = null;
-                    java.time.LocalDate processedAt = null;
+        return vacationsPage.map(vacation -> {
+            String approverName = null;
+            Long approverEmployeeNo = null;
+            java.time.LocalDate processedAt = null;
 
-                    if (vacation.getApprovalRequestId() != null) {
-                        try {
-                            ApprovalRequestResponseDto approvalResponse = approvalServiceClient.getApprovalRequestById(vacation.getApprovalRequestId());
-                            approverName = approvalResponse.getApproverName();
-                            approverEmployeeNo = approvalResponse.getApproverId();
-                                                        processedAt = approvalResponse.getProcessedAt();
-                        } catch (FeignException e) {
-                            log.error("결재 서비스 통신 오류 (getApprovalRequestById) for approvalRequestId {}: {}", vacation.getApprovalRequestId(), e.getMessage());
-                            // 오류 발생 시 해당 휴가 신청은 결재자 정보 없이 반환
-                        }
-                    }
-                    return VacationHistoryResDto.from(vacation, approverName, approverEmployeeNo, processedAt, finalApplicantDepartment);
-                })
-                .collect(Collectors.toList());
+            if (vacation.getApprovalRequestId() != null) {
+                try {
+                    ApprovalRequestResponseDto approvalResponse = approvalServiceClient.getApprovalRequestById(vacation.getApprovalRequestId());
+                    approverName = approvalResponse.getApproverName();
+                    approverEmployeeNo = approvalResponse.getApproverId();
+                    processedAt = approvalResponse.getProcessedAt();
+                } catch (FeignException e) {
+                    log.error("결재 서비스 통신 오류 (getApprovalRequestById) for approvalRequestId {}: {}", vacation.getApprovalRequestId(), e.getMessage());
+                    // 오류 발생 시 해당 휴가 신청은 결재자 정보 없이 반환
+                }
+            }
+            return VacationHistoryResDto.from(vacation, approverName, approverEmployeeNo, processedAt, finalApplicantDepartment);
+        });
     }
 
     /**

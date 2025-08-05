@@ -2,6 +2,8 @@ package com.playdata.vacationservice.vacation.repository;
 
 import com.playdata.vacationservice.vacation.entity.Vacation;
 import com.playdata.vacationservice.vacation.entity.VacationStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDate;
@@ -26,7 +28,7 @@ public interface VacationRepository extends JpaRepository<Vacation, Long> {
      * @param userId 사용자 ID
      * @return 휴가 목록
      */
-    List<Vacation> findByUserIdOrderByStartDateDesc(Long userId);
+    Page<Vacation> findByUserId(Long userId, Pageable pageable);
 
     /**
      * 특정 상태의 모든 휴가 신청 내역을 조회합니다.
