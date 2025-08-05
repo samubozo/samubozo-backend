@@ -5,15 +5,21 @@ import com.playdata.attendanceservice.attendance.dto.PersonalAttendanceStatsDto;
 import com.playdata.attendanceservice.attendance.dto.WorkTimeDto;
 import com.playdata.attendanceservice.attendance.entity.Attendance;
 import com.playdata.attendanceservice.attendance.entity.WorkDayType;
-import com.playdata.attendanceservice.attendance.entity.WorkStatus;
-import com.playdata.attendanceservice.attendance.entity.WorkStatusType;
+import com.playdata.attendanceservice.workstatus.entity.WorkStatus;
+import com.playdata.attendanceservice.workstatus.entity.WorkStatusType;
 import com.playdata.attendanceservice.attendance.repository.AttendanceRepository;
-import com.playdata.attendanceservice.attendance.repository.WorkStatusRepository;
+import com.playdata.attendanceservice.workstatus.repository.WorkStatusRepository;
 import com.playdata.attendanceservice.client.ApprovalServiceClient;
 import com.playdata.attendanceservice.client.HrServiceClient;
 import com.playdata.attendanceservice.client.VacationServiceClient;
 import com.playdata.attendanceservice.client.dto.MonthlyVacationStatsDto;
 import com.playdata.attendanceservice.common.dto.CommonResDto;
+import com.playdata.attendanceservice.common.exception.AttendanceAlreadyExistsException;
+import com.playdata.attendanceservice.common.exception.CheckInNotFoundException;
+import com.playdata.attendanceservice.common.exception.AlreadyCheckedOutException;
+import com.playdata.attendanceservice.common.exception.AlreadyOnLeaveException;
+import com.playdata.attendanceservice.common.constants.WorkConstants; // WorkConstants import 추가
+import com.playdata.attendanceservice.common.util.WorkTimeCalculator; // WorkTimeCalculator import로 변경
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -34,16 +40,6 @@ import java.util.stream.Collectors;
 @Slf4j
 @Transactional(readOnly = true)
 public class AttendanceServiceImpl implements AttendanceService {
-
-    // 근무 시간 기준 상수 정의
-    private static final LocalTime NORMAL_WORK_START = LocalTime.of(9, 0);
-    private static final LocalTime NORMAL_WORK_END = LocalTime.of(18, 0);
-    private static final LocalTime LUNCH_START = LocalTime.of(12, 0);
-    private static final LocalTime LUNCH_END = LocalTime.of(13, 0);
-    private static final LocalTime OVERTIME_START = LocalTime.of(18, 0);
-    private static final LocalTime OVERTIME_END = LocalTime.of(22, 0); // 연장 근무 종료 시간 추가
-    private static final LocalTime NIGHT_WORK_START = LocalTime.of(22, 0);
-    private static final LocalTime NIGHT_WORK_END = LocalTime.of(6, 0); // 익일 06:00
 
     private final AttendanceRepository attendanceRepository;
     private final WorkStatusRepository workStatusRepository;
@@ -66,7 +62,13 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Override
     @Transactional
     public Attendance recordCheckIn(Long userId, String ipAddress, LocalDateTime checkInDateTime) {
-        try {
+        // 1. 이미 오늘 출근 기록이 있는지 확인
+            attendanceRepository.findByUserIdAndAttendanceDate(userId, checkInDateTime.toLocalDate())
+                    .ifPresent(attendance -> {
+                        throw new AttendanceAlreadyExistsException("이미 오늘 출근 기록이 존재합니다. (User ID: " + userId + ", Date: " + checkInDateTime.toLocalDate() + ")");
+                    });
+
+            // 2. Attendance 엔티티 생성
             Attendance attendance = Attendance.builder()
                     .userId(userId)
                     .attendanceDate(checkInDateTime.toLocalDate())
@@ -75,86 +77,105 @@ public class AttendanceServiceImpl implements AttendanceService {
 
             attendance.updateCheckInTime(checkInDateTime);
 
-            LocalTime currentCheckInTime = checkInDateTime.toLocalTime();
-            LocalTime standardCheckInTime = LocalTime.parse(standardCheckInTimeStr);
+            // 3. 초기 WorkStatusType 및 지각 여부 결정
+            Map<String, Object> statusInfo = determineInitialWorkStatus(userId, checkInDateTime);
+            WorkStatusType initialStatusType = (WorkStatusType) statusInfo.get("statusType");
+            boolean isLate = (boolean) statusInfo.get("isLate");
 
-            WorkStatusType initialStatusType = WorkStatusType.REGULAR;
-            boolean isLate = false;
-
-            String dateString = checkInDateTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE);
-            String externalScheduleType = hrServiceClient.getApprovedExternalScheduleType(userId, dateString);
-            if (externalScheduleType != null) {
-                switch (externalScheduleType) {
-                    case "BUSINESS_TRIP":
-                        initialStatusType = WorkStatusType.BUSINESS_TRIP;
-                        break;
-                    case "TRAINING":
-                        initialStatusType = WorkStatusType.TRAINING;
-                        break;
-                    case "SICK_LEAVE":
-                        initialStatusType = WorkStatusType.SICK_LEAVE;
-                        break;
-                    case "OFFICIAL_LEAVE":
-                        initialStatusType = WorkStatusType.OFFICIAL_LEAVE;
-                        break;
-                    case "SHORT_LEAVE":
-                        initialStatusType = WorkStatusType.SHORT_LEAVE;
-                        break;
-                    case "ETC":
-                        initialStatusType = WorkStatusType.ETC;
-                        break;
-                    default:
-                        initialStatusType = WorkStatusType.ABSENCE; // OUT_OF_OFFICE → ABSENCE로 변경
-                        break;
-                }
-            } else {
-                String approvedLeaveType = approvalServiceClient.getApprovedLeaveType(userId, checkInDateTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE));
-                if (approvedLeaveType != null) {
-                    switch (approvedLeaveType) {
-                        case "AM_HALF_DAY":
-                            initialStatusType = WorkStatusType.AM_HALF_DAY; // HALF_DAY_LEAVE → AM_HALF_DAY
-                            break;
-                        case "PM_HALF_DAY":
-                            initialStatusType = WorkStatusType.PM_HALF_DAY; // 새로운 타입
-                            break;
-                        case "ANNUAL_LEAVE":
-                            initialStatusType = WorkStatusType.ANNUAL_LEAVE; // 새로운 타입
-                            break;
-                        default:
-                            break;
-                    }
-                } else if (currentCheckInTime.isAfter(standardCheckInTime)) {
-                    initialStatusType = WorkStatusType.LATE;
-                    isLate = true;
-                }
-            }
-
+            // 4. WorkStatus 엔티티 생성 및 Attendance와 연결
             WorkStatus workStatus = WorkStatus.builder()
                     .userId(userId)
                     .date(checkInDateTime.toLocalDate())
                     .statusType(initialStatusType)
-                    .reason(null)
+                    .reason(null) // 초기에는 사유 없음
                     .checkInTime(checkInDateTime.toLocalTime())
                     .isLate(isLate)
                     .build();
 
-            attendance.setWorkStatus(workStatus);
+            attendance.setWorkStatus(workStatus); // Attendance와 WorkStatus 양방향 연결
 
-            Attendance savedAttendance = attendanceRepository.save(attendance);
-            log.info("Attendance saved after check-in: ID={}, CheckInTime={}, CheckOutTime={}", savedAttendance.getId(), savedAttendance.getCheckInTime(), savedAttendance.getCheckOutTime());
+            try {
+                // 5. Attendance 및 WorkStatus 저장
+                Attendance savedAttendance = attendanceRepository.save(attendance);
+                workStatusRepository.save(workStatus); // WorkStatus는 Attendance 저장 시 Cascade로 저장되지만, 명시적으로 저장하여 관계를 확실히 합니다.
 
-            workStatus.setCheckInTime(checkInDateTime.toLocalTime());
-            workStatusRepository.save(workStatus);
-            log.info("WorkStatus after check-in: ID={}, CheckInTime={}", workStatus.getId(), workStatus.getCheckInTime());
+                log.info("출근 기록 및 WorkStatus 저장 완료. Attendance ID: {}, User ID: {}, CheckInTime: {}, WorkStatusType: {}",
+                        savedAttendance.getId(), userId, savedAttendance.getCheckInTime(), initialStatusType);
 
-            return savedAttendance;
+                return savedAttendance;
+            } catch (DataIntegrityViolationException e) {
+                log.warn("출근 기록 중복 시도 감지. User ID: {}, Date: {}. 에러: {}", userId, checkInDateTime.toLocalDate(), e.getMessage());
+                throw new AttendanceAlreadyExistsException("이미 오늘 출근 기록이 존재합니다. (User ID: " + userId + ", Date: " + checkInDateTime.toLocalDate() + ")", e);
+            }
+    }
 
-        } catch (DataIntegrityViolationException e) {
-            throw new IllegalStateException("이미 오늘 출근 기록이 존재합니다. (User ID: " + userId + ", Date: " + LocalDate.now() + ")", e);
-        } catch (Exception e) {
-            log.error("출근 기록 중 예상치 못한 오류 발생: {}", e.getMessage(), e);
-            throw new RuntimeException("출근 기록 중 예상치 못한 오류가 발생했습니다.", e);
+    /**
+     * 사용자의 초기 근무 상태(WorkStatusType) 및 지각 여부를 결정합니다.
+     * 외부 스케줄(출장, 병가 등) 또는 승인된 휴가(연차, 반차)가 있는지 확인하고,
+     * 해당 사항이 없으면 출근 시간 기준으로 지각 여부를 판단합니다.
+     *
+     * @param userId 사용자 ID
+     * @param checkInDateTime 출근 시각 (LocalDateTime)
+     * @return WorkStatusType과 isLate를 포함하는 Map
+     */
+    private Map<String, Object> determineInitialWorkStatus(Long userId, LocalDateTime checkInDateTime) {
+        WorkStatusType initialStatusType = WorkStatusType.REGULAR;
+        boolean isLate = false;
+        LocalDate today = checkInDateTime.toLocalDate();
+        LocalTime currentCheckInTime = checkInDateTime.toLocalTime();
+        LocalTime standardCheckInTime = LocalTime.parse(standardCheckInTimeStr);
+
+        // 1. HR 서비스에서 승인된 외부 스케줄(출장, 병가 등) 확인
+        String externalScheduleType = hrServiceClient.getApprovedExternalScheduleType(userId, today.format(DateTimeFormatter.ISO_LOCAL_DATE));
+        if (externalScheduleType != null) {
+            log.debug("User {} has approved external schedule: {}", userId, externalScheduleType);
+            switch (externalScheduleType) {
+                case "BUSINESS_TRIP":
+                    initialStatusType = WorkStatusType.BUSINESS_TRIP;
+                    break;
+                case "TRAINING":
+                    initialStatusType = WorkStatusType.TRAINING;
+                    break;
+                case "SICK_LEAVE":
+                    initialStatusType = WorkStatusType.SICK_LEAVE;
+                    break;
+                case "OFFICIAL_LEAVE":
+                    initialStatusType = WorkStatusType.OFFICIAL_LEAVE;
+                    break;
+                case "SHORT_LEAVE":
+                    initialStatusType = WorkStatusType.SHORT_LEAVE;
+                    break;
+                case "ETC":
+                    initialStatusType = WorkStatusType.ETC;
+                    break;
+                default:
+                    initialStatusType = WorkStatusType.ABSENCE; // 기타 부재
+                    break;
+            }
+        } else {
+            // 2. Approval 서비스에서 승인된 휴가(연차, 반차) 확인
+            String approvedLeaveType = approvalServiceClient.getApprovedLeaveType(userId, today.format(DateTimeFormatter.ISO_LOCAL_DATE));
+            if (approvedLeaveType != null) {
+                log.debug("User {} has approved leave: {}", userId, approvedLeaveType);
+                WorkStatusType leaveStatusType = getWorkStatusTypeFromApprovedLeaveType(approvedLeaveType);
+                if (leaveStatusType != null) {
+                    initialStatusType = leaveStatusType;
+                } else {
+                    // 알 수 없는 휴가 타입은 REGULAR로 처리하거나, 필요에 따라 예외 처리
+                    log.warn("Unknown approved leave type for user {}: {}", userId, approvedLeaveType);
+                }
+            } else if (currentCheckInTime.isAfter(standardCheckInTime)) {
+                // 3. 외부 스케줄이나 휴가가 없으면 지각 여부 판단
+                log.debug("User {} is late. Check-in time: {}, Standard check-in time: {}", userId, currentCheckInTime, standardCheckInTime);
+                initialStatusType = WorkStatusType.LATE;
+                isLate = true;
+            }
         }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("statusType", initialStatusType);
+        result.put("isLate", isLate);
+        return result;
     }
 
     @Override
@@ -167,22 +188,37 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Transactional
     public Attendance recordCheckOut(Long userId, LocalDateTime checkOutDateTime) {
         LocalDate today = checkOutDateTime.toLocalDate();
-        Optional<Attendance> optionalAttendance = attendanceRepository.findByUserIdAndAttendanceDate(userId, today);
+        // 1. 오늘 출근 기록이 있는지 확인
+        Attendance attendance = attendanceRepository.findByUserIdAndAttendanceDate(userId, today)
+                .orElseThrow(() -> new CheckInNotFoundException("오늘 출근 기록이 존재하지 않아 퇴근할 수 없습니다. (User ID: " + userId + ")"));
 
-        Attendance attendance = optionalAttendance
-                .orElseThrow(() -> new IllegalArgumentException("오늘 출근 기록이 존재하지 않아 퇴근할 수 없습니다. (User ID: " + userId + ")"));
-
+        // 2. 이미 퇴근 기록이 완료되었는지 확인
         if (attendance.getCheckOutTime() != null) {
-            throw new IllegalArgumentException("이미 퇴근 기록이 완료되었습니다. (User ID: " + userId + ")");
+            throw new AlreadyCheckedOutException("이미 퇴근 기록이 완료되었습니다. (User ID: " + userId + ")");
         }
 
+        // 3. Attendance 엔티티에 퇴근 시간 업데이트
         attendance.updateCheckOutTime(checkOutDateTime);
-        log.info("Attendance will be saved with checkOutTime: {}", attendance.getCheckOutTime());
-
         Attendance savedAttendance = attendanceRepository.save(attendance);
-        log.info("Attendance saved: ID={}, CheckInTime={}, CheckOutTime={}", savedAttendance.getId(), savedAttendance.getCheckInTime(), savedAttendance.getCheckOutTime());
+        log.info("Attendance 퇴근 시간 업데이트 및 저장 완료. Attendance ID: {}, User ID: {}, CheckOutTime: {}",
+                savedAttendance.getId(), userId, savedAttendance.getCheckOutTime());
 
-        Optional<WorkStatus> optionalWorkStatus = workStatusRepository.findByAttendanceId(savedAttendance.getId());
+        // 4. WorkStatus 업데이트
+        updateWorkStatusOnCheckOut(savedAttendance, checkOutDateTime);
+
+        return savedAttendance;
+    }
+
+    /**
+     * 퇴근 시 WorkStatus를 업데이트합니다.
+     * 승인된 휴가(반차) 또는 조퇴 여부를 판단하고, 근무 시간을 계산하여 WorkDayType을 설정합니다.
+     *
+     * @param attendance 업데이트할 Attendance 엔티티
+     * @param checkOutDateTime 퇴근 시각 (LocalDateTime)
+     */
+    private void updateWorkStatusOnCheckOut(Attendance attendance, LocalDateTime checkOutDateTime) {
+        Optional<WorkStatus> optionalWorkStatus = workStatusRepository.findByAttendanceId(attendance.getId());
+
         if (optionalWorkStatus.isPresent()) {
             WorkStatus workStatus = optionalWorkStatus.get();
             workStatus.setCheckOutTime(checkOutDateTime.toLocalTime());
@@ -190,39 +226,41 @@ public class AttendanceServiceImpl implements AttendanceService {
             LocalTime currentCheckOutTime = checkOutDateTime.toLocalTime();
             LocalTime standardCheckOutTime = LocalTime.parse(standardCheckOutTimeStr);
 
-            String approvedLeaveType = approvalServiceClient.getApprovedLeaveType(userId, checkOutDateTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE));
+            // 1. 승인된 휴가 타입 확인 (오후 반차, 조퇴 등)
+            String approvedLeaveType = approvalServiceClient.getApprovedLeaveType(attendance.getUserId(), checkOutDateTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE));
             if (approvedLeaveType != null) {
-                switch (approvedLeaveType) {
-                    case "PM_HALF_DAY":
-                        workStatus.setStatusType(WorkStatusType.PM_HALF_DAY); // HALF_DAY_LEAVE → PM_HALF_DAY
-                        break;
-                    case "EARLY_LEAVE":
-                        workStatus.setStatusType(WorkStatusType.EARLY_LEAVE);
-                        break;
-                    default:
-                        break;
+                log.debug("User {} has approved leave on check-out: {}", attendance.getUserId(), approvedLeaveType);
+                WorkStatusType leaveStatusType = getWorkStatusTypeFromApprovedLeaveType(approvedLeaveType);
+                if (leaveStatusType != null) {
+                    workStatus.setStatusType(leaveStatusType);
+                } else {
+                    // 알 수 없는 휴가 타입은 기존 상태 유지
+                    log.warn("Unknown approved leave type for user {} on check-out: {}", attendance.getUserId(), approvedLeaveType);
                 }
             } else if (currentCheckOutTime.isBefore(standardCheckOutTime)) {
+                // 2. 승인된 휴가가 없고, 표준 퇴근 시간보다 일찍 퇴근하면 조퇴 처리
+                log.debug("User {} is early leave. Check-out time: {}, Standard check-out time: {}", attendance.getUserId(), currentCheckOutTime, standardCheckOutTime);
                 workStatus.setStatusType(WorkStatusType.EARLY_LEAVE);
             }
 
-            // 근무 시간 계산 로직 추가
-            Map<String, Duration> workTimes = calculateWorkTimes(attendance.getCheckInTime(), checkOutDateTime, attendance.getAttendanceDate());
+            // 3. 근무 시간 계산 및 WorkDayType 설정
+                        Map<String, Duration> workTimes = WorkTimeCalculator.calculateWorkTimes(attendance.getCheckInTime(), checkOutDateTime, attendance.getAttendanceDate());
             Duration totalWorkDuration = workTimes.get("totalWorkTime");
 
             if (totalWorkDuration.toHours() >= 8) {
                 workStatus.setWorkDayType(WorkDayType.FULL_DAY);
             } else if (totalWorkDuration.toHours() >= 4) {
                 workStatus.setWorkDayType(WorkDayType.HALF_DAY);
+            } else {
+                workStatus.setWorkDayType(WorkDayType.NONE); // 4시간 미만 근무 시
             }
 
             workStatusRepository.save(workStatus);
-            log.info("WorkStatus updated and saved: ID={}, CheckOutTime={}, WorkDayType={}", workStatus.getId(), workStatus.getCheckOutTime(), workStatus.getWorkDayType());
+            log.info("WorkStatus 업데이트 및 저장 완료. WorkStatus ID: {}, CheckOutTime: {}, WorkDayType: {}",
+                    workStatus.getId(), workStatus.getCheckOutTime(), workStatus.getWorkDayType());
         } else {
-            log.warn("No WorkStatus found for attendance ID: {}", savedAttendance.getId());
+            log.warn("Attendance ID {}에 해당하는 WorkStatus를 찾을 수 없습니다. WorkStatus 업데이트를 건너뜁니다.", attendance.getId());
         }
-
-        return savedAttendance;
     }
 
     @Override
@@ -236,12 +274,12 @@ public class AttendanceServiceImpl implements AttendanceService {
 
         return monthlyAttendances.stream().map(attendance -> {
             if (attendance.getCheckOutTime() != null) {
-                Map<String, Duration> workTimes = calculateWorkTimes(attendance.getCheckInTime(), attendance.getCheckOutTime(), attendance.getAttendanceDate());
+                Map<String, Duration> workTimes = WorkTimeCalculator.calculateWorkTimes(attendance.getCheckInTime(), attendance.getCheckOutTime(), attendance.getAttendanceDate());
                 return AttendanceResDto.from(attendance,
-                        formatDuration(workTimes.get("totalWorkTime")),
-                        formatDuration(workTimes.get("normalWorkTime")),
-                        formatDuration(workTimes.get("overtimeWorkTime")),
-                        formatDuration(workTimes.get("nightWorkTime"))
+                        WorkTimeCalculator.formatDuration(workTimes.get("totalWorkTime")),
+                        WorkTimeCalculator.formatDuration(workTimes.get("normalWorkTime")),
+                        WorkTimeCalculator.formatDuration(workTimes.get("overtimeWorkTime")),
+                        WorkTimeCalculator.formatDuration(workTimes.get("nightWorkTime"))
                 );
             } else {
                 return AttendanceResDto.from(attendance, null, null, null, null);
@@ -253,56 +291,79 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Transactional
     public Attendance recordGoOut(Long userId) {
         LocalDate today = LocalDate.now();
+        // 1. 오늘 출근 기록이 있는지 확인
         Attendance attendance = attendanceRepository.findByUserIdAndAttendanceDate(userId, today)
-                .orElseThrow(() -> new IllegalArgumentException("오늘 출근 기록이 존재하지 않아 외출할 수 없습니다. (User ID: " + userId + ")"));
+                .orElseThrow(() -> new CheckInNotFoundException("오늘 출근 기록이 존재하지 않아 외출할 수 없습니다. (User ID: " + userId + ")"));
 
+        // 2. 이미 퇴근했는지 확인
         if (attendance.getCheckOutTime() != null) {
-            throw new IllegalStateException("이미 퇴근하여 외출할 수 없습니다.");
+            throw new AlreadyCheckedOutException("이미 퇴근하여 외출할 수 없습니다.");
         }
 
+        // 3. 이미 외출 중인지 확인
         if (attendance.getGoOutTime() != null) {
-            throw new IllegalStateException("이미 외출 중입니다.");
+            throw new AlreadyOnLeaveException("이미 외출 중입니다.");
         }
 
+        // 4. 외출 시간 기록
         attendance.recordGoOut();
+        Attendance savedAttendance = attendanceRepository.save(attendance);
+        log.info("외출 기록 완료. Attendance ID: {}, User ID: {}, GoOutTime: {}",
+                savedAttendance.getId(), userId, savedAttendance.getGoOutTime());
 
-        WorkStatus workStatus = attendance.getWorkStatus();
+        // 5. WorkStatus 업데이트 (지각이 아닌 경우에만 외출 상태로 변경)
+        WorkStatus workStatus = savedAttendance.getWorkStatus();
         if (workStatus != null) {
             if (workStatus.getStatusType() != WorkStatusType.LATE) {
-                workStatus.setStatusType(WorkStatusType.SHORT_LEAVE); // OUT_OF_OFFICE → SHORT_LEAVE로 변경
+                workStatus.setStatusType(WorkStatusType.SHORT_LEAVE);
+                workStatusRepository.save(workStatus);
+                log.info("WorkStatus 업데이트 완료. WorkStatus ID: {}, StatusType: {}", workStatus.getId(), workStatus.getStatusType());
             }
-            workStatusRepository.save(workStatus);
+        } else {
+            log.warn("Attendance ID {}에 해당하는 WorkStatus를 찾을 수 없습니다. WorkStatus 업데이트를 건너뜁니다.", savedAttendance.getId());
         }
 
-        return attendanceRepository.save(attendance);
+        return savedAttendance;
     }
 
     @Override
     @Transactional
     public Attendance recordReturn(Long userId) {
         LocalDate today = LocalDate.now();
+        // 1. 오늘 출근 기록이 있는지 확인
         Attendance attendance = attendanceRepository.findByUserIdAndAttendanceDate(userId, today)
-                .orElseThrow(() -> new IllegalArgumentException("오늘 출근 기록이 존재하지 않아 복귀할 수 없습니다. (User ID: " + userId + ")"));
+                .orElseThrow(() -> new CheckInNotFoundException("오늘 출근 기록이 존재하지 않아 복귀할 수 없습니다. (User ID: " + userId + ")"));
 
+        // 2. 외출 기록이 있는지 확인
         if (attendance.getGoOutTime() == null) {
-            throw new IllegalStateException("외출 기록이 없어 복귀할 수 없습니다.");
+            throw new AlreadyOnLeaveException("외출 기록이 없어 복귀할 수 없습니다.");
         }
 
+        // 3. 이미 복귀 처리되었는지 확인
         if (attendance.getReturnTime() != null) {
-            throw new IllegalStateException("이미 복귀 처리되었습니다.");
+            throw new AlreadyOnLeaveException("이미 복귀 처리되었습니다.");
         }
 
+        // 4. 복귀 시간 기록
         attendance.recordReturn();
+        Attendance savedAttendance = attendanceRepository.save(attendance);
+        log.info("복귀 기록 완료. Attendance ID: {}, User ID: {}, ReturnTime: {}",
+                savedAttendance.getId(), userId, savedAttendance.getReturnTime());
 
-        WorkStatus workStatus = attendance.getWorkStatus();
+        // 5. WorkStatus 업데이트 (지각이 아닌 경우에만 외출 상태 유지)
+        WorkStatus workStatus = savedAttendance.getWorkStatus();
         if (workStatus != null) {
             if (workStatus.getStatusType() != WorkStatusType.LATE) {
-                workStatus.setStatusType(WorkStatusType.SHORT_LEAVE); // OUT_OF_OFFICE → SHORT_LEAVE로 변경
+                // 외출 후 복귀했으므로 WorkStatusType은 SHORT_LEAVE를 유지하거나, 필요에 따라 REGULAR로 변경 가능
+                // 현재는 SHORT_LEAVE 유지 (외출 기록이 있었음을 나타냄)
+                workStatusRepository.save(workStatus);
+                log.info("WorkStatus 업데이트 완료. WorkStatus ID: {}, StatusType: {}", workStatus.getId(), workStatus.getStatusType());
             }
-            workStatusRepository.save(workStatus);
+        } else {
+            log.warn("Attendance ID {}에 해당하는 WorkStatus를 찾을 수 없습니다. WorkStatus 업데이트를 건너뜁니다.", savedAttendance.getId());
         }
 
-        return attendanceRepository.save(attendance);
+        return savedAttendance;
     }
 
     @Override
@@ -316,77 +377,46 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
 
         Attendance attendance = optionalAttendance.get();
-
-        if (attendance.getCheckOutTime() != null) {
-            LocalDateTime checkInTime = attendance.getCheckInTime();
-            LocalDateTime checkOutTime = attendance.getCheckOutTime();
-            Duration workedDuration = Duration.ZERO;
-
-            if (attendance.getGoOutTime() != null) {
-                LocalDateTime goOutTime = attendance.getGoOutTime();
-                LocalDateTime returnTime = attendance.getReturnTime();
-
-                if (returnTime != null) {
-                    workedDuration = Duration.between(checkInTime, goOutTime)
-                            .plus(Duration.between(returnTime, checkOutTime));
-                } else {
-                    workedDuration = Duration.between(checkInTime, goOutTime);
-                }
-            } else {
-                workedDuration = Duration.between(checkInTime, checkOutTime);
-            }
-
-            long workedHours = workedDuration.toHours();
-            long workedMinutes = workedDuration.toMinutes() % 60;
-            String workedTime = String.format("%02d:%02d", workedHours, workedMinutes);
-
-            return new WorkTimeDto("00:00", workedTime);
-        }
-
         LocalDateTime checkInTime = attendance.getCheckInTime();
         LocalDateTime now = LocalDateTime.now();
 
-        Duration totalElapsedDuration = Duration.between(checkInTime, now);
+        Duration actualWorkedDuration;
 
-        Duration outingDuration = Duration.ZERO;
-        if (attendance.getGoOutTime() != null) {
-            LocalDateTime goOutTime = attendance.getGoOutTime();
-            LocalDateTime returnTime = attendance.getReturnTime();
-
-            if (returnTime != null) {
-                outingDuration = Duration.between(goOutTime, returnTime);
-            } else {
-                outingDuration = Duration.between(goOutTime, now);
-            }
+        if (attendance.getCheckOutTime() != null) {
+            // 퇴근 시간이 기록된 경우, 퇴근 시간까지의 실제 근무 시간 계산
+            actualWorkedDuration = WorkTimeCalculator.calculateActualWorkedDuration(
+                    checkInTime,
+                    attendance.getCheckOutTime(),
+                    attendance.getGoOutTime(),
+                    attendance.getReturnTime()
+            );
+            String workedTime = WorkTimeCalculator.formatDuration(actualWorkedDuration);
+            return new WorkTimeDto("00:00", workedTime); // 퇴근했으므로 남은 근무 시간은 0
+        } else {
+            // 퇴근 시간이 기록되지 않은 경우, 현재 시간까지의 실제 근무 시간 계산
+            actualWorkedDuration = WorkTimeCalculator.calculateActualWorkedDuration(
+                    checkInTime,
+                    now,
+                    attendance.getGoOutTime(),
+                    attendance.getReturnTime()
+            );
         }
 
-        Duration actualWorkedDuration = totalElapsedDuration;
+        String workedTime = WorkTimeCalculator.formatDuration(actualWorkedDuration);
 
-        if (actualWorkedDuration.isNegative()) {
-            actualWorkedDuration = Duration.ZERO;
-        }
-
-        long workedTotalSeconds = actualWorkedDuration.getSeconds();
-        long workedMinutesRounded = (workedTotalSeconds + 59) / 60;
-
-        long workedHours = workedMinutesRounded / 60;
-        long workedMinutes = workedMinutesRounded % 60;
-        String workedTime = String.format("%02d:%02d", workedHours, workedMinutes);
-
-        long standardWorkMinutes = 8 * 60;
-
-        long remainingMinutesRounded = standardWorkMinutes - workedMinutesRounded;
+        long standardWorkMinutes = WorkConstants.STANDARD_WORK_HOURS * 60;
+        long remainingMinutesRounded = standardWorkMinutes - actualWorkedDuration.toMinutes();
 
         if (remainingMinutesRounded < 0) {
             remainingMinutesRounded = 0;
         }
 
-        long remainingHours = remainingMinutesRounded / 60;
-        long remainingMinutes = remainingMinutesRounded % 60;
-        String remainingTime = String.format("%02d:%02d", remainingHours, remainingMinutes);
+        String remainingTime = WorkTimeCalculator.formatDuration(Duration.ofMinutes(remainingMinutesRounded));
 
         return new WorkTimeDto(remainingTime, workedTime);
     }
+
+    
 
     @Override
     @Transactional(readOnly = true)
@@ -396,12 +426,12 @@ public class AttendanceServiceImpl implements AttendanceService {
 
         return optionalAttendance.map(attendance -> {
             if (attendance.getCheckOutTime() != null) {
-                Map<String, Duration> workTimes = calculateWorkTimes(attendance.getCheckInTime(), attendance.getCheckOutTime(), attendance.getAttendanceDate());
+                Map<String, Duration> workTimes = WorkTimeCalculator.calculateWorkTimes(attendance.getCheckInTime(), attendance.getCheckOutTime(), attendance.getAttendanceDate());
                 return AttendanceResDto.from(attendance,
-                        formatDuration(workTimes.get("totalWorkTime")),
-                        formatDuration(workTimes.get("normalWorkTime")),
-                        formatDuration(workTimes.get("overtimeWorkTime")),
-                        formatDuration(workTimes.get("nightWorkTime"))
+                        WorkTimeCalculator.formatDuration(workTimes.get("totalWorkTime")),
+                        WorkTimeCalculator.formatDuration(workTimes.get("normalWorkTime")),
+                        WorkTimeCalculator.formatDuration(workTimes.get("overtimeWorkTime")),
+                        WorkTimeCalculator.formatDuration(workTimes.get("nightWorkTime"))
                 );
             } else {
                 return AttendanceResDto.from(attendance, null, null, null, null);
@@ -458,115 +488,29 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     /**
-     * 출근 시간, 퇴근 시간, 근무 날짜를 기반으로 총 근무 시간, 정상 근무 시간, 연장 근무 시간, 심야 근무 시간을 계산합니다.
-     * 점심 시간(12:00~13:00)은 근무 시간에서 제외됩니다.
-     * 주말 근무는 전체 연장 근무로 간주됩니다.
-     * 연장 근무는 18:00부터 22:00까지로 계산됩니다.
-     * 심야 근무는 22:00부터 익일 06:00까지로 계산됩니다.
-     * @param checkIn 출근 시간 (LocalDateTime)
-     * @param checkOut 퇴근 시간 (LocalDateTime)
-     * @param attendanceDate 근무 날짜 (LocalDate)
-     * @return 각 근무 시간(totalWorkTime, normalWorkTime, overtimeWorkTime, nightWorkTime)을 포함하는 Map
+     * 승인된 휴가 타입 문자열을 WorkStatusType으로 변환합니다.
+     *
+     * @param approvedLeaveType 승인된 휴가 타입 문자열 (예: "AM_HALF_DAY", "PM_HALF_DAY", "ANNUAL_LEAVE", "EARLY_LEAVE")
+     * @return 해당 WorkStatusType 또는 null (알 수 없는 타입의 경우)
      */
-    private Map<String, Duration> calculateWorkTimes(LocalDateTime checkIn, LocalDateTime checkOut, LocalDate attendanceDate) {
-        Map<String, Duration> workTimes = new HashMap<>();
-        Duration totalWorkTime = Duration.ZERO;
-        Duration normalWorkTime = Duration.ZERO;
-        Duration overtimeWorkTime = Duration.ZERO;
-        Duration nightWorkTime = Duration.ZERO;
-
-        // 출근 시간이 퇴근 시간보다 늦거나 같으면 유효하지 않은 경우
-        if (checkIn.isAfter(checkOut) || checkIn.isEqual(checkOut)) {
-            workTimes.put("totalWorkTime", totalWorkTime);
-            workTimes.put("normalWorkTime", normalWorkTime);
-            workTimes.put("overtimeWorkTime", overtimeWorkTime);
-            workTimes.put("nightWorkTime", nightWorkTime);
-            return workTimes;
-        }
-
-        // 근무 시간 구간
-        LocalDateTime workStart = checkIn;
-        LocalDateTime workEnd = checkOut;
-
-        // 점심 시간 구간 (오늘 날짜 기준)
-        LocalDateTime lunchStartDateTime = attendanceDate.atTime(LUNCH_START);
-        LocalDateTime lunchEndDateTime = attendanceDate.atTime(LUNCH_END);
-
-        // 정상 근무 시간 구간 (오늘 날짜 기준)
-        LocalDateTime normalWorkStartDateTime = attendanceDate.atTime(NORMAL_WORK_START);
-        LocalDateTime normalWorkEndDateTime = attendanceDate.atTime(NORMAL_WORK_END);
-
-        // 연장 근무 시간 구간 (오늘 날짜 기준)
-        LocalDateTime overtimeStartDateTime = attendanceDate.atTime(OVERTIME_START);
-        LocalDateTime overtimeEndDateTime = attendanceDate.atTime(OVERTIME_END);
-
-        // 심야 근무 시간 구간 (오늘 날짜 기준 및 익일 기준)
-        LocalDateTime nightWorkStartDateTimeToday = attendanceDate.atTime(NIGHT_WORK_START);
-        LocalDateTime nightWorkEndDateTimeToday = attendanceDate.plusDays(1).atStartOfDay(); // 자정
-        LocalDateTime nightWorkStartDateTimeNextDay = attendanceDate.plusDays(1).atStartOfDay(); // 자정
-        LocalDateTime nightWorkEndDateTimeNextDay = attendanceDate.plusDays(1).atTime(NIGHT_WORK_END);
-
-        // 주말(토, 일)인 경우 전체를 연장 근무로 처리
-        if (attendanceDate.getDayOfWeek() == DayOfWeek.SATURDAY || attendanceDate.getDayOfWeek() == DayOfWeek.SUNDAY) {
-            totalWorkTime = getOverlapDuration(workStart, workEnd, workStart, workEnd); // 전체 근무 시간
-            totalWorkTime = totalWorkTime.minus(getOverlapDuration(workStart, workEnd, lunchStartDateTime, lunchEndDateTime)); // 점심시간 제외
-            overtimeWorkTime = totalWorkTime; // 주말은 전체가 연장 근무
-        } else {
-            // 평일 근무 시간 계산
-            // 총 근무 시간 = 전체 근무 시간 - 점심 시간
-            totalWorkTime = getOverlapDuration(workStart, workEnd, workStart, workEnd);
-            totalWorkTime = totalWorkTime.minus(getOverlapDuration(workStart, workEnd, lunchStartDateTime, lunchEndDateTime));
-
-            // 정상 근무 시간
-            // 실제 근무 시간과 정상 근무 시간 구간의 겹치는 부분을 먼저 계산
-            Duration grossNormalWorkTime = getOverlapDuration(workStart, workEnd, normalWorkStartDateTime, normalWorkEndDateTime);
-            // 실제 근무 시간과 점심 시간 구간의 겹치는 부분을 계산
-            Duration lunchOverlapWithActualWork = getOverlapDuration(workStart, workEnd, lunchStartDateTime, lunchEndDateTime);
-            // 총 정상 근무 시간에서 실제 근무 시간과 겹치는 점심 시간을 제외
-            normalWorkTime = grossNormalWorkTime.minus(lunchOverlapWithActualWork);
-
-            // 연장 근무 시간 (18:00 ~ 22:00)
-            overtimeWorkTime = getOverlapDuration(workStart, workEnd, overtimeStartDateTime, overtimeEndDateTime);
-
-            // 심야 근무 시간 (22:00 ~ 익일 06:00)
-            nightWorkTime = nightWorkTime.plus(getOverlapDuration(workStart, workEnd, nightWorkStartDateTimeToday, nightWorkEndDateTimeToday)); // 22:00 ~ 자정
-            nightWorkTime = nightWorkTime.plus(getOverlapDuration(workStart, workEnd, nightWorkStartDateTimeNextDay, nightWorkEndDateTimeNextDay)); // 자정 ~ 익일 06:00
-        }
-
-        workTimes.put("totalWorkTime", totalWorkTime);
-        workTimes.put("normalWorkTime", normalWorkTime);
-        workTimes.put("overtimeWorkTime", overtimeWorkTime);
-        workTimes.put("nightWorkTime", nightWorkTime);
-        return workTimes;
-    }
-
-    // 두 시간 구간의 겹치는 Duration을 반환하는 헬퍼 메서드
-    private Duration getOverlapDuration(LocalDateTime start1, LocalDateTime end1, LocalDateTime start2, LocalDateTime end2) {
-        LocalDateTime overlapStart = max(start1, start2);
-        LocalDateTime overlapEnd = min(end1, end2);
-
-        if (overlapStart.isBefore(overlapEnd)) {
-            return Duration.between(overlapStart, overlapEnd);
-        }
-        return Duration.ZERO;
-    }
-
-    // LocalDateTime.max 및 min 헬퍼 (Java 8 호환성을 위해 직접 구현)
-    private LocalDateTime max(LocalDateTime a, LocalDateTime b) {
-        return a.isAfter(b) ? a : b;
-    }
-
-    private LocalDateTime min(LocalDateTime a, LocalDateTime b) {
-        return a.isBefore(b) ? a : b;
-    }
-
-    // Duration을 "HH:mm" 형식의 String으로 포맷하는 헬퍼 메서드
-    private String formatDuration(Duration duration) {
-        if (duration == null) {
+    private WorkStatusType getWorkStatusTypeFromApprovedLeaveType(String approvedLeaveType) {
+        if (approvedLeaveType == null) {
             return null;
         }
-        long hours = duration.toHours();
-        long minutes = duration.toMinutes() % 60;
-        return String.format("%02d:%02d", hours, minutes);
+        switch (approvedLeaveType) {
+            case "AM_HALF_DAY":
+                return WorkStatusType.AM_HALF_DAY;
+            case "PM_HALF_DAY":
+                return WorkStatusType.PM_HALF_DAY;
+            case "ANNUAL_LEAVE":
+                return WorkStatusType.ANNUAL_LEAVE;
+            case "EARLY_LEAVE":
+                return WorkStatusType.EARLY_LEAVE;
+            default:
+                log.warn("Unknown approved leave type: {}", approvedLeaveType);
+                return null;
+        }
     }
+
+    
 }

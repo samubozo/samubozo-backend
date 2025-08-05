@@ -1,7 +1,7 @@
 package com.playdata.attendanceservice.client.dto;
 
-import com.playdata.attendanceservice.attendance.absence.entity.AbsenceType;
-import com.playdata.attendanceservice.attendance.absence.entity.UrgencyType;
+import com.playdata.attendanceservice.absence.entity.AbsenceType;
+import com.playdata.attendanceservice.absence.entity.UrgencyType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;

@@ -1,8 +1,8 @@
 package com.playdata.attendanceservice.attendance.scheduler;
 
 import com.playdata.attendanceservice.attendance.entity.WorkDayType;
-import com.playdata.attendanceservice.attendance.entity.WorkStatus;
-import com.playdata.attendanceservice.attendance.repository.WorkStatusRepository;
+import com.playdata.attendanceservice.workstatus.entity.WorkStatus;
+import com.playdata.attendanceservice.workstatus.repository.WorkStatusRepository;
 import com.playdata.attendanceservice.client.HrServiceClient;
 import com.playdata.attendanceservice.client.VacationServiceClient;
 import com.playdata.attendanceservice.client.dto.UserDto;

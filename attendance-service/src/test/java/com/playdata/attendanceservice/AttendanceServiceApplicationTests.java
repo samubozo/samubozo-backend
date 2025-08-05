@@ -1,7 +1,7 @@
 package com.playdata.attendanceservice;
 
 import com.playdata.attendanceservice.attendance.entity.Attendance;
-import com.playdata.attendanceservice.attendance.entity.WorkStatusType;
+import com.playdata.attendanceservice.workstatus.entity.WorkStatusType;
 import com.playdata.attendanceservice.attendance.service.AttendanceService;
 import com.playdata.attendanceservice.client.ApprovalServiceClient;
 import com.playdata.attendanceservice.client.HrServiceClient;

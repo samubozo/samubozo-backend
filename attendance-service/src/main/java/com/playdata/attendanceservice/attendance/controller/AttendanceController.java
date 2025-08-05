@@ -39,14 +39,8 @@ public class AttendanceController {
      */
     @PostMapping("/check-in")
     public ResponseEntity<CommonResDto<Attendance>> checkIn(@AuthenticationPrincipal TokenUserInfo userInfo, HttpServletRequest request) {
-        try {
-            Attendance attendance = attendanceService.recordCheckIn(userInfo.getEmployeeNo(), request.getRemoteAddr());
-            return buildSuccessResponse(attendance, "출근 기록 성공");
-        } catch (IllegalStateException e) {
-            return buildErrorResponse(HttpStatus.BAD_REQUEST, e.getMessage());
-        } catch (Exception e) {
-            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "출근 기록 중 오류 발생");
-        }
+        Attendance attendance = attendanceService.recordCheckIn(userInfo.getEmployeeNo(), request.getRemoteAddr());
+        return buildSuccessResponse(attendance, "출근 기록 성공");
     }
 
     /**
@@ -56,14 +50,8 @@ public class AttendanceController {
      */
     @PostMapping("/check-out")
     public ResponseEntity<CommonResDto<Attendance>> checkOut(@AuthenticationPrincipal TokenUserInfo userInfo) {
-        try {
-            Attendance attendance = attendanceService.recordCheckOut(userInfo.getEmployeeNo());
-            return buildSuccessResponse(attendance, "퇴근 기록 성공");
-        } catch (IllegalArgumentException e) {
-            return buildErrorResponse(HttpStatus.BAD_REQUEST, e.getMessage());
-        } catch (Exception e) {
-            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "퇴근 기록 중 오류 발생");
-        }
+        Attendance attendance = attendanceService.recordCheckOut(userInfo.getEmployeeNo());
+        return buildSuccessResponse(attendance, "퇴근 기록 성공");
     }
 
     /**
@@ -78,36 +66,20 @@ public class AttendanceController {
             @AuthenticationPrincipal TokenUserInfo userInfo,
             @PathVariable int year,
             @PathVariable int month) {
-        try {
-            List<AttendanceResDto> monthlyAttendances = attendanceService.getMonthlyAttendances(userInfo.getEmployeeNo(), year, month);
-            return buildSuccessResponse(monthlyAttendances, "월별 근태 조회 성공");
-        } catch (Exception e) {
-            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "월별 근태 조회 중 오류 발생");
-        }
+        List<AttendanceResDto> monthlyAttendances = attendanceService.getMonthlyAttendances(userInfo.getEmployeeNo(), year, month);
+        return buildSuccessResponse(monthlyAttendances, "월별 근태 조회 성공");
     }
 
     @PutMapping("/go-out")
     public ResponseEntity<CommonResDto<AttendanceResDto>> goOut(@AuthenticationPrincipal TokenUserInfo userInfo) {
-        try {
-            Attendance attendance = attendanceService.recordGoOut(userInfo.getEmployeeNo());
-            return buildSuccessResponse(AttendanceResDto.from(attendance, null, null, null, null), "외출 기록 성공");
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            return buildErrorResponse(HttpStatus.BAD_REQUEST, e.getMessage());
-        } catch (Exception e) {
-            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "외출 기록 중 오류 발생");
-        }
+        Attendance attendance = attendanceService.recordGoOut(userInfo.getEmployeeNo());
+        return buildSuccessResponse(AttendanceResDto.from(attendance, null, null, null, null), "외출 기록 성공");
     }
 
     @PutMapping("/return")
     public ResponseEntity<CommonResDto<AttendanceResDto>> returnFromGoOut(@AuthenticationPrincipal TokenUserInfo userInfo) {
-        try {
-            Attendance attendance = attendanceService.recordReturn(userInfo.getEmployeeNo());
-            return buildSuccessResponse(AttendanceResDto.from(attendance, null, null, null, null), "복귀 기록 성공");
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            return buildErrorResponse(HttpStatus.BAD_REQUEST, e.getMessage());
-        } catch (Exception e) {
-            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "복귀 기록 중 오류 발생");
-        }
+        Attendance attendance = attendanceService.recordReturn(userInfo.getEmployeeNo());
+        return buildSuccessResponse(AttendanceResDto.from(attendance, null, null, null, null), "복귀 기록 성공");
     }
 
     /**
@@ -118,13 +90,8 @@ public class AttendanceController {
      */
     @GetMapping("/remaining-work-time")
     public ResponseEntity<CommonResDto<WorkTimeDto>> getRemainingWorkTime(@AuthenticationPrincipal TokenUserInfo userInfo) {
-        try {
-            WorkTimeDto remainingTime = attendanceService.getRemainingWorkTime(userInfo.getEmployeeNo());
-            return buildSuccessResponse(remainingTime, "남은 근무 시간 조회 성공");
-        } catch (Exception e) {
-            log.error("남은 근무 시간 조회 중 오류 발생: {}", e.getMessage(), e);
-            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "남은 근무 시간 조회 중 오류 발생");
-        }
+        WorkTimeDto remainingTime = attendanceService.getRemainingWorkTime(userInfo.getEmployeeNo());
+        return buildSuccessResponse(remainingTime, "남은 근무 시간 조회 성공");
     }
 
     /**
@@ -136,16 +103,11 @@ public class AttendanceController {
      */
     @GetMapping("/today")
     public ResponseEntity<CommonResDto<AttendanceResDto>> getTodayAttendance(@AuthenticationPrincipal TokenUserInfo userInfo) {
-        try {
-            Optional<AttendanceResDto> todayAttendance = attendanceService.getTodayAttendance(userInfo.getEmployeeNo());
-            if (todayAttendance.isPresent()) {
-                return buildSuccessResponse(todayAttendance.get(), "오늘 근태 기록 조회 성공");
-            } else {
-                return buildSuccessResponse(null, "오늘 근태 기록 없음");
-            }
-        } catch (Exception e) {
-            log.error("오늘 근태 기록 조회 중 오류 발생: {}", e.getMessage(), e);
-            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "오늘 근태 기록 조회 중 오류 발생");
+        Optional<AttendanceResDto> todayAttendance = attendanceService.getTodayAttendance(userInfo.getEmployeeNo());
+        if (todayAttendance.isPresent()) {
+            return buildSuccessResponse(todayAttendance.get(), "오늘 근태 기록 조회 성공");
+        } else {
+            return buildSuccessResponse(null, "오늘 근태 기록 없음");
         }
     }
 
@@ -162,13 +124,8 @@ public class AttendanceController {
             @AuthenticationPrincipal TokenUserInfo userInfo,
             @PathVariable int year,
             @PathVariable int month) {
-        try {
-            PersonalAttendanceStatsDto stats = attendanceService.getPersonalAttendanceStats(userInfo.getEmployeeNo(), year, month);
-            return buildSuccessResponse(stats, "개인 근태 통계 조회 성공");
-        } catch (Exception e) {
-            log.error("개인 근태 통계 조회 중 오류 발생: {}", e.getMessage(), e);
-            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "개인 근태 통계 조회 중 오류 발생");
-        }
+        PersonalAttendanceStatsDto stats = attendanceService.getPersonalAttendanceStats(userInfo.getEmployeeNo(), year, month);
+        return buildSuccessResponse(stats, "개인 근태 통계 조회 성공");
     }
 
     /**
@@ -179,13 +136,8 @@ public class AttendanceController {
      */
     @GetMapping("/vacation/personal-balance")
     public ResponseEntity<CommonResDto<com.playdata.attendanceservice.client.dto.VacationBalanceResDto>> getPersonalVacationBalance(@AuthenticationPrincipal TokenUserInfo userInfo) {
-        try {
-            CommonResDto<com.playdata.attendanceservice.client.dto.VacationBalanceResDto> vacationBalance = attendanceService.getPersonalVacationBalance(userInfo.getEmployeeNo());
-            return buildSuccessResponse(vacationBalance.getResult(), "개인 연차 현황 조회 성공");
-        } catch (Exception e) {
-            log.error("개인 연차 현황 조회 중 오류 발생: {}", e.getMessage(), e);
-            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "개인 연차 현황 조회 중 오류 발생");
-        }
+        CommonResDto<com.playdata.attendanceservice.client.dto.VacationBalanceResDto> vacationBalance = attendanceService.getPersonalVacationBalance(userInfo.getEmployeeNo());
+        return buildSuccessResponse(vacationBalance.getResult(), "개인 연차 현황 조회 성공");
     }
 
     /**
@@ -197,13 +149,8 @@ public class AttendanceController {
      */
     @PostMapping("/half-day")
     public ResponseEntity<CommonResDto<Void>> requestHalfDay(@AuthenticationPrincipal TokenUserInfo userInfo, @RequestBody com.playdata.attendanceservice.client.dto.VacationRequestDto requestDto) {
-        try {
-            attendanceService.requestHalfDayVacation(userInfo.getEmployeeNo(), requestDto);
-            return buildSuccessResponse(null, "반차 신청 성공");
-        } catch (Exception e) {
-            log.error("반차 신청 중 오류 발생: {}", e.getMessage(), e);
-            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "반차 신청 중 오류 발생");
-        }
+        attendanceService.requestHalfDayVacation(userInfo.getEmployeeNo(), requestDto);
+        return buildSuccessResponse(null, "반차 신청 성공");
     }
 
     /**
@@ -219,13 +166,8 @@ public class AttendanceController {
             @AuthenticationPrincipal TokenUserInfo userInfo,
             @PathVariable int year,
             @PathVariable int month) {
-        try {
-            CommonResDto<List<com.playdata.attendanceservice.client.dto.Vacation>> halfDayVacations = attendanceService.getPersonalMonthlyHalfDayVacations(userInfo.getEmployeeNo(), year, month);
-            return buildSuccessResponse(halfDayVacations.getResult(), "월별 반차 내역 조회 성공");
-        } catch (Exception e) {
-            log.error("월별 반차 내역 조회 중 오류 발생: {}", e.getMessage(), e);
-            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "월별 반차 내역 조회 중 오류 발생");
-        }
+        CommonResDto<List<com.playdata.attendanceservice.client.dto.Vacation>> halfDayVacations = attendanceService.getPersonalMonthlyHalfDayVacations(userInfo.getEmployeeNo(), year, month);
+        return buildSuccessResponse(halfDayVacations.getResult(), "월별 반차 내역 조회 성공");
     }
 
     /**
@@ -235,13 +177,8 @@ public class AttendanceController {
      */
     @GetMapping("/late-threshold")
     public ResponseEntity<CommonResDto<String>> getLateThreshold() {
-        try {
-            String lateThreshold = attendanceService.getLateThreshold();
-            return buildSuccessResponse(lateThreshold, "지각 기준 시간 조회 성공");
-        } catch (Exception e) {
-            log.error("지각 기준 시간 조회 중 오류 발생: {}", e.getMessage(), e);
-            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "지각 기준 시간 조회 중 오류 발생");
-        }
+        String lateThreshold = attendanceService.getLateThreshold();
+        return buildSuccessResponse(lateThreshold, "지각 기준 시간 조회 성공");
     }
 
     // payroll-service에서 호출할 수 있도록 userId를 직접 받는 API
@@ -287,8 +224,5 @@ public class AttendanceController {
         return ResponseEntity.ok(resDto);
     }
 
-    private <T> ResponseEntity<CommonResDto<T>> buildErrorResponse(HttpStatus status, String message) {
-        CommonResDto<T> resDto = new CommonResDto<>(status, message, null);
-        return ResponseEntity.status(status).body(resDto);
-    }
+    
 }
