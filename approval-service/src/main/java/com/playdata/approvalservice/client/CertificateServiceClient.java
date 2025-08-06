@@ -18,4 +18,7 @@ public interface CertificateServiceClient {
     @GetMapping("/certificate/{id}")
     com.playdata.approvalservice.client.dto.Certificate getCertificateById(@PathVariable("id") Long id);
 
+    @GetMapping("/certificate/internal/valid")
+    Boolean getValidCertificateInternal(@RequestParam("employeeNo") Long employeeNo, @RequestParam("type") com.playdata.approvalservice.approval.entity.Type type);
+
 }

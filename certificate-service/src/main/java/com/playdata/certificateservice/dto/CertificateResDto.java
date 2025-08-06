@@ -20,6 +20,7 @@ public class CertificateResDto {
     private Type type;
     private LocalDate requestDate;
     private LocalDate approveDate;
+    private LocalDate expirationDate;
     private LocalDateTime processedAt;
     private Status status;
     private String reason;

@@ -6,8 +6,15 @@ import com.playdata.approvalservice.client.dto.*;
 import com.playdata.approvalservice.approval.entity.*;
 import com.playdata.approvalservice.approval.repository.ApprovalRepository;
 import com.playdata.approvalservice.common.auth.TokenUserInfo;
+import com.playdata.approvalservice.common.exception.ApprovalBadRequestException;
+import com.playdata.approvalservice.common.exception.ApprovalConflictException;
+import com.playdata.approvalservice.common.exception.ApprovalForbiddenException;
+import com.playdata.approvalservice.common.exception.ApprovalInternalServerErrorException;
+import com.playdata.approvalservice.common.exception.ApprovalNotFoundException;
+import feign.FeignException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -17,7 +24,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
+
 
 import com.playdata.approvalservice.approval.repository.ApprovalSpecification;
 import org.springframework.data.jpa.domain.Specification;
@@ -32,11 +39,12 @@ import java.util.stream.Collectors;
 /**
  * 결재 요청 서비스 - 타입별로 명확히 분리된 구조로 리팩터링
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class ApprovalServiceImpl implements ApprovalService {
+
+    private static final Logger log = LoggerFactory.getLogger(ApprovalServiceImpl.class);
 
     private final ApprovalRepository approvalRepository;
     private final HrServiceClient hrServiceClient;
@@ -147,7 +155,7 @@ public class ApprovalServiceImpl implements ApprovalService {
                     createDto.getEndDate(),
                     requestTypeKorean
             );
-            throw new ResponseStatusException(HttpStatus.CONFLICT, errorMessage);
+            throw new ApprovalConflictException(errorMessage);
         }
     }
 
@@ -155,52 +163,37 @@ public class ApprovalServiceImpl implements ApprovalService {
      * [신규 추가] 증명서용 유효성 검증 헬퍼 메서드
      */
     private void validateCertificateRequest(ApprovalRequestCreateDto createDto) {
-        // 증명서의 경우, 기간보다는 '동일한 종류의 미처리 요청'이 있는지 확인하는 것이 더 일반적입니다.
-        // 이를 위해선 해당 로직에 맞는 레파지토리 메서드가 필요합니다.
-        // 여기서는 기존 로직을 재활용하되, 약간의 수정이 필요할 수 있습니다.
+        log.info("증명서 중복 검사를 수행합니다. (증명서)");
 
-        // 예시: findOverlappingRequestsForUser를 사용하되, 증명서에 맞게 추가 로직을 적용
-        List<ApprovalStatus> targetStatuses = List.of(ApprovalStatus.PENDING); // '대기' 상태만 확인
-        List<ApprovalRequest> existingRequests = approvalRepository.findOverlappingRequestsForUser(
+        // 1. PENDING 상태의 동일 유형 증명서 요청 확인
+        Optional<ApprovalRequest> existingPendingCertificateRequest = approvalRepository.findByApplicantIdAndRequestTypeAndCertificateTypeAndStatus(
                 createDto.getApplicantId(),
-                createDto.getStartDate(), // 증명서는 startDate/endDate가 없을 수 있으므로 주의
-                createDto.getEndDate(),
-                targetStatuses
+                RequestType.CERTIFICATE,
+                createDto.getCertificateType(),
+                ApprovalStatus.PENDING
         );
 
-        // 기존 로직을 여기에 통합
-        for (ApprovalRequest existingRequest : existingRequests) {
-            // 이 요청이 CERTIFICATE 타입일 때만 검증
-            if (existingRequest.getRequestType() != RequestType.CERTIFICATE) {
-                continue;
+        if (existingPendingCertificateRequest.isPresent()) {
+            String errorMessage = String.format("이미 처리 대기 중인 동일한 유형(%s)의 증명서 신청이 존재합니다.",
+                    createDto.getCertificateType());
+            throw new ApprovalConflictException(errorMessage);
+        }
+
+        // 2. 유효 기간이 만료되지 않은 APPROVED 상태의 동일 유형 증명서 요청 확인 (certificate-service 호출)
+        try {
+            Boolean hasValidCertificate = certificateServiceClient.getValidCertificateInternal(
+                    createDto.getApplicantId(),
+                    createDto.getCertificateType()
+            );
+
+            if (Boolean.TRUE.equals(hasValidCertificate)) {
+                String errorMessage = String.format("이미 유효한 동일한 유형(%s)의 증명서가 존재합니다. 다시 신청하시려면 기존 증명서의 만료일을 확인해주세요.",
+                        createDto.getCertificateType());
+                throw new ApprovalConflictException(errorMessage);
             }
-
-            if (existingRequest.getCertificateId() != null) {
-                try {
-                    // Feign Client를 통해 기존 증명서의 상세 정보를 가져옵니다.
-                    com.playdata.approvalservice.client.dto.Certificate certificate =
-                            certificateServiceClient.getCertificateById(existingRequest.getCertificateId());
-
-                    // 새로 신청하는 증명서와 타입이 같은지 비교합니다.
-                    if (certificate != null && certificate.getType() != null &&
-                            certificate.getType().equals(createDto.getCertificateType())) {
-
-                        String errorMessage = String.format("이미 처리 대기 중인 동일한 유형(%s)의 증명서 신청이 존재합니다.",
-                                createDto.getCertificateType());
-
-                        throw new ResponseStatusException(HttpStatus.CONFLICT, errorMessage);
-                    }
-                } catch (feign.FeignException e) {
-                    if (e.status() == HttpStatus.NOT_FOUND.value()) {
-                        log.warn("CertificateService에서 증명서를 찾을 수 없습니다 (certificateId: {}).",
-                                existingRequest.getCertificateId());
-                        continue; // 다음 요청 검사
-                    }
-                    log.error("CertificateService 통신 오류 (certificateId {}): {}",
-                            existingRequest.getCertificateId(), e.getMessage());
-                    throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "증명서 정보 조회 중 오류 발생", e);
-                }
-            }
+        } catch (FeignException e) {
+            log.error("CertificateService 통신 오류 (getValidCertificateInternal): {}", e.getMessage(), e);
+            throw new ApprovalInternalServerErrorException("증명서 유효성 확인 중 오류 발생", e);
         }
     }
 
@@ -247,8 +240,7 @@ public class ApprovalServiceImpl implements ApprovalService {
         if (!userInfo.getEmployeeNo().equals(createDto.getApplicantId())) {
             log.warn("보안 검증 실패: 인증된 사용자 ID({})와 신청자 ID({})가 일치하지 않습니다.",
                     userInfo.getEmployeeNo(), createDto.getApplicantId());
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "Authenticated user ID does not match the applicant ID in the request.");
+            throw new ApprovalForbiddenException("인증된 사용자 ID와 신청자 ID가 일치하지 않습니다.");
         }
         log.info("--- 1. 보안 검증 통과 ---");
 
@@ -256,12 +248,12 @@ public class ApprovalServiceImpl implements ApprovalService {
         try {
             validateDuplicateRequest(createDto);
             log.info("--- 2. 유효성 검사 통과 ---");
-        } catch (ResponseStatusException e) {
-            log.error("중복 검증 중 오류 발생: Status: {}, Reason: {}", e.getStatusCode(), e.getReason());
+        } catch (ApprovalConflictException e) {
+            log.error("중복 검증 중 오류 발생: {}", e.getMessage());
             throw e; // 유효성 검증 실패 시 바로 예외를 던집니다.
         } catch (Exception e) {
             log.error("예상치 못한 중복 검증 오류 발생: {}", e.getMessage(), e);
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "중복 검증 중 알 수 없는 오류 발생", e);
+            throw new ApprovalInternalServerErrorException("중복 검증 중 알 수 없는 오류 발생", e);
         }
 
         // 3. 승인자 ID 설정
@@ -271,7 +263,7 @@ public class ApprovalServiceImpl implements ApprovalService {
             log.info("--- 3. 승인자 ID 설정 완료: {}", approverId);
         } catch (Exception e) {
             log.error("승인자 ID 결정 중 오류 발생: {}", e.getMessage(), e);
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "승인자 결정 중 오류 발생", e);
+            throw new ApprovalInternalServerErrorException("승인자 결정 중 오류 발생", e);
         }
 
         // 4. ApprovalRequest 엔티티 생성
@@ -300,7 +292,7 @@ public class ApprovalServiceImpl implements ApprovalService {
             log.info("--- 4. 엔티티 생성 완료: {}", approvalRequest);
         } catch (Exception e) {
             log.error("ApprovalRequest 엔티티 생성 중 오류 발생: {}", e.getMessage(), e);
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "결재 요청 엔티티 생성 중 오류 발생", e);
+            throw new ApprovalInternalServerErrorException("결재 요청 엔티티 생성 중 오류 발생", e);
         }
 
         // 5. 저장
@@ -310,7 +302,7 @@ public class ApprovalServiceImpl implements ApprovalService {
             log.info("--- 5. ApprovalRequest 엔티티 저장 성공. ID: {}", savedRequest.getId());
         } catch (Exception e) {
             log.error("ApprovalRequest 엔티티 저장 중 오류 발생: {}", e.getMessage(), e);
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "결재 요청 엔티티 저장 중 오류 발생", e);
+            throw new ApprovalInternalServerErrorException("결재 요청 엔티티 저장 중 오류 발생", e);
         }
 
         // 6. 응답 생성에 필요한 사용자 정보 조회
@@ -324,7 +316,7 @@ public class ApprovalServiceImpl implements ApprovalService {
             log.info("--- 6. 사용자 정보 조회 완료. userMap size: {}", userMap.size());
         } catch (Exception e) {
             log.error("사용자 정보 조회 중 오류 발생: {}", e.getMessage(), e);
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "사용자 정보 조회 중 오류 발생", e);
+            throw new ApprovalInternalServerErrorException("사용자 정보 조회 중 오류 발생", e);
         }
 
         // 7. 최종 응답 DTO 빌드 및 반환
@@ -332,7 +324,7 @@ public class ApprovalServiceImpl implements ApprovalService {
             return buildResponseDto(savedRequest, userMap);
         } catch (Exception e) {
             log.error("응답 DTO 빌드 중 오류 발생: {}", e.getMessage(), e);
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "응답 DTO 빌드 중 오류 발생", e);
+            throw new ApprovalInternalServerErrorException("응답 DTO 빌드 중 오류 발생", e);
         }
     }
 
@@ -393,8 +385,7 @@ public class ApprovalServiceImpl implements ApprovalService {
     @Override
     public ApprovalRequestResponseDto getApprovalRequestById(Long id) {
         ApprovalRequest approvalRequest = approvalRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                        "Approval request not found with id: " + id));
+                .orElseThrow(() -> new ApprovalNotFoundException("결재 요청을 찾을 수 없습니다: " + id));
 
         List<Long> userIds = new ArrayList<>(List.of(approvalRequest.getApplicantId()));
         if (approvalRequest.getApproverId() != null) {
@@ -450,8 +441,7 @@ public class ApprovalServiceImpl implements ApprovalService {
     @Transactional(readOnly = true)
     public Page<ApprovalRequestResponseDto> getPendingApprovalRequests(TokenUserInfo userInfo, Pageable pageable) {
         if (!"Y".equals(userInfo.getHrRole())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "Only users with hrRole 'Y' can view pending approval requests.");
+            throw new ApprovalForbiddenException("HR 권한이 필요합니다.");
         }
 
         Page<ApprovalRequest> pendingRequestsPage = approvalRepository.findByStatus(ApprovalStatus.PENDING, pageable);
@@ -476,8 +466,7 @@ public class ApprovalServiceImpl implements ApprovalService {
     @Transactional(readOnly = true)
     public List<ApprovalRequestResponseDto> getProcessedApprovalRequestsByApproverId(TokenUserInfo userInfo) {
         if (!"Y".equals(userInfo.getHrRole())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "Only users with hrRole 'Y' can view processed approval requests.");
+            throw new ApprovalForbiddenException("HR 권한이 필요합니다.");
         }
 
         List<ApprovalRequest> processedRequests = approvalRepository
@@ -550,7 +539,7 @@ public class ApprovalServiceImpl implements ApprovalService {
         ApprovalRequest approvalRequest = getAndValidatePendingRequest(id);
 
         if (approvalRequest.getRequestType() != RequestType.ABSENCE) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "부재 결재 요청이 아닙니다.");
+            throw new ApprovalBadRequestException("부재 결재 요청이 아닙니다.");
         }
 
         approvalRequest.setApproverId(employeeNo);
@@ -565,7 +554,7 @@ public class ApprovalServiceImpl implements ApprovalService {
                 log.info("absence-service에 부재 승인 처리 완료. absenceId: {}", updatedRequest.getAbsencesId());
             } catch (Exception e) {
                 log.error("absence-service 부재 승인 처리 실패: {}", e.getMessage(), e);
-                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "부재 승인 처리 중 오류 발생");
+                throw new ApprovalInternalServerErrorException("부재 승인 처리 중 오류 발생");
             }
         }
 
@@ -585,7 +574,7 @@ public class ApprovalServiceImpl implements ApprovalService {
         ApprovalRequest approvalRequest = getAndValidatePendingRequest(id);
 
         if (approvalRequest.getRequestType() != RequestType.ABSENCE) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "부재 결재 요청이 아닙니다.");
+            throw new ApprovalBadRequestException("부재 결재 요청이 아닙니다.");
         }
 
         approvalRequest.setApproverId(userInfo.getEmployeeNo());
@@ -601,7 +590,7 @@ public class ApprovalServiceImpl implements ApprovalService {
                 log.info("absence-service에 부재 반려 처리 완료. absenceId: {}", updatedRequest.getAbsencesId());
             } catch (Exception e) {
                 log.error("absence-service 부재 반려 처리 실패: {}", e.getMessage(), e);
-                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "부재 반려 처리 중 오류 발생");
+                throw new ApprovalInternalServerErrorException("부재 반려 처리 중 오류 발생");
             }
         }
 
@@ -649,7 +638,7 @@ public class ApprovalServiceImpl implements ApprovalService {
     @Transactional(readOnly = true)
     public Page<ApprovalRequestResponseDto> getPendingAbsenceApprovalRequests(TokenUserInfo userInfo, int page, int size) {
         if (!"Y".equals(userInfo.getHrRole())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "HR 권한이 필요합니다.");
+            throw new ApprovalForbiddenException("HR 권한이 필요합니다.");
         }
 
         Pageable pageable = PageRequest.of(page, size);
@@ -708,17 +697,17 @@ public class ApprovalServiceImpl implements ApprovalService {
         log.info("부재 결재 요청 수정 시작. 요청 ID: {}, 사용자: {}", id, userInfo.getEmployeeNo());
 
         ApprovalRequest approvalRequest = approvalRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "결재 요청을 찾을 수 없습니다: " + id));
+                .orElseThrow(() -> new ApprovalNotFoundException("결재 요청을 찾을 수 없습니다: " + id));
 
         // 요청자 본인인지, PENDING 상태인지 검증
         if (!approvalRequest.getApplicantId().equals(userInfo.getEmployeeNo())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "본인의 결재 요청만 수정할 수 있습니다.");
+            throw new ApprovalForbiddenException("본인의 결재 요청만 수정할 수 있습니다.");
         }
         if (approvalRequest.getStatus() != ApprovalStatus.PENDING) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "대기 중인 결재 요청만 수정할 수 있습니다.");
+            throw new ApprovalBadRequestException("대기 중인 결재 요청만 수정할 수 있습니다.");
         }
         if (approvalRequest.getRequestType() != RequestType.ABSENCE) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "부재 유형의 결재 요청만 수정할 수 있습니다.");
+            throw new ApprovalBadRequestException("부재 유형의 결재 요청만 수정할 수 있습니다.");
         }
 
         // 내용 업데이트
@@ -742,14 +731,14 @@ public class ApprovalServiceImpl implements ApprovalService {
         log.info("결재 요청 취소 시작. 요청 ID: {}, 사용자: {}", id, userInfo.getEmployeeNo());
 
         ApprovalRequest approvalRequest = approvalRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "결재 요청을 찾을 수 없습니다: " + id));
+                .orElseThrow(() -> new ApprovalNotFoundException("결재 요청을 찾을 수 없습니다: " + id));
 
         // 요청자 본인인지, PENDING 상태인지 검증
         if (!approvalRequest.getApplicantId().equals(userInfo.getEmployeeNo())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "본인의 결재 요청만 취소할 수 있습니다.");
+            throw new ApprovalForbiddenException("본인의 결재 요청만 취소할 수 있습니다.");
         }
         if (approvalRequest.getStatus() != ApprovalStatus.PENDING) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "대기 중인 결재 요청만 취소할 수 있습니다.");
+            throw new ApprovalBadRequestException("대기 중인 결재 요청만 취소할 수 있습니다.");
         }
 
         approvalRepository.delete(approvalRequest);
@@ -797,12 +786,10 @@ public class ApprovalServiceImpl implements ApprovalService {
      */
     private ApprovalRequest getAndValidatePendingRequest(Long id) {
         ApprovalRequest approvalRequest = approvalRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                        "Approval request not found with id: " + id));
+                .orElseThrow(() -> new ApprovalNotFoundException("결재 요청을 찾을 수 없습니다: " + id));
 
         if (approvalRequest.getStatus() != ApprovalStatus.PENDING) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Approval request is not in PENDING status.");
+            throw new ApprovalBadRequestException("결재 요청이 PENDING 상태가 아닙니다.");
         }
 
         return approvalRequest;
@@ -848,7 +835,7 @@ public class ApprovalServiceImpl implements ApprovalService {
                 log.info("VacationService 연차 차감 요청 성공.");
             } catch (Exception e) {
                 log.error("VacationService 연차 차감 요청 실패: {}", e.getMessage(), e);
-                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "연차 차감 처리 중 오류 발생");
+                throw new ApprovalInternalServerErrorException("연차 차감 처리 중 오류 발생");
             }
         }
     }
@@ -870,7 +857,7 @@ public class ApprovalServiceImpl implements ApprovalService {
                 );
             } catch (Exception e) {
                 log.error("VacationService 연차 복구 요청 실패: {}", e.getMessage());
-                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "연차 복구 처리 중 오류 발생");
+                throw new ApprovalInternalServerErrorException("연차 복구 처리 중 오류 발생");
             }
         }
     }
@@ -891,7 +878,7 @@ public class ApprovalServiceImpl implements ApprovalService {
                 log.info("CertificateService 증명서 승인 요청 성공. certificateId: {}", request.getCertificateId());
             } catch (Exception e) {
                 log.error("CertificateService 증명서 승인 요청 실패: {}", e.getMessage(), e);
-                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "증명서 승인 처리 중 오류 발생");
+                throw new ApprovalInternalServerErrorException("증명서 승인 처리 중 오류 발생");
             }
         }
     }
@@ -911,7 +898,7 @@ public class ApprovalServiceImpl implements ApprovalService {
                 log.info("CertificateService 증명서 반려 요청 성공. certificateId: {}", request.getCertificateId());
             } catch (Exception e) {
                 log.error("CertificateService 증명서 반려 요청 실패: {}", e.getMessage());
-                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "증명서 반려 처리 중 오류 발생");
+                throw new ApprovalInternalServerErrorException("증명서 반려 처리 중 오류 발생");
             }
         }
     }
@@ -940,7 +927,7 @@ public class ApprovalServiceImpl implements ApprovalService {
                 log.info("AbsenceService 부재 반려 요청 성공. absencesId: {}", request.getAbsencesId());
             } catch (Exception e) {
                 log.error("AbsenceService 부재 반려 요청 실패: {}", e.getMessage());
-                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "부재 반려 처리 중 오류 발생");
+                throw new ApprovalInternalServerErrorException("부재 반려 처리 중 오류 발생");
             }
         }
     }

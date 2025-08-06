@@ -6,6 +6,8 @@ import com.playdata.certificateservice.dto.CertificateReqDto;
 import com.playdata.certificateservice.dto.CertificateResDto;
 import com.playdata.certificateservice.client.hr.dto.UserFeignResDto;
 import com.playdata.certificateservice.entity.Certificate;
+import com.playdata.certificateservice.entity.Type;
+import java.util.Optional;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.springframework.data.domain.Page;
@@ -58,4 +60,7 @@ public interface CertificateService {
 
     // 증명서 ID로 조회
     Certificate getCertificateById(Long id);
+
+    // 특정 사용자의 유효한 증명서 조회 (approval-service에서 호출)
+    Optional<Certificate> getValidCertificate(Long employeeNo, Type type);
 }

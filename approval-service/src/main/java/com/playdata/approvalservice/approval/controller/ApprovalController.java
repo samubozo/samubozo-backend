@@ -132,6 +132,7 @@ public class ApprovalController {
                 .title(certificateDto.getTitle())           // 3. 나머지 정보는 받은 DTO에서 가져옴
                 .reason(certificateDto.getReason())
                 .certificateId(certificateDto.getCertificateId())
+                .certificateType(certificateDto.getCertificateType()) // certificateType 추가
                 .build();
 
         // 이제 특정 타입이 아닌, 범용 결재 생성 서비스를 호출합니다.

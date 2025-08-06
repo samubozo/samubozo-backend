@@ -37,5 +37,5 @@ public class CertificateApprovalRequestCreateDto {
 
     @NotNull(message = "종료일은 필수입니다.")
     private LocalDate endDate;
-    private String certificateType; // 추가: 증명서 유형 (EMPLOYMENT, CAREER 등)
+    private Type certificateType; // 추가: 증명서 유형 (EMPLOYMENT, CAREER 등)
 }

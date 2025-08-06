@@ -37,10 +37,12 @@ import org.springframework.web.server.ResponseStatusException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -75,6 +77,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .certificateId(savedCertificate.getCertificateId())
                 .title(title)
                 .reason(savedCertificate.getPurpose()) // 증명서의 'purpose'를 결재 요청의 'reason'으로 사용
+                .certificateType(com.playdata.certificateservice.client.dto.Type.valueOf(savedCertificate.getType().name())) // certificateType 추가
                 .build();
         log.info("2단계: Approval-Service로 보낼 결재 요청 DTO 생성 완료. DTO: {}", approvalRequestDto);
 
@@ -153,6 +156,7 @@ public class CertificateServiceImpl implements CertificateService {
                     .type(Type.valueOf(certificate.getType().name()))
                     .requestDate(certificate.getRequestDate())
                     .approveDate(certificate.getApproveDate())
+                    .expirationDate(certificate.getExpirationDate()) // expirationDate 추가
                     .processedAt(certificate.getProcessedAt())
                     .status(Status.valueOf(certificate.getStatus().name()))
                     .reason(certificate.getPurpose())
@@ -736,5 +740,15 @@ public class CertificateServiceImpl implements CertificateService {
     public Certificate getCertificateById(Long id) {
         return certificateRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Certificate not found with id: " + id));
+    }
+
+    @Override
+    public Optional<Certificate> getValidCertificate(Long employeeNo, Type type) {
+        return certificateRepository.findByEmployeeNoAndTypeAndStatusAndExpirationDateAfter(
+                employeeNo,
+                type,
+                Status.APPROVED, // 승인된 증명서만 확인
+                LocalDate.now()  // 현재 날짜를 기준으로 만료일이 지나지 않은 증명서 확인
+        );
     }
 }
