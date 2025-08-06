@@ -23,6 +23,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Optional;
+
 @RestController
 @RequestMapping("/certificate")
 @RequiredArgsConstructor
@@ -131,6 +133,14 @@ public class CertificateController {
         log.info("Internal reject certificate request for id={}, rejectComment={}, approverId={}, approverName={}", id, rejectComment, approverId, approverName);
         certificateService.rejectCertificateInternal(id, rejectComment, approverId, approverName);
         return ResponseEntity.ok().build();
+    }
+
+    // [내부호출] 특정 사용자의 유효한 증명서 조회 (approval-service 전용)
+    @GetMapping("/internal/valid")
+    public ResponseEntity<Boolean> getValidCertificateInternal(@RequestParam("employeeNo") Long employeeNo, @RequestParam("type") com.playdata.certificateservice.entity.Type type) {
+        log.info("Internal get valid certificate request for employeeNo={}, type={}", employeeNo, type);
+        Optional<Certificate> validCertificate = certificateService.getValidCertificate(employeeNo, type);
+        return ResponseEntity.ok(validCertificate.isPresent());
     }
 
     // 모든 증명서 조회 (HR 전용)

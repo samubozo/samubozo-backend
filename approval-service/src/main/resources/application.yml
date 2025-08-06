@@ -5,12 +5,6 @@ spring:
   application:
     name: approval-service
 
-logging:
-  level:
-    root: DEBUG
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p [%t] %c{1.}:%L - %m%n"
-
 springdoc:
   api-docs:
     path: /v3/api-docs

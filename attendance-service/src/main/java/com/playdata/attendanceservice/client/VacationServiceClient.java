@@ -25,7 +25,7 @@ public interface VacationServiceClient {
      * @return 휴가 신청 결과
      */
     @PostMapping("/vacations/requestVacation")
-    ResponseEntity<Void> requestVacation(
+    CommonResDto<Void> requestVacation(
             @RequestBody VacationRequestDto requestDto);
 
     /**
@@ -36,7 +36,7 @@ public interface VacationServiceClient {
      * @return 연차 부여 결과
      */
     @PutMapping("/vacations/annual-leave/{userId}")
-    ResponseEntity<Void> grantAnnualLeave(
+    CommonResDto<Void> grantAnnualLeave(
             @PathVariable("userId") Long userId,
             @RequestParam("days") int days);
 
@@ -47,7 +47,7 @@ public interface VacationServiceClient {
      * @return 연차 부여 결과
      */
     @PutMapping("/vacations/monthly-leave/{userId}")
-    ResponseEntity<Void> grantMonthlyLeave(
+    CommonResDto<Void> grantMonthlyLeave(
             @PathVariable("userId") Long userId);
 
     /**

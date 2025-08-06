@@ -75,3 +75,7 @@ dependencyManagement {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+bootJar {
+    mainClass = 'com.playdata.approvalservice.ApprovalServiceApplication'
+}

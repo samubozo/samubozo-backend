@@ -254,6 +254,9 @@ public class VacationController {
                 deductionDays = vacationType.getDeductionDays();
             }
             vacationService.deductVacationBalance(userId, deductionDays);
+
+            // WorkStatus 생성을 요청합니다.
+            vacationService.createWorkStatusForApprovedVacation(vacationId, vacationType);
         } else if (newStatus == VacationStatus.REJECTED) {
             // 반려 시 연차 복구 로직은 필요 없음. 연차는 승인 시에만 차감되므로.
         }

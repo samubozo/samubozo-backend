@@ -3,6 +3,7 @@ package com.playdata.approvalservice.approval.repository;
 import com.playdata.approvalservice.approval.entity.ApprovalRequest;
 import com.playdata.approvalservice.approval.entity.ApprovalStatus;
 import com.playdata.approvalservice.approval.entity.RequestType;
+import com.playdata.approvalservice.approval.entity.Type;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -22,11 +23,7 @@ public interface ApprovalRepository extends JpaRepository<ApprovalRequest, Long>
 
     // ===== 기본 조회 메서드들 =====
 
-    /**
-     * 특정 사용자의 특정 날짜에 승인된 휴가 요청을 조회
-     */
-    Optional<ApprovalRequest> findByApplicantIdAndRequestedAtBetweenAndStatus(
-            Long applicantId, LocalDateTime startOfDay, LocalDateTime endOfDay, ApprovalStatus status);
+    
 
     /**
      * 특정 사용자의 특정 날짜에 승인된 모든 요청을 조회
@@ -94,6 +91,20 @@ public interface ApprovalRepository extends JpaRepository<ApprovalRequest, Long>
     );
 
     // ===== 타입별 조회 메서드들 =====
+
+    /**
+     * 특정 신청자가 동일한 유형의 증명서 요청을 이미 제출했는지 확인합니다.
+     * (주로 PENDING 상태의 중복 요청을 확인하는 데 사용됩니다.)
+     * @param applicantId 신청자 ID
+     * @param requestType 요청 유형 (CERTIFICATE)
+     * @param certificateType 증명서 유형
+     * @param status 결재 상태 (PENDING)
+     * @return 해당 조건에 맞는 결재 요청 (존재하지 않으면 Optional.empty())
+     */
+    Optional<ApprovalRequest> findByApplicantIdAndRequestTypeAndCertificateTypeAndStatus(
+            Long applicantId, RequestType requestType, Type certificateType, ApprovalStatus status);
+
+    
 
     /**
      * 특정 요청 유형의 모든 결재 요청을 조회 (최신순)

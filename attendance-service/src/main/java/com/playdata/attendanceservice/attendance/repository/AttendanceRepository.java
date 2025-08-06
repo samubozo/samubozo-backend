@@ -1,8 +1,8 @@
 package com.playdata.attendanceservice.attendance.repository;
 
 import com.playdata.attendanceservice.attendance.entity.Attendance;
-import com.playdata.attendanceservice.attendance.entity.WorkStatus;
-import com.playdata.attendanceservice.attendance.entity.WorkStatusType;
+import com.playdata.attendanceservice.workstatus.entity.WorkStatus;
+import com.playdata.attendanceservice.workstatus.entity.WorkStatusType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

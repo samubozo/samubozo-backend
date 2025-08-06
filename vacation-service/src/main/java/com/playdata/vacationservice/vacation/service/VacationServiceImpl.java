@@ -1,9 +1,11 @@
 package com.playdata.vacationservice.vacation.service;
 
 import com.playdata.vacationservice.client.ApprovalServiceClient;
+import com.playdata.vacationservice.client.AttendanceServiceClient;
 import com.playdata.vacationservice.client.HrServiceClient;
 import com.playdata.vacationservice.client.dto.VacationApprovalRequestCreateDto;
 import com.playdata.vacationservice.client.dto.ApprovalRequestResponseDto;
+import com.playdata.vacationservice.client.dto.WorkStatusCreateRequestDto;
 import com.playdata.vacationservice.client.dto.UserDetailDto;
 import com.playdata.vacationservice.client.dto.UserFeignResDto; // 추가
 import com.playdata.vacationservice.common.auth.TokenUserInfo;
@@ -53,6 +55,7 @@ public class VacationServiceImpl implements VacationService {
     private final VacationRepository vacationRepository;
     private final ApprovalServiceClient approvalServiceClient;
     private final HrServiceClient hrServiceClient;
+    private final AttendanceServiceClient attendanceServiceClient;
 
     /**
      * 특정 사용자의 특정 월의 휴가 사용 통계를 조회합니다.
@@ -634,5 +637,33 @@ public class VacationServiceImpl implements VacationService {
                             }
                         })
                 ));
+    }
+
+    @Override
+    public void createWorkStatusForApprovedVacation(Long vacationId, VacationType vacationType) {
+        log.info("Requesting to create WorkStatus for approved vacation. vacationId: {}", vacationId);
+
+        // 1. vacationId로 휴가 정보 조회
+        Vacation vacation = vacationRepository.findById(vacationId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 휴가 신청을 찾을 수 없습니다: " + vacationId));
+
+        // 2. DTO 생성
+        WorkStatusCreateRequestDto requestDto = WorkStatusCreateRequestDto.builder()
+                .userId(vacation.getUserId())
+                .startDate(vacation.getStartDate())
+                .endDate(vacation.getEndDate())
+                .vacationType(vacationType.name())
+                .reason(vacation.getReason())
+                .build();
+
+        // 3. Feign Client 호출
+        try {
+            attendanceServiceClient.createWorkStatusForVacation(requestDto);
+            log.info("Successfully requested to create WorkStatus for vacationId: {}", vacationId);
+        } catch (FeignException e) {
+            log.error("Failed to request WorkStatus creation for vacationId: {}. status: {}, message: {}",
+                    vacationId, e.status(), e.getMessage());
+            // 지금은 로그만 남기고 넘어갑니다.
+        }
     }
 }
