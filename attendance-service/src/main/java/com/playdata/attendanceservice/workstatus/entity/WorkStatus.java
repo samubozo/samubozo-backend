@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
-import java.time.LocalTime;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "work_statuses", uniqueConstraints = {
@@ -46,10 +46,10 @@ public class WorkStatus extends BaseEntity {
     private String reason;
 
     @Column(name = "check_in_time")
-    private LocalTime checkInTime;
+    private LocalDateTime checkInTime;
 
     @Column(name = "check_out_time")
-    private LocalTime checkOutTime;
+    private LocalDateTime checkOutTime;
 
     
 
@@ -70,7 +70,11 @@ public class WorkStatus extends BaseEntity {
         this.attendance = attendance;
     }
 
-    public void setCheckOutTime(LocalTime checkOutTime) {
+    public void setCheckInTime(LocalDateTime checkInTime) {
+        this.checkInTime = checkInTime;
+    }
+
+    public void setCheckOutTime(LocalDateTime checkOutTime) {
         this.checkOutTime = checkOutTime;
     }
 
@@ -87,7 +91,7 @@ public class WorkStatus extends BaseEntity {
     }
 
     // 지각 기록
-    public static WorkStatus recordLate(Long userId, LocalDate date, LocalTime checkIn, String reason) {
+    public static WorkStatus recordLate(Long userId, LocalDate date, LocalDateTime checkIn, String reason) {
         return WorkStatus.builder()
                 .userId(userId)
                 .date(date)
@@ -99,7 +103,7 @@ public class WorkStatus extends BaseEntity {
     }
 
     // 조퇴 기록
-    public static WorkStatus recordEarlyLeave(Long userId, LocalDate date, LocalTime checkOut, String reason) {
+    public static WorkStatus recordEarlyLeave(Long userId, LocalDate date, LocalDateTime checkOut, String reason) {
         return WorkStatus.builder()
                 .userId(userId)
                 .date(date)

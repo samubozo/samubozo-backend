@@ -88,7 +88,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                     .date(checkInDateTime.toLocalDate())
                     .statusType(initialStatusType)
                     .reason(null) // 초기에는 사유 없음
-                    .checkInTime(checkInDateTime.toLocalTime())
+                    .checkInTime(checkInDateTime)
                     .isLate(isLate)
                     .build();
 
@@ -221,7 +221,7 @@ public class AttendanceServiceImpl implements AttendanceService {
 
         if (optionalWorkStatus.isPresent()) {
             WorkStatus workStatus = optionalWorkStatus.get();
-            workStatus.setCheckOutTime(checkOutDateTime.toLocalTime());
+            workStatus.setCheckOutTime(checkOutDateTime);
 
             LocalTime currentCheckOutTime = checkOutDateTime.toLocalTime();
             LocalTime standardCheckOutTime = LocalTime.parse(standardCheckOutTimeStr);

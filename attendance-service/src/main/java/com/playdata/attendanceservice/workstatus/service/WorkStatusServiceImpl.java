@@ -46,15 +46,23 @@ public class WorkStatusServiceImpl implements WorkStatusService {
                 // 기존 WorkStatus 업데이트
                 workStatus.setStatusType(statusType);
                 workStatus.setReason(reason);
-                workStatus.setIsLate(false); // 휴가/부재는 지각이 아님
+                // isLate는 기존 값을 유지합니다. 휴가/부재 승인으로 인한 업데이트 시에는 isLate를 변경하지 않습니다.
+
+                // Attendance 엔티티가 연결되어 있다면 checkInTime과 checkOutTime을 업데이트
+                if (workStatus.getAttendance() != null) {
+                    workStatus.setCheckInTime(workStatus.getAttendance().getCheckInTime());
+                    workStatus.setCheckOutTime(workStatus.getAttendance().getCheckOutTime());
+                }
             } else {
                 // 새로운 WorkStatus 생성
                 workStatus = WorkStatus.builder()
                         .userId(userId)
                         .date(date)
                         .statusType(statusType)
-                        .isLate(false)
+                        .isLate(false) // 새로 생성되는 WorkStatus는 기본적으로 지각이 아님
                         .reason(reason)
+                        .checkInTime(null) // 실제 출근 기록이 없으므로 null
+                        .checkOutTime(null) // 실제 퇴근 기록이 없으므로 null
                         .build();
             }
             workStatusRepository.save(workStatus);
