@@ -1,5 +1,5 @@
 // ======================================================
-// 최종 완성형 Jenkinsfile (결과 내용 직접 파싱 방식)
+// 최종 완성형 Jenkinsfile (변수 범위 문제 회피 로직)
 // ======================================================
 
 def deployHost = "172.31.9.208"
@@ -32,65 +32,62 @@ pipeline {
             steps {
                 script {
                     def allServices = env.SERVICE_DIRS.split(",").toList()
-                    def commonModules = env.COMMON_MODULES.split(",").toList()
-                    def changedServices = []
+                    def finalChangedServices = []
 
                     if (params.MANUAL_BUILD_SERVICES.trim()) {
                         echo "Manual build triggered for: ${params.MANUAL_BUILD_SERVICES}"
-                        changedServices = params.MANUAL_BUILD_SERVICES.split(',').collect { it.trim() }
+                        finalChangedServices = params.MANUAL_BUILD_SERVICES.split(',').collect { it.trim() }
 
                     } else {
-                        // --- 1. ECR에 이미지가 없는 서비스를 먼저 찾습니다. (수정된 로직) ---
+                        // ✨ 수정: 각 단계별로 빌드 대상을 별도의 리스트에 저장합니다.
+                        def ecrEmptyServices = []
+                        def gitChangedServices = []
+
+                        // 1. ECR 체크 결과를 ecrEmptyServices 리스트에 저장
                         echo "--- Checking for services with no images in ECR ---"
                         withAWS(region: "${REGION}", credentials: "aws-key") {
                             allServices.each { service ->
-                                try {
-                                    // 명령어의 표준 출력을 반환받음 (returnStdout: true)
-                                    def imageJson = sh(script: "aws ecr describe-images --repository-name ${service}", returnStdout: true).trim()
-                                    def imageInfo = new groovy.json.JsonSlurper().parseText(imageJson)
-
-                                    // 반환된 결과의 내용(imageDetails 리스트)이 비어있는지 직접 확인
-                                    if (imageInfo.imageDetails.isEmpty()) {
-                                        echo "-> No images found for '${service}' in ECR (list is empty). Adding to build list."
-                                        changedServices.add(service)
-                                    }
-                                } catch (Exception e) {
-                                    // 명령 자체가 실패하는 경우(예: RepositoryNotFoundException)도 빌드 대상
-                                    echo "-> Failed to describe images for '${service}' (likely new repo). Adding to build list."
-                                    changedServices.add(service)
+                                def statusCode = sh(script: "aws ecr describe-images --repository-name ${service} --max-items 1 > /dev/null 2>&1", returnStatus: true)
+                                if (statusCode != 0) {
+                                    echo "-> No images found for '${service}' in ECR. Adding to build list."
+                                    ecrEmptyServices.add(service)
                                 }
                             }
                         }
 
-                        // --- 2. Git 코드 변경 감지 ---
+                        // 2. Git 변경 감지 결과를 gitChangedServices 리스트에 저장
                         echo "\n--- Checking for services with code changes via Git ---"
                         def commitCount = sh(script: "git rev-list --count HEAD", returnStdout: true).trim().toInteger()
                         if (commitCount > 1) {
                             def changedFilesOutput = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim()
                             if (changedFilesOutput) {
                                 def changedFiles = changedFilesOutput.split('\n').toList()
+                                def commonModules = env.COMMON_MODULES.split(",").toList()
                                 if (commonModules.any { module -> changedFiles.any { it.startsWith(module + "/") } }) {
                                     echo "-> Common module changed. Adding all services to build list."
-                                    changedServices.addAll(allServices)
+                                    gitChangedServices.addAll(allServices)
                                 } else {
                                     allServices.each { service ->
                                         if (changedFiles.any { it.startsWith(service + "/") }) {
                                             echo "-> Code changes detected for '${service}'. Adding to build list."
-                                            changedServices.add(service)
+                                            gitChangedServices.add(service)
                                         }
                                     }
                                 }
                             }
                         }
+
+                        // ✨ 수정: 마지막에 두 리스트를 합칩니다.
+                        finalChangedServices.addAll(ecrEmptyServices)
+                        finalChangedServices.addAll(gitChangedServices)
                     }
 
-                    // --- 3. 최종 빌드 목록 확정 ---
-                    if (changedServices.isEmpty()) {
+                    if (finalChangedServices.isEmpty()) {
                         echo "\nNo services to build."
                         env.CHANGED_SERVICES = ""
                         currentBuild.result = 'SUCCESS'
                     } else {
-                        env.CHANGED_SERVICES = changedServices.unique().join(",")
+                        env.CHANGED_SERVICES = finalChangedServices.unique().join(",")
                     }
                     echo "\n>>> Final services to be built: ${env.CHANGED_SERVICES}"
                 }
