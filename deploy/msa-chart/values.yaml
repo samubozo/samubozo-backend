@@ -9,7 +9,7 @@ imagePullSecrets:
 #모든 서비스에서 공통적으로 사용할 값들을 정의
 global:
   ecrUrl: ""
-  services: ""
+  services: "approval-service,attendance-service,auth-service,certificate-service,chatbot-service,config-service,gateway-service,hr-service,message-service,notification-service,payroll-service,schedule-service,vacation-service"
   image:
     tag: latest
   #모든 서비스에서 사용할 공통 환경변수
