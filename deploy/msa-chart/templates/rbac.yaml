@@ -1,0 +1,23 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: service-reader
+  namespace: default # default 네임스페이스에 Role을 생성
+rules:
+- apiGroups: [""] # ""는 core API group을 의미 (pods, services, endpoints 등)
+  resources: ["endpoints", "services"]
+  verbs: ["get", "list", "watch"] # 조회 및 변경 감지 권한 부여
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: default-service-account-reader
+  namespace: default # default 네임스페이스에 RoleBinding을 생성
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: service-reader # 위에서 정의한 Role을 참조
+subjects:
+- kind: ServiceAccount
+  name: default # default 서비스 어카운트에 권한 부여
+  namespace: default # default 네임스페이스의 서비스 어카운트
