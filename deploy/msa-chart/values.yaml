@@ -17,7 +17,7 @@ global:
     - name: TZ
       value: Asia/Seoul
     - name: SPRING_PROFILES_ACTIVE
-      value: dev
+      value: dev,kubernetes
     - name: SPRING_CLOUD_CONFIG_URI
       value: http://config-service:8888
     - name: SPRING_CLOUD_CONFIG_PROFILE_ACTIVE
