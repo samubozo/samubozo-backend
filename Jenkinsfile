@@ -1,5 +1,5 @@
 // ======================================================
-// 최종 Jenkinsfile (ECR 이미지 부재 시 전체 빌드 로직 포함)
+// 최종 Jenkinsfile (NullPointerException 해결)
 // ======================================================
 
 def deployHost = "172.31.9.208"
@@ -36,20 +36,15 @@ pipeline {
                     def changedServices = []
                     def shouldBuildAll = false
 
-                    // ✨ 수정: ECR 저장소가 비어있는지 확인하는 로직 다시 추가
                     withAWS(region: "${REGION}", credentials: "aws-key") {
                         try {
-                            // 모든 ECR 리포지토리 목록을 가져옴
                             def repoListJson = sh(script: "aws ecr describe-repositories --output json", returnStdout: true)
                             def repoList = new groovy.json.JsonSlurper().parseText(repoListJson)
-
-                            // ECR에 리포지토리가 하나도 없으면 전체 빌드 플래그를 활성화
                             if (repoList.repositories.isEmpty()) {
                                 echo "No ECR repositories found. Building all services for the first time."
                                 shouldBuildAll = true
                             }
                         } catch (Exception e) {
-                            // aws cli 명령이 실패하는 경우 (권한 문제 등)를 대비하여 전체 빌드로 간주
                             echo "Failed to check ECR repositories: ${e.getMessage()}. Assuming it's the first build."
                             shouldBuildAll = true
                         }
@@ -99,15 +94,16 @@ pipeline {
 
         stage('Build & Push Changed Services in Parallel') {
             when {
-                expression { env.CHANGED_SERVICES != "" }
+                // ✨ 수정 1: when 조건을 강화. Groovy에서는 null과 빈 문자열 모두 false로 취급되므로, 이렇게만 써도 충분합니다.
+                expression { env.CHANGED_SERVICES }
             }
             steps {
                 withAWS(region: "${REGION}", credentials: "aws-key") {
                     script {
-                        def changedServices = env.CHANGED_SERVICES.split(",").toList()
+                        // ✨ 수정 2: Elvis 연산자(?: '')를 사용해 만약 env.CHANGED_SERVICES가 null이더라도 빈 문자열로 처리하여 NullPointerException 방지
+                        def changedServices = (env.CHANGED_SERVICES ?: '').split(",").toList()
                         def parallelTasks = [:]
 
-                        // ECR 로그인은 병렬 작업 전에 한 번만 수행
                         sh "aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_URL}"
 
                         changedServices.each { service ->
@@ -132,7 +128,8 @@ pipeline {
         }
 //         stage('Deploy Changed Services to AWS EC2') {
 //             when {
-//                 expression { env.CHANGED_SERVICES != "" }
+//                 // ✨ 수정 1: when 조건을 강화
+//                 expression { env.CHANGED_SERVICES }
 //             }
 //             steps {
 //                 sshagent(credentials: ["deploy-key"]) {
