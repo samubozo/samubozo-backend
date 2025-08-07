@@ -1,6 +1,5 @@
 // ======================================================
-// 최종 디버깅용 Jenkinsfile
-// (모든 실행 명령어와 AWS 자격증명을 로그에 출력)
+// 최종 완성형 Jenkinsfile (결과 내용 직접 파싱 방식)
 // ======================================================
 
 def deployHost = "172.31.9.208"
@@ -41,20 +40,29 @@ pipeline {
                         changedServices = params.MANUAL_BUILD_SERVICES.split(',').collect { it.trim() }
 
                     } else {
+                        // --- 1. ECR에 이미지가 없는 서비스를 먼저 찾습니다. (수정된 로직) ---
                         echo "--- Checking for services with no images in ECR ---"
                         withAWS(region: "${REGION}", credentials: "aws-key") {
-                            // ✨ 디버깅: 현재 어떤 AWS 자격증명으로 실행되는지 확인
-                            sh 'aws sts get-caller-identity'
-
                             allServices.each { service ->
-                                def statusCode = sh(script: "aws ecr describe-images --repository-name ${service} --max-items 1 > /dev/null 2>&1", returnStatus: true)
-                                if (statusCode != 0) {
-                                    echo "-> No images found for '${service}' in ECR (exit code: ${statusCode}). Adding to build list."
+                                try {
+                                    // 명령어의 표준 출력을 반환받음 (returnStdout: true)
+                                    def imageJson = sh(script: "aws ecr describe-images --repository-name ${service}", returnStdout: true).trim()
+                                    def imageInfo = new groovy.json.JsonSlurper().parseText(imageJson)
+
+                                    // 반환된 결과의 내용(imageDetails 리스트)이 비어있는지 직접 확인
+                                    if (imageInfo.imageDetails.isEmpty()) {
+                                        echo "-> No images found for '${service}' in ECR (list is empty). Adding to build list."
+                                        changedServices.add(service)
+                                    }
+                                } catch (Exception e) {
+                                    // 명령 자체가 실패하는 경우(예: RepositoryNotFoundException)도 빌드 대상
+                                    echo "-> Failed to describe images for '${service}' (likely new repo). Adding to build list."
                                     changedServices.add(service)
                                 }
                             }
                         }
 
+                        // --- 2. Git 코드 변경 감지 ---
                         echo "\n--- Checking for services with code changes via Git ---"
                         def commitCount = sh(script: "git rev-list --count HEAD", returnStdout: true).trim().toInteger()
                         if (commitCount > 1) {
@@ -76,6 +84,7 @@ pipeline {
                         }
                     }
 
+                    // --- 3. 최종 빌드 목록 확정 ---
                     if (changedServices.isEmpty()) {
                         echo "\nNo services to build."
                         env.CHANGED_SERVICES = ""
@@ -98,16 +107,11 @@ pipeline {
 //                         def changedServices = (env.CHANGED_SERVICES ?: '').split(",").toList()
 //                         def parallelTasks = [:]
 //
-//                         // ✨ 디버깅: 명령어 실행 과정 추적
-//                         sh """
-//                           set -x
-//                           aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_URL}
-//                         """
+//                         sh "aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_URL}"
 //
 //                         changedServices.each { service ->
 //                             parallelTasks["Build & Push ${service}"] = {
 //                                 sh """
-//                                     set -x # ✨ 디버깅: 모든 셸 명령어 로그에 출력
 //                                     echo "--- Building ${service} ---"
 //                                     cd ${service}
 //                                     ./gradlew clean build -x test
