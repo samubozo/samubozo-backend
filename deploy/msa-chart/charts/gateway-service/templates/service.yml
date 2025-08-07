@@ -1,12 +1,13 @@
+{{- if contains .Chart.Name .Values.global.services -}}
 apiVersion: v1
 kind: Service
 metadata:
-  name: gateway-service
+  name: {{ .Chart.Name }}
 spec:
   selector:
-    app: gateway-service
+    app: {{ .Chart.Name }}
   ports:
     - protocol: TCP
-      port: {{ .Values.port }}
-      targetPort: {{ .Values.port }}
-  type: ClusterIP
+      port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.port }}
+{{- end -}}

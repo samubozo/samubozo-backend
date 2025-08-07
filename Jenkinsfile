@@ -4,7 +4,6 @@
 
 // 전역 변수 선언 (pipeline 블록 밖에 선언)
 def GLOBAL_CHANGED_SERVICES = ""
-def deployHost = "172.31.9.208"
 
 pipeline {
     agent any
@@ -14,6 +13,8 @@ pipeline {
         ECR_URL = "886331869898.dkr.ecr.ap-northeast-2.amazonaws.com"
         REGION = "ap-northeast-2"
         COMMON_MODULES = "common-module,parent-module"
+        # Helm 배포 관련 변수
+        EKS_CLUSTER_NAME = "samubozo-eks"
     }
 
     stages {
@@ -125,7 +126,6 @@ pipeline {
                                 echo "\n📦 Building ${service}..."
 
                                 // Docker 이미지 빌드 및 푸시
-                                // Dockerfile이 있는 서비스 폴더를 컨텍스트로 지정
                                 sh """
                                     docker build -t ${service}:latest ./${service}
                                     docker tag ${service}:latest ${ECR_URL}/${service}:latest
@@ -152,9 +152,49 @@ pipeline {
             }
         }
 
-//         stage('Deploy Services') {
-//             // ...
-//         }
+        stage('Deploy Services to EKS') {
+            when {
+                expression {
+                    return GLOBAL_CHANGED_SERVICES != null && GLOBAL_CHANGED_SERVICES != ""
+                }
+            }
+            steps {
+                script {
+                    echo "========================================="
+                    echo "     Deploy Services Stage Starting"
+                    echo "========================================="
+
+                    def changedServicesString = GLOBAL_CHANGED_SERVICES.split(",").join(",")
+                    echo " Deploying services: ${changedServicesString}"
+
+                    withAWS(region: "${REGION}", credentials: "eks-admin") {
+                        // EKS 클러스터 인증 정보 업데이트
+                        sh """
+                            aws eks update-kubeconfig --name ${EKS_CLUSTER_NAME} --region ${REGION}
+                        """
+
+                        try {
+                            echo "Deploying msa-chart to EKS using Helm..."
+
+                            sh """
+                                helm upgrade --install msa-app ./deploy/msa-chart 
+                                    --set global.ecrUrl=${ECR_URL} 
+                                    --set global.services=${changedServicesString} 
+                                    --set global.image.tag=latest
+                            """
+                            
+                            echo "✅ msa-chart deployment completed"
+
+                        } catch (Exception e) {
+                            echo "❌ msa-chart deployment failed: ${e.message}"
+                            throw e
+                        }
+                    }
+                    echo "
+✅ All services deployed successfully!"
+                }
+            }
+        }
     }
 
     post {
@@ -274,34 +314,4 @@ def checkGitChanges(serviceList) {
     }
 
     return changedServices
-}
-
-def createBuildTask(serviceName) {
-    return {
-        try {
-            echo "\n🔨 Building ${serviceName}..."
-
-            // Dockerfile에 빌드를 위임했으므로 Jenkinsfile의 Gradle 빌드 과정은 삭제
-            // // Gradle 빌드 (실행 권한 추가)
-            // sh """
-            //     cd ${serviceName}
-            //     chmod +x ./gradlew
-            //     ./gradlew clean build -x test
-            //     cd ..
-            // """
-
-            // Docker 이미지 빌드 및 푸시
-            sh """
-                docker build -t ${serviceName}:latest ./${serviceName}
-                docker tag ${serviceName}:latest ${env.ECR_URL}/${serviceName}:latest
-                docker push ${env.ECR_URL}/${serviceName}:latest
-            """
-
-            echo "✅ ${serviceName} build completed"
-
-        } catch (Exception e) {
-            echo "❌ ${serviceName} build failed: ${e.message}"
-            throw e
-        }
-    }
 }
