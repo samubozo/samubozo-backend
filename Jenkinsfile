@@ -31,26 +31,25 @@ pipeline {
             }
         }
 
+        // Detect Changes 스테이지만 교체 (더 간단한 방법)
         stage('Detect Changes') {
             steps {
                 script {
                     def allServices = env.SERVICE_DIRS.split(",").toList()
-                    def finalChangedServices = []
+                    def changedServicesList = []
 
                     if (params.MANUAL_BUILD_SERVICES.trim()) {
                         echo "Manual build triggered for: ${params.MANUAL_BUILD_SERVICES}"
-                        finalChangedServices = params.MANUAL_BUILD_SERVICES.split(',').collect { it.trim() }
-
+                        env.CHANGED_SERVICES = params.MANUAL_BUILD_SERVICES.trim()
                     } else {
-                        // ✨ 수정: ECR 체크 결과를 직접 리스트에 저장
+                        // ECR 체크 - 문자열로 직접 구성
                         echo "--- Checking for services with no images in ECR ---"
-                        def ecrEmptyServices = []
+                        def ecrEmptyStr = ""
 
                         withAWS(region: "${REGION}", credentials: "aws-key") {
                             allServices.each { service ->
                                 echo "Checking ECR for service: ${service}"
 
-                                // 방법 2: list-images 사용 (더 신뢰할 수 있음)
                                 def listOutput = sh(
                                     script: """
                                         aws ecr list-images --repository-name ${service} --query 'imageIds[0]' --output text 2>&1 || echo "ERROR"
@@ -60,69 +59,62 @@ pipeline {
 
                                 echo "List images output for ${service}: ${listOutput}"
 
-                                // 이미지가 없거나 레포지토리가 없는 경우 처리
-                                if (listOutput == "None" || listOutput == "" || listOutput.contains("ERROR") || listOutput.contains("RepositoryNotFoundException")) {
-                                    echo "-> No images found for '${service}' in ECR. Adding to list."
-                                    ecrEmptyServices.add(service)
-                                } else {
-                                    echo "-> Images exist for '${service}' in ECR."
+                                if (listOutput == "None" || listOutput == "" || listOutput.contains("ERROR")) {
+                                    echo "-> No images found for '${service}' in ECR."
+                                    if (ecrEmptyStr) {
+                                        ecrEmptyStr = ecrEmptyStr + "," + service
+                                    } else {
+                                        ecrEmptyStr = service
+                                    }
                                 }
                             }
+                            // 파일에 저장
+                            sh "echo '${ecrEmptyStr}' > ecr_result.txt"
                         }
 
-                        // ECR 결과를 바로 finalChangedServices에 추가
-                        if (!ecrEmptyServices.isEmpty()) {
-                            echo "ECR empty services found: ${ecrEmptyServices.join(',')}"
-                            finalChangedServices.addAll(ecrEmptyServices)
+                        // 파일에서 읽기
+                        def ecrResult = sh(script: "cat ecr_result.txt", returnStdout: true).trim()
+                        echo "ECR empty services: ${ecrResult}"
+
+                        if (ecrResult) {
+                            changedServicesList.addAll(ecrResult.split(','))
                         }
 
-                        // 2. Git 변경 감지
+                        // Git 변경 감지
                         echo "\n--- Checking for services with code changes via Git ---"
-                        def gitChangedServices = []
                         def commitCount = sh(script: "git rev-list --count HEAD", returnStdout: true).trim().toInteger()
 
                         if (commitCount > 1) {
                             def changedFilesOutput = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim()
                             if (changedFilesOutput) {
+                                echo "Changed files:\n${changedFilesOutput}"
                                 def changedFiles = changedFilesOutput.split('\n').toList()
                                 def commonModules = env.COMMON_MODULES.split(",").toList()
 
-                                // 공통 모듈이 변경되면 모든 서비스 빌드
                                 if (commonModules.any { module -> changedFiles.any { it.startsWith(module + "/") } }) {
                                     echo "Common module changed, all services will be built"
-                                    gitChangedServices.addAll(allServices)
+                                    changedServicesList.addAll(allServices)
                                 } else {
-                                    // 개별 서비스 변경 확인
                                     allServices.each { service ->
                                         if (changedFiles.any { it.startsWith(service + "/") }) {
                                             echo "Git changes detected in: ${service}"
-                                            gitChangedServices.add(service)
+                                            changedServicesList.add(service)
                                         }
                                     }
                                 }
                             }
+                        }
+
+                        // 최종 결과
+                        if (changedServicesList.isEmpty()) {
+                            echo "\n⚠️ No services to build."
+                            env.CHANGED_SERVICES = ""
                         } else {
-                            echo "This is the first commit, checking all services"
-                            // 첫 커밋인 경우 모든 서비스 체크 (ECR 체크만 진행됨)
+                            def uniqueServices = changedServicesList.unique()
+                            env.CHANGED_SERVICES = uniqueServices.join(",")
+                            echo "\n✅ Final services to be built: ${env.CHANGED_SERVICES}"
+                            echo "Total count: ${uniqueServices.size()}"
                         }
-
-                        // Git 변경사항 추가
-                        if (!gitChangedServices.isEmpty()) {
-                            echo "Git changed services: ${gitChangedServices.join(',')}"
-                            finalChangedServices.addAll(gitChangedServices)
-                        }
-                    }
-
-                    // 중복 제거 및 최종 결과 설정
-                    if (finalChangedServices.isEmpty()) {
-                        echo "\n⚠️ No services to build."
-                        env.CHANGED_SERVICES = ""
-                        currentBuild.result = 'SUCCESS'
-                    } else {
-                        def uniqueServices = finalChangedServices.unique()
-                        env.CHANGED_SERVICES = uniqueServices.join(",")
-                        echo "\n✅ Final services to be built: ${env.CHANGED_SERVICES}"
-                        echo "Total count: ${uniqueServices.size()}"
                     }
                 }
             }
