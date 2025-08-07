@@ -122,36 +122,36 @@ pipeline {
             }
         }
 
-//         stage('Build & Push Changed Services in Parallel') {
-//             when {
-//                 expression { env.CHANGED_SERVICES }
-//             }
-//             steps {
-//                 withAWS(region: "${REGION}", credentials: "aws-key") {
-//                     script {
-//                         def changedServices = (env.CHANGED_SERVICES ?: '').split(",").toList()
-//                         def parallelTasks = [:]
-//
-//                         sh "aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_URL}"
-//
-//                         changedServices.each { service ->
-//                             parallelTasks["Build & Push ${service}"] = {
-//                                 sh """
-//                                     echo "--- Building ${service} ---"
-//                                     cd ${service}
-//                                     ./gradlew clean build -x test
-//                                     cd ..
-//                                     echo "--- Building and Pushing Docker image for ${service} ---"
-//                                     docker build -t ${service}:latest ./${service}
-//                                     docker tag ${service}:latest ${ECR_URL}/${service}:latest
-//                                     docker push ${ECR_URL}/${service}:latest
-//                                 """
-//                             }
-//                         }
-//                         parallel parallelTasks
-//                     }
-//                 }
-//             }
-//         }
+        stage('Build & Push Changed Services in Parallel') {
+            when {
+                expression { env.CHANGED_SERVICES }
+            }
+            steps {
+                withAWS(region: "${REGION}", credentials: "aws-key") {
+                    script {
+                        def changedServices = (env.CHANGED_SERVICES ?: '').split(",").toList()
+                        def parallelTasks = [:]
+
+                        sh "aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_URL}"
+
+                        changedServices.each { service ->
+                            parallelTasks["Build & Push ${service}"] = {
+                                sh """
+                                    echo "--- Building ${service} ---"
+                                    cd ${service}
+                                    ./gradlew clean build -x test
+                                    cd ..
+                                    echo "--- Building and Pushing Docker image for ${service} ---"
+                                    docker build -t ${service}:latest ./${service}
+                                    docker tag ${service}:latest ${ECR_URL}/${service}:latest
+                                    docker push ${ECR_URL}/${service}:latest
+                                """
+                            }
+                        }
+                        parallel parallelTasks
+                    }
+                }
+            }
+        }
     }
 }
