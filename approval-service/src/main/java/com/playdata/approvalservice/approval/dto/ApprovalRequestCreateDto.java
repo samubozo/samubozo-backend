@@ -1,21 +1,47 @@
 package com.playdata.approvalservice.approval.dto;
 
+import com.playdata.approvalservice.approval.entity.AbsenceType;
 import com.playdata.approvalservice.approval.entity.RequestType;
-import lombok.Builder;
-import lombok.Getter;
+import com.playdata.approvalservice.approval.entity.Type;
+import com.playdata.approvalservice.approval.entity.UrgencyType;
+import lombok.*;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+
+/**
+ * 모든 결재 요청 생성을 위한 범용 DTO입니다.
+ */
 @Getter
+@Setter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@ToString
 public class ApprovalRequestCreateDto {
+
     private RequestType requestType;
     private Long applicantId;
-    private String title; // 추가
+    private String title;
     private String reason;
-    private Long vacationsId; // Optional, for VACATION request type
-    private String vacationType; // Optional, for VACATION request type
-    private Long certificateId; // Optional, for CERTIFICATE request type
-    private String certificateType; // 추가: CERTIFICATE 요청 타입의 구체적인 유형 (재직, 경력 등)
-    private java.time.LocalDate startDate; // 추가
-    private java.time.LocalDate endDate; // 추가
-    private Long approverId; // 추가
+    private Long approverId;
+
+    // Vacation 관련 필드
+    private Long vacationsId;
+    private String vacationType;
+
+    // Certificate 관련 필드
+    private Long certificateId;
+    private Type certificateType;
+
+    // Absence 관련 필드
+    private Long absencesId;
+    private AbsenceType absenceType;
+    private UrgencyType urgency;
+
+    // 공통 날짜/시간 필드
+    private LocalDate startDate;
+    private LocalDate endDate;
+    private LocalTime startTime;
+    private LocalTime endTime;
 }

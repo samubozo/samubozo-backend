@@ -45,6 +45,9 @@ public class Certificate {
     @Column(name = "approve_date")
     private LocalDate approveDate;
 
+    @Column(name = "expiration_date")
+    private LocalDate expirationDate; // 추가: 증명서 만료일
+
     @Column(name = "approval_request_id")
     private Long approvalRequestId;
 
@@ -67,6 +70,7 @@ public class Certificate {
         this.approverName = approverName;
         this.processedAt = LocalDateTime.now();
         this.approveDate = LocalDate.now(); // 승인일자도 업데이트
+        this.expirationDate = LocalDate.now().plusWeeks(1); // 승인일로부터 1주일 후로 만료일 설정
     }
 
     // 반려 처리 시 필드 업데이트 메서드

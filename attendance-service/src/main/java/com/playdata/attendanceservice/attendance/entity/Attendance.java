@@ -1,5 +1,6 @@
 package com.playdata.attendanceservice.attendance.entity;
 
+import com.playdata.attendanceservice.workstatus.entity.WorkStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;

@@ -16,6 +16,7 @@ import java.time.LocalTime;
 @AllArgsConstructor
 @NoArgsConstructor
 public class AbsenceApprovalRequestCreateDto {
+    private Long absencesId;
     private AbsenceType absenceType;
     private UrgencyType urgency;
 

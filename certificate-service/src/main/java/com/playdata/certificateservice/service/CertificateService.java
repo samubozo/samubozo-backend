@@ -6,6 +6,8 @@ import com.playdata.certificateservice.dto.CertificateReqDto;
 import com.playdata.certificateservice.dto.CertificateResDto;
 import com.playdata.certificateservice.client.hr.dto.UserFeignResDto;
 import com.playdata.certificateservice.entity.Certificate;
+import com.playdata.certificateservice.entity.Type;
+import java.util.Optional;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.springframework.data.domain.Page;
@@ -18,7 +20,7 @@ import java.io.InputStream;
 public interface CertificateService {
     // 증명서 신청
     @Transactional
-    void createCertificate(TokenUserInfo userInfo, CertificateReqDto dto);
+    Certificate createCertificate(TokenUserInfo userInfo, CertificateReqDto dto);
 
     // 내 증명서 조회
     Page<CertificateResDto> listMyCertificates(TokenUserInfo userInfo, Pageable pageable);
@@ -45,7 +47,7 @@ public interface CertificateService {
     void approveCertificateInternal(Long id, Long approverId, String approverName);
 
     // [내부호출] 증명서 반려 처리
-    void rejectCertificateInternal(Long id, String rejectComment, String approverName); // 변경
+    void rejectCertificateInternal(Long id, String rejectComment, Long approverId, String approverName);
 
     // 모든 증명서 조회 (HR 전용)
     Page<CertificateResDto> listAllCertificates(TokenUserInfo userInfo, Long employeeNo, Pageable pageable);
@@ -58,4 +60,7 @@ public interface CertificateService {
 
     // 증명서 ID로 조회
     Certificate getCertificateById(Long id);
+
+    // 특정 사용자의 유효한 증명서 조회 (approval-service에서 호출)
+    Optional<Certificate> getValidCertificate(Long employeeNo, Type type);
 }

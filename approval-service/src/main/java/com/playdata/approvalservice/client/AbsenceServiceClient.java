@@ -1,18 +1,22 @@
 package com.playdata.approvalservice.client;
 
+import com.playdata.approvalservice.approval.dto.AbsenceApprovalStatisticsDto;
+import com.playdata.approvalservice.approval.dto.ApprovalRequestResponseDto;
+import com.playdata.approvalservice.client.AbsenceServiceClientFallback;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.*;
 
-@FeignClient(name = "attendance-service")
+@FeignClient(name = "attendance-service", fallback = AbsenceServiceClientFallback.class)
 public interface AbsenceServiceClient {
 
-    @PutMapping("/attendance/absence/{absenceId}/approve")
+    @PostMapping("/attendance/absence/{absenceId}/approve")
     void approveAbsence(
             @PathVariable("absenceId") Long absenceId,
             @RequestParam("approverId") Long approverId
     );
 
-    @PutMapping("/attendance/absence/{absenceId}/reject")
+    @PostMapping("/attendance/absence/{absenceId}/reject")
     void rejectAbsence(
             @PathVariable("absenceId") Long absenceId,
             @RequestParam("approverId") Long approverId,
@@ -20,20 +24,35 @@ public interface AbsenceServiceClient {
     );
 
     @GetMapping("/attendance/absence/{absenceId}")
-    Object getAbsenceById(@PathVariable("absenceId") Long absenceId);
+    ApprovalRequestResponseDto getAbsenceById(@PathVariable("absenceId") Long absenceId);
 
     @GetMapping("/attendance/absence/pending")
-    Object getPendingAbsences();
+    Page<ApprovalRequestResponseDto> getPendingAbsences(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    );
 
     @GetMapping("/attendance/absence/processed")
-    Object getProcessedAbsences();
+    Page<ApprovalRequestResponseDto> getProcessedAbsences(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    );
 
     @GetMapping("/attendance/absence/my")
-    Object getMyAbsences(@RequestParam("userId") Long userId);
+    Page<ApprovalRequestResponseDto> getMyAbsences(
+            @RequestParam("userId") Long userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    );
 
     @GetMapping("/attendance/absence/processed-by-me")
-    Object getAbsencesProcessedByMe(@RequestParam("approverId") Long approverId);
+    Page<ApprovalRequestResponseDto> getAbsencesProcessedByMe(
+            @RequestParam("approverId") Long approverId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    );
 
     @GetMapping("/attendance/absence/statistics")
-    Object getAbsenceStatistics();
+    AbsenceApprovalStatisticsDto getAbsenceStatistics();
+
 }

@@ -2,6 +2,7 @@
 
 import com.playdata.vacationservice.client.dto.ApprovalRequestResponseDto;
 import com.playdata.vacationservice.client.dto.ApprovalRequestDto;
+import com.playdata.vacationservice.client.dto.VacationApprovalRequestCreateDto;
 import com.playdata.vacationservice.common.auth.TokenUserInfo;
 import com.playdata.vacationservice.common.configs.FeignClientConfig;
 import org.springframework.cloud.openfeign.FeignClient;
@@ -27,7 +28,7 @@ public interface ApprovalServiceClient {
      * @return 생성된 결재 요청의 응답 DTO
      */
     @PostMapping("/approvals/vacation")
-    ApprovalRequestResponseDto createApproval(@RequestBody com.playdata.vacationservice.client.dto.VacationApprovalRequestCreateDto requestDto);
+    ApprovalRequestResponseDto createApproval(@RequestBody VacationApprovalRequestCreateDto requestDto);
 
     /**
      * 특정 결재 요청을 승인 처리합니다.

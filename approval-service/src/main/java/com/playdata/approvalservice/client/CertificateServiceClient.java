@@ -13,9 +13,12 @@ public interface CertificateServiceClient {
     void approveCertificate(@PathVariable("id") Long id, @RequestParam("approverId") Long approverId, @RequestParam("approverName") String approverName);
 
     @PutMapping("/certificate/internal/certificates/{id}/reject")
-    void rejectCertificateInternal(@PathVariable("id") Long id, @RequestParam("approverName") String approverName);
+    void rejectCertificateInternal(@PathVariable("id") Long id, @RequestParam("rejectComment") String rejectComment, @RequestParam("approverId") Long approverId, @RequestParam("approverName") String approverName);
 
     @GetMapping("/certificate/{id}")
     com.playdata.approvalservice.client.dto.Certificate getCertificateById(@PathVariable("id") Long id);
+
+    @GetMapping("/certificate/internal/valid")
+    Boolean getValidCertificateInternal(@RequestParam("employeeNo") Long employeeNo, @RequestParam("type") com.playdata.approvalservice.approval.entity.Type type);
 
 }

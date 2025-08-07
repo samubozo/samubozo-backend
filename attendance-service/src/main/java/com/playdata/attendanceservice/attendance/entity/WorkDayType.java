@@ -7,7 +7,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum WorkDayType {
     FULL_DAY("전일"),
-    HALF_DAY("반일");
+    HALF_DAY("반일"),
+    NONE("없음"); // 4시간 미만 근무 시
 
     private final String description;
 }
