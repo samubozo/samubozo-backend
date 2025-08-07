@@ -17,39 +17,11 @@ global:
     - name: TZ
       value: Asia/Seoul
     - name: SPRING_PROFILES_ACTIVE
-      value: dev,deploy
-    - name: SPRING_CLOUD_KUBERNETES_DISCOVERY_ENABLED
-      value: "true"
-    - name: SPRING_CLOUD_KUBERNETES_RELOAD_ENABLED
-      value: "true"
-    - name: SPRING_CLOUD_KUBERNETES_RELOAD_MODE
-      value: "event"
-    - name: SPRING_CLOUD_KUBERNETES_RELOAD_STRATEGY
-      value: "refresh"
-    - name: SPRING_CLOUD_KUBERNETES_DISCOVERY_INCLUDE_NOT_READY
-      value: "true"
-    - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
-      value: "health,info,refresh,bus-refresh"
-    - name: SPRING_CLOUD_BUS_ENABLED
-      value: "true"
-    - name: SPRING_CLOUD_BUS_DESTINATION
-      value: "config-bus"
-    - name: SPRING_RABBITMQ_HOST
-      value: "rabbitmq"
-    - name: SPRING_RABBITMQ_PORT
-      value: "5672"
-    - name: SPRING_RABBITMQ_USERNAME
-      value: "user"
-    - name: SPRING_RABBITMQ_PASSWORD
-      value: "password"
-    - name: LOGGING_LEVEL_ROOT
-      value: "info"
-    - name: LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_CLOUD
-      value: "debug"
-    - name: LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB
-      value: "debug"
-    - name: LOGGING_LEVEL_COM_SAMUBOZO
-      value: "debug"
+      value: dev
+    - name: SPRING_CLOUD_CONFIG_URI
+      value: http://config-service:8888
+    - name: SPRING_CLOUD_CONFIG_PROFILE_ACTIVE
+      value: default,kubernetes
 
   #모든 서비스에서 공통적으로 사용할 리소스 제한
   resources:
