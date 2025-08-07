@@ -131,16 +131,6 @@ config-service:
     type: ClusterIP
     port: 8888
 
-discovery-service:
-  replicaCount: 1
-  image:
-    repository: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/discovery-service
-    tag: latest
-  service:
-    type: ClusterIP
-    port: 8761
-
-
 
 hr-service:
   replicaCount: 1

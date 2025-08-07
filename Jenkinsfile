@@ -14,7 +14,7 @@ pipeline {
     }
 
     environment {
-        SERVICE_DIRS = "approval-service,attendance-service,auth-service,certificate-service,chatbot-service,config-service,discovery-service,gateway-service,hr-service,message-service,notification-service,payroll-service,schedule-service,vacation-service"
+        SERVICE_DIRS = "approval-service,attendance-service,auth-service,certificate-service,chatbot-service,config-service,gateway-service,hr-service,message-service,notification-service,payroll-service,schedule-service,vacation-service"
         ECR_URL = "886331869898.dkr.ecr.ap-northeast-2.amazonaws.com"
         REGION = "ap-northeast-2"
         COMMON_MODULES = "common-module,parent-module"
