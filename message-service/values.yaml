@@ -1,0 +1,9 @@
+replicaCount: 1
+image:
+  repository: 730335335278.dkr.ecr.ap-northeast-2.amazonaws.com/message-service
+  pullPolicy: IfNotPresent
+  tag: latest
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080

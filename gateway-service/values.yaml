@@ -1,0 +1,9 @@
+replicaCount: 2
+image:
+  repository: 730335335278.dkr.ecr.ap-northeast-2.amazonaws.com/gateway-service
+  pullPolicy: IfNotPresent
+  tag: latest
+service:
+  type: LoadBalancer
+  port: 8000
+  targetPort: 8000
