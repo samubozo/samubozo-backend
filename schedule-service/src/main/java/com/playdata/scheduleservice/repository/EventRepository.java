@@ -54,6 +54,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     List<Event> findGroupEventsByDepartmentId(@Param("departmentId") Long departmentId);
 
     // isAllDay가 true인 모든 일정 조회
-    List<Event> findAllByIsAllDayTrue();
+    @Query("SELECT e FROM Event e WHERE e.isAllDay = true AND (e.ownerEmployeeNo = :employeeNo OR e.category.departmentId = :departmentId)")
+    List<Event> findIsAllDayEvents(@Param("employeeNo") Long employeeNo, @Param("departmentId") Long departmentId);
 
 }
