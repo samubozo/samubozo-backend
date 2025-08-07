@@ -1,4 +1,4 @@
-// Jenkinsfile 전체 코드 (수정 완료)
+// Jenkinsfile 전체 코드 (최종 수정본)
 
 // 자주 사용되는 필요한 변수를 전역으로 선언
 def deployHost = "172.31.9.208" // 배포 인스턴스의 private 주소
@@ -33,7 +33,7 @@ pipeline {
         stage('Detect Changes') {
             steps {
                 script {
-                    // 🚨 수정: .split() 결과를 .toList()로 변환하여 배열이 아닌 리스트로 만듭니다.
+                    // .split() 결과를 .toList()로 변환하여 배열이 아닌 리스트로 만듭니다.
                     def allServices = env.SERVICE_DIRS.split(",").toList()
                     def commonModules = env.COMMON_MODULES.split(",").toList()
                     def changedServices = []
@@ -147,36 +147,36 @@ pipeline {
             }
         }
 
-        stage('Deploy Changed Services to AWS EC2') {
-            when {
-                expression { env.CHANGED_SERVICES != "" }
-            }
-            steps {
-                sshagent(credentials: ["deploy-key"]) {
-                    sh """
-                        echo "[INFO] SCP docker-compose.yml 전송 중..."
-                        scp -o StrictHostKeyChecking=no docker-compose.yml ubuntu@${deployHost}:/home/ubuntu/docker-compose.yml
-
-                        echo "[INFO] SSH 접속 및 배포 실행..."
-                        ssh -o StrictHostKeyChecking=no ubuntu@${deployHost} '
-                            set -e  # 에러 발생 시 즉시 종료
-
-                            echo "[INFO] ECR 로그인 중..."
-                            aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_URL}
-
-                            cd /home/ubuntu
-
-                            CHANGED_SERVICES_FOR_COMPOSE="${env.CHANGED_SERVICES.replace(",", " ")}"
-
-                            echo "[INFO] 이미지 Pull 중: ${CHANGED_SERVICES_FOR_COMPOSE}"
-                            docker-compose pull ${CHANGED_SERVICES_FOR_COMPOSE}
-
-                            echo "[INFO] 서비스 재시작 중..."
-                            docker-compose up -d --remove-orphans ${CHANGED_SERVICES_FOR_COMPOSE}
-                        '
-                    """
-                }
-            }
-        }
+//         stage('Deploy Changed Services to AWS EC2') {
+//             when {
+//                 expression { env.CHANGED_SERVICES != "" }
+//             }
+//             steps {
+//                 sshagent(credentials: ["deploy-key"]) {
+//                     sh """
+//                         echo "[INFO] SCP docker-compose.yml 전송 중..."
+//                         scp -o StrictHostKeyChecking=no docker-compose.yml ubuntu@${deployHost}:/home/ubuntu/docker-compose.yml
+//
+//                         echo "[INFO] SSH 접속 및 배포 실행..."
+//                         ssh -o StrictHostKeyChecking=no ubuntu@${deployHost} '
+//                             set -e  # 에러 발생 시 즉시 종료
+//
+//                             echo "[INFO] ECR 로그인 중..."
+//                             aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_URL}
+//
+//                             cd /home/ubuntu
+//
+//                             CHANGED_SERVICES_FOR_COMPOSE="${env.CHANGED_SERVICES.replace(",", " ")}"
+//
+//                             echo "[INFO] 이미지 Pull 중: ${CHANGED_SERVICES_FOR_COMPOSE}"
+//                             docker-compose pull ${CHANGED_SERVICES_FOR_COMPOSE}
+//
+//                             echo "[INFO] 서비스 재시작 중..."
+//                             docker-compose up -d --remove-orphans ${CHANGED_SERVICES_FOR_COMPOSE}
+//                         '
+//                     """
+//                 }
+//             }
+//         }
     }
 }
