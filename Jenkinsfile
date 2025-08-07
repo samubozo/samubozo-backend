@@ -164,7 +164,7 @@ pipeline {
                     echo "========================================="
 
                     def changedServicesString = GLOBAL_CHANGED_SERVICES.split(",").join(",")
-                    echo " Deploying services: ${changedServicesString}"
+                    echo "🎯 Deploying services: ${changedServicesString}"
 
                     withAWS(region: "${REGION}", credentials: "eks-admin") {
                         // EKS 클러스터 인증 정보 업데이트
@@ -173,15 +173,15 @@ pipeline {
                         """
 
                         try {
-                            echo "Deploying msa-chart to EKS using Helm..."
+                            echo "\n🚀 Deploying msa-chart to EKS using Helm..."
 
                             sh """
-                                helm upgrade --install msa-app ./deploy/msa-chart 
-                                    --set global.ecrUrl=${ECR_URL} 
-                                    --set global.services=${changedServicesString} 
+                                helm upgrade --install msa-app ./deploy/msa-chart \\
+                                    --set global.ecrUrl=${ECR_URL} \\
+                                    --set global.services=${changedServicesString} \\
                                     --set global.image.tag=latest
                             """
-                            
+
                             echo "✅ msa-chart deployment completed"
 
                         } catch (Exception e) {
@@ -189,8 +189,7 @@ pipeline {
                             throw e
                         }
                     }
-                    echo "
-✅ All services deployed successfully!"
+                    echo "\n✅ All services deployed successfully!"
                 }
             }
         }
