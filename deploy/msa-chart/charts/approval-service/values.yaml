@@ -1,3 +1,9 @@
 replicaCount: 2
-image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/approval-service:latest
-port: 8001
+
+image:
+  repository: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/approval-service
+  tag: latest
+
+service:
+  type: ClusterIP
+  port: 8001
