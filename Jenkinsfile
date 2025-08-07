@@ -1,5 +1,4 @@
 // 자주 사용되는 필요한 변수를 전역으로 선언하는 것도 가능.
-def ecrLoginHelper = "docker-credential-ecr-login" // ECR credential helper 이름
 def deployHost = "172.31.9.208" // 배포 인스턴스의 private 주소
 
 // 젠킨스의 선언형 파이프라인 정의부 시작 (그루비 언어)
@@ -10,11 +9,13 @@ pipeline {
         ECR_URL = "886331869898.dkr.ecr.ap-northeast-2.amazonaws.com"
         REGION = "ap-northeast-2"
         CHANGED_SERVICES = "" // 초기값 설정
+        // ✨ 개선: 공통 모듈 이름을 변수로 관리 (프로젝트에 맞게 수정하세요)
+        COMMON_MODULES = "common-module,parent-module"
     }
     stages {
-        stage('Pull Codes from Github') { // 스테이지 제목 (맘대로 써도 됨)
+        stage('Pull Codes from Github') {
             steps {
-                checkout scm // 젠킨스와 연결된 소스 컨트롤 매니저(git 등)에서 코드를 가져오는 명령어
+                checkout scm
             }
         }
 
@@ -32,13 +33,13 @@ pipeline {
             steps {
                 script {
                     def allServices = env.SERVICE_DIRS.split(",")
+                    def commonModules = env.COMMON_MODULES.split(",")
                     def changedServices = []
                     def shouldBuildAll = false
 
-                    // ECR에 이미지가 존재하는지 확인
+                    // ECR 저장소 존재 여부로 최초 빌드인지 확인
                     withAWS(region: "${REGION}", credentials: "aws-key") {
                         try {
-                            // ECR 리포지토리 목록을 가져와서 비어있는지 확인
                             def repoListJson = sh(script: "aws ecr describe-repositories --output json", returnStdout: true)
                             def repoList = new groovy.json.JsonSlurper().parseText(repoListJson)
                             if (repoList.repositories.isEmpty()) {
@@ -54,106 +55,138 @@ pipeline {
                     if (shouldBuildAll) {
                         changedServices = allServices
                     } else {
-                        // Git 커밋 기반 변경 감지 로직
                         def commitCount = sh(script: "git rev-list --count HEAD", returnStdout: true).trim().toInteger()
                         if (commitCount == 1) {
                             echo "Initial commit detected. All services will be built."
                             changedServices = allServices
                         } else {
-                            def changedFiles = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim().split('\n')
-                            echo "Changed files: ${changedFiles}"
+                            def changedFilesOutput = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim()
 
-                            allServices.each { service ->
-                                if (changedFiles.any { it.startsWith(service + "/") }) {
-                                    changedServices.add(service)
+                            if (changedFilesOutput == "") {
+                                echo "No changes detected between HEAD~1 and HEAD."
+                            } else {
+                                def changedFiles = changedFilesOutput.split('\n')
+                                echo "Changed files: ${changedFiles}"
+
+                                // ✨ 개선: 공통 모듈이 변경되었는지 확인
+                                if (commonModules.any { module -> changedFiles.any { it.startsWith(module + "/") } }) {
+                                    echo "Common module changed. Building all services."
+                                    changedServices = allServices
+                                } else {
+                                    allServices.each { service ->
+                                        if (changedFiles.any { it.startsWith(service + "/") }) {
+                                            changedServices.add(service)
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
 
-                    env.CHANGED_SERVICES = changedServices.join(",")
-                    if (env.CHANGED_SERVICES == "") {
+                    if (changedServices.isEmpty()) {
                         echo "No changes detected in service directories. Skipping build and deployment."
+                        env.CHANGED_SERVICES = ""
                         currentBuild.result = 'SUCCESS'
+                    } else {
+                         env.CHANGED_SERVICES = changedServices.unique().join(",")
                     }
+
+                    echo "Services to be built: ${env.CHANGED_SERVICES}"
                 }
             }
         }
 
-        stage('Build Changed Services') {
+        stage('Build & Push Changed Services') {
             when {
                 expression { env.CHANGED_SERVICES != "" }
             }
-            steps {
-                script {
-                   def changedServices = env.CHANGED_SERVICES.split(",")
-                   changedServices.each { service ->
-                        sh """
-                        echo "Building ${service}..."
-                        cd ${service}
-                        ./gradlew clean build -x test
-                        ls -al ./build/libs
-                        cd ..
-                        """
-                   }
-                }
-            }
-        }
-
-        stage('Build Docker Image & Push to AWS ECR') {
-            when {
-                expression { env.CHANGED_SERVICES != "" }
-            }
-            steps {
-                script {
-                    withAWS(region: "${REGION}", credentials: "aws-key") {
-                        def changedServices = env.CHANGED_SERVICES.split(",")
-                        changedServices.each { service ->
-                            sh """
-                            # ECR에 이미지를 push하기 위해 인증 정보를 대신 검증해 주는 도구 다운로드.
-                            # /usr/local/bin/ 경로에 해당 파일을 이동
-                            curl -O https://amazon-ecr-credential-helper-releases.s3.us-east-2.amazonaws.com/0.4.0/linux-amd64/${ecrLoginHelper}
-                            chmod +x ${ecrLoginHelper}
-                            mv ${ecrLoginHelper} /usr/local/bin/
-
-                            # Docker에게 push 명령을 내리면 지정된 URL로 push할 수 있게 설정.
-                            # 자동으로 로그인 도구를 쓰게 설정
-                            mkdir -p ~/.docker
-                            echo '{"credHelpers": {"${ECR_URL}": "ecr-login"}}' > ~/.docker/config.json
-
-                            docker build -t ${service}:latest ${service}
-                            docker tag ${service}:latest ${ECR_URL}/${service}:latest
-                            docker push ${ECR_URL}/${service}:latest
+            // ✨ 개선: 병렬 처리로 빌드와 푸시를 동시에 진행하여 시간 단축
+            parallel {
+                stage('Prepare ECR Login') {
+                    // 🚨 수정: ECR 로그인 준비는 한번만 실행
+                    steps {
+                        withAWS(region: "${REGION}", credentials: "aws-key") {
+                             sh """
+                                echo "Setting up Docker for ECR Push..."
+                                # ECR Credential Helper 설치
+                                if [ ! -f /usr/local/bin/docker-credential-ecr-login ]; then
+                                    curl -sL -o docker-credential-ecr-login https://amazon-ecr-credential-helper-releases.s3.us-east-2.amazonaws.com/0.6.0/linux-amd64/docker-credential-ecr-login
+                                    chmod +x docker-credential-ecr-login
+                                    sudo mv docker-credential-ecr-login /usr/local/bin/
+                                fi
+                                # Docker config.json 설정
+                                mkdir -p ~/.docker
+                                echo '{"credHelpers": {"${ECR_URL}": "ecr-login"}}' > ~/.docker/config.json
                             """
                         }
                     }
+                }
+                // ✨ 개선: 각 서비스를 병렬로 빌드 & 푸시
+                script {
+                    def changedServices = env.CHANGED_SERVICES.split(",")
+                    def buildStages = [:]
+
+                    changedServices.each { service ->
+                        // 스테이지 이름에 특수문자가 들어가지 않도록 주의
+                        def stageName = "Build-Push-${service.replace('-', '_')}"
+                        buildStages[stageName] = {
+                            stage(stageName) {
+                                echo "Starting build and push for ${service}..."
+                                sh """
+                                    echo "Building ${service}..."
+                                    cd ${service}
+                                    ./gradlew clean build -x test
+                                    cd ..
+
+                                    echo "Building and Pushing Docker image for ${service}..."
+                                    docker build -t ${service}:latest ./${service}
+                                    docker tag ${service}:latest ${ECR_URL}/${service}:latest
+                                    docker push ${ECR_URL}/${service}:latest
+                                """
+                                echo "Finished build and push for ${service}."
+                            }
+                        }
+                    }
+                    // 생성된 스테이지들을 병렬로 실행
+                    parallel buildStages
                 }
             }
         }
 
 //         stage('Deploy Changed Services to AWS EC2') {
+//             // ✨ 개선: when 조건 추가
+//             when {
+//                 expression { env.CHANGED_SERVICES != "" }
+//             }
 //             steps {
 //                 sshagent(credentials: ["deploy-key"]) {
 //                     sh """
 //                         echo "[INFO] SCP docker-compose.yml 전송 중..."
-//                         scp -vvv -o StrictHostKeyChecking=no docker-compose.yml ubuntu@${deployHost}:/home/ubuntu/docker-compose.yml
+//                         scp -o StrictHostKeyChecking=no docker-compose.yml ubuntu@${deployHost}:/home/ubuntu/docker-compose.yml
 //
 //                         echo "[INFO] SSH 접속 및 배포 실행..."
-//                         ssh -v -o StrictHostKeyChecking=no ubuntu@${deployHost} '
+//                         ssh -o StrictHostKeyChecking=no ubuntu@${deployHost} '
 //                             set -e  # 에러 발생 시 즉시 종료
-//                             cd /home/ubuntu && \\
-//                             echo "[INFO] ECR 로그인 중..." && \\
-//                             aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_URL} && \\
-//                             echo "[INFO] 이미지 Pull 중: ${env.CHANGED_SERVICES}" && \\
-//                             docker-compose pull ${env.CHANGED_SERVICES.replace(",", " ")} && \\
-//                             echo "[INFO] 서비스 재시작 중..." && \\
-//                             docker-compose up -d ${env.CHANGED_SERVICES.replace(",", " ")}
+//
+//                             # EC2 인스턴스에 AWS CLI와 ECR 접근 권한이 있는 IAM Role이 설정되어 있어야 합니다.
+//                             echo "[INFO] ECR 로그인 중..."
+//                             aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_URL}
+//
+//                             cd /home/ubuntu
+//
+//                             # docker-compose.yml에 정의된 서비스 목록을 가져옴
+//                             CHANGED_SERVICES_FOR_COMPOSE="${env.CHANGED_SERVICES.replace(",", " ")}"
+//
+//                             echo "[INFO] 이미지 Pull 중: ${CHANGED_SERVICES_FOR_COMPOSE}"
+//                             docker-compose pull ${CHANGED_SERVICES_FOR_COMPOSE}
+//
+//                             echo "[INFO] 서비스 재시작 중..."
+//                             # --remove-orphans 옵션: docker-compose.yml에서 사라진 서비스 컨테이너를 삭제
+//                             docker-compose up -d --remove-orphans ${CHANGED_SERVICES_FOR_COMPOSE}
 //                         '
 //                     """
 //                 }
 //             }
 //         }
-
-
     }
 }
