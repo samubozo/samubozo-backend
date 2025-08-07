@@ -81,6 +81,10 @@ public class User {
     @Builder.Default
     private String activate = "Y";
 
+    @Column(name = "hr_role", length = 4, nullable = false)
+    @Builder.Default
+    private String hrRole = "N";
+
     // === 연관관계 ===
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id", nullable = false)
@@ -113,7 +117,7 @@ public class User {
                 .accountNumber(accountNumber)
                 .accountHolder(accountHolder)
                 .activate(activate)
-                .hrRole(position != null ? position.getHrRole() : null) // NullPointerException 방지
+                .hrRole(hrRole)
                 .build();
     }
 
@@ -124,7 +128,7 @@ public class User {
                 .email(email)
                 .password(password)
                 .activate(activate)
-                .hrRole(position != null ? position.getHrRole() : null) // NullPointerException 방지
+                .hrRole(hrRole)
                 .build();
     }
 
@@ -148,7 +152,7 @@ public class User {
                 .hireDate(hireDate)
                 .retireDate(retireDate)
                 .activate(activate)
-                .hrRole(position != null ? position.getHrRole() : null) // NullPointerException 방지
+                .hrRole(hrRole)
                 .build();
     }
 
