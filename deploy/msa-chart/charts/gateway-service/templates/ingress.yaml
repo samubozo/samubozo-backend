@@ -5,7 +5,7 @@ metadata:
   name: {{ .Release.Name }}-gateway-ingress
   annotations:
     # --- 컨트롤러 및 기본 설정 ---
-    kubernetes.io/ingress.class: alb
+    kubernetes.io/ingressClassName: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
 
     # --- 리스너 및 리다이렉션 설정 ---
