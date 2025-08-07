@@ -1,7 +1,6 @@
 package com.playdata.scheduleservice.repository;
 
 import com.playdata.scheduleservice.entity.Event;
-import com.playdata.scheduleservice.entity.Category;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -15,13 +14,13 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     // 월별 일정 조회 (개인 및 그룹 일정 포함)
     @Query("SELECT e FROM Event e WHERE " +
-           "(e.ownerEmployeeNo = :employeeNo OR e.category.departmentId = :departmentId) AND " +
-           "((FUNCTION('YEAR', e.startDate) = :year AND FUNCTION('MONTH', e.startDate) = :month) OR " +
-           " (FUNCTION('YEAR', e.endDate) = :year AND FUNCTION('MONTH', e.endDate) = :month) OR " +
-           " (FUNCTION('YEAR', e.startDate) < :year AND FUNCTION('YEAR', e.endDate) > :year) OR " +
-           " (FUNCTION('YEAR', e.startDate) = :year AND FUNCTION('MONTH', e.startDate) < :month AND FUNCTION('YEAR', e.endDate) = :year AND FUNCTION('MONTH', e.endDate) > :month) OR " +
-           " (FUNCTION('YEAR', e.startDate) = :year AND FUNCTION('MONTH', e.startDate) < :month AND FUNCTION('YEAR', e.endDate) > :year) OR " +
-           " (FUNCTION('YEAR', e.startDate) < :year AND FUNCTION('YEAR', e.endDate) = :year AND FUNCTION('MONTH', e.endDate) > :month)) ")
+            "(e.ownerEmployeeNo = :employeeNo OR e.category.departmentId = :departmentId) AND " +
+            "((FUNCTION('YEAR', e.startDate) = :year AND FUNCTION('MONTH', e.startDate) = :month) OR " +
+            " (FUNCTION('YEAR', e.endDate) = :year AND FUNCTION('MONTH', e.endDate) = :month) OR " +
+            " (FUNCTION('YEAR', e.startDate) < :year AND FUNCTION('YEAR', e.endDate) > :year) OR " +
+            " (FUNCTION('YEAR', e.startDate) = :year AND FUNCTION('MONTH', e.startDate) < :month AND FUNCTION('YEAR', e.endDate) = :year AND FUNCTION('MONTH', e.endDate) > :month) OR " +
+            " (FUNCTION('YEAR', e.startDate) = :year AND FUNCTION('MONTH', e.startDate) < :month AND FUNCTION('YEAR', e.endDate) > :year) OR " +
+            " (FUNCTION('YEAR', e.startDate) < :year AND FUNCTION('YEAR', e.endDate) = :year AND FUNCTION('MONTH', e.endDate) > :month)) ")
     List<Event> findMonthlyEvents(
             @Param("employeeNo") Long employeeNo,
             @Param("departmentId") Long departmentId,
@@ -30,11 +29,11 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     // 검색 기능 (제목, 내용, 메모에서 키워드 검색 및 카테고리 필터링)
     @Query("SELECT e FROM Event e WHERE " +
-           "(e.ownerEmployeeNo = :employeeNo OR e.category.departmentId = :departmentId) AND " +
-           "(:keyword IS NULL OR LOWER(e.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(e.content) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND " +
-           "(:categoryId IS NULL OR e.category.id = :categoryId) AND " +
-           "(:startDate IS NULL OR e.startDate >= :startDate) AND " +
-           "(:endDate IS NULL OR e.endDate <= :endDate)")
+            "(e.ownerEmployeeNo = :employeeNo OR e.category.departmentId = :departmentId) AND " +
+            "(:keyword IS NULL OR LOWER(e.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(e.content) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND " +
+            "(:categoryId IS NULL OR e.category.id = :categoryId) AND " +
+            "(:startDate IS NULL OR e.startDate >= :startDate) AND " +
+            "(:endDate IS NULL OR e.endDate <= :endDate)")
     List<Event> searchEvents(
             @Param("employeeNo") Long employeeNo,
             @Param("departmentId") Long departmentId,
@@ -54,6 +53,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     List<Event> findGroupEventsByDepartmentId(@Param("departmentId") Long departmentId);
 
     // isAllDay가 true인 모든 일정 조회
-    List<Event> findAllByIsAllDayTrue();
+    @Query("SELECT e FROM Event e WHERE e.isAllDay = true AND (e.ownerEmployeeNo = :employeeNo OR e.category.departmentId = :departmentId)")
+    List<Event> findIsAllDayEvents(@Param("employeeNo") Long employeeNo, @Param("departmentId") Long departmentId);
 
 }

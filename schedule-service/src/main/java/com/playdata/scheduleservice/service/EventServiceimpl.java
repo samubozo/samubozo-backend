@@ -174,8 +174,9 @@ public class EventServiceimpl implements EventService {
 
     // isAllDay가 true인 모든 일정 조회
     @Override
-    public List<EventResponse> getIsAllDayEvents() {
-        return eventRepository.findAllByIsAllDayTrue().stream()
+    public List<EventResponse> getIsAllDayEvents(Long employeeNo) {
+        Long departmentId = getDepartmentId(employeeNo);
+        return eventRepository.findIsAllDayEvents(employeeNo, departmentId).stream()
                 .map(EventResponse::from)
                 .collect(Collectors.toList());
     }

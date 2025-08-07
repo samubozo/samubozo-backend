@@ -34,5 +34,5 @@ public interface EventService {
     Long getDepartmentId(Long employeeNo);
 
     // isAllDay가 true인 모든 일정 조회
-    List<EventResponse> getIsAllDayEvents();
+    List<EventResponse> getIsAllDayEvents(Long employeeNo);
 }
