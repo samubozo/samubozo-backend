@@ -1,5 +1,6 @@
 // ======================================================
-// 최종 완성형 Jenkinsfile (Exit Code 기반 감지 로직 적용)
+// 최종 디버깅용 Jenkinsfile
+// (모든 실행 명령어와 AWS 자격증명을 로그에 출력)
 // ======================================================
 
 def deployHost = "172.31.9.208"
@@ -40,14 +41,13 @@ pipeline {
                         changedServices = params.MANUAL_BUILD_SERVICES.split(',').collect { it.trim() }
 
                     } else {
-                        // --- 1. ECR에 이미지가 없는 서비스를 먼저 찾습니다. (수정된 로직) ---
                         echo "--- Checking for services with no images in ECR ---"
                         withAWS(region: "${REGION}", credentials: "aws-key") {
-                            allServices.each { service ->
-                                // returnStatus: true 옵션으로 명령어의 종료 코드를 직접 받습니다.
-                                def statusCode = sh(script: "aws ecr describe-images --repository-name ${service} --max-items 1 > /dev/null 2>&1", returnStatus: true)
+                            // ✨ 디버깅: 현재 어떤 AWS 자격증명으로 실행되는지 확인
+                            sh 'aws sts get-caller-identity'
 
-                                // 종료 코드가 0이 아니면 (실패), 빌드 목록에 추가합니다.
+                            allServices.each { service ->
+                                def statusCode = sh(script: "aws ecr describe-images --repository-name ${service} --max-items 1 > /dev/null 2>&1", returnStatus: true)
                                 if (statusCode != 0) {
                                     echo "-> No images found for '${service}' in ECR (exit code: ${statusCode}). Adding to build list."
                                     changedServices.add(service)
@@ -55,7 +55,6 @@ pipeline {
                             }
                         }
 
-                        // --- 2. Git 코드 변경 감지 ---
                         echo "\n--- Checking for services with code changes via Git ---"
                         def commitCount = sh(script: "git rev-list --count HEAD", returnStdout: true).trim().toInteger()
                         if (commitCount > 1) {
@@ -77,7 +76,6 @@ pipeline {
                         }
                     }
 
-                    // --- 3. 최종 빌드 목록 확정 ---
                     if (changedServices.isEmpty()) {
                         echo "\nNo services to build."
                         env.CHANGED_SERVICES = ""
@@ -100,11 +98,16 @@ pipeline {
 //                         def changedServices = (env.CHANGED_SERVICES ?: '').split(",").toList()
 //                         def parallelTasks = [:]
 //
-//                         sh "aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_URL}"
+//                         // ✨ 디버깅: 명령어 실행 과정 추적
+//                         sh """
+//                           set -x
+//                           aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_URL}
+//                         """
 //
 //                         changedServices.each { service ->
 //                             parallelTasks["Build & Push ${service}"] = {
 //                                 sh """
+//                                     set -x # ✨ 디버깅: 모든 셸 명령어 로그에 출력
 //                                     echo "--- Building ${service} ---"
 //                                     cd ${service}
 //                                     ./gradlew clean build -x test
