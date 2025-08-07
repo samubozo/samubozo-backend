@@ -28,6 +28,7 @@ public class VacationHistoryResDto {
     private final String approverName;
     private final Long approverEmployeeNo;
     private final java.time.LocalDate processedAt;
+    private final String rejectComment; // <-- 이 필드를 추가합니다.
 
     /**
      * Vacation 엔티티를 VacationHistoryResDto로 변환합니다.
@@ -49,6 +50,7 @@ public class VacationHistoryResDto {
                 .vacationStatus(vacation.getVacationStatus())
                 .reason(vacation.getReason())
                 .requestedAt(vacation.getCreatedAt() != null ? vacation.getCreatedAt().toLocalDate() : null)
+                .rejectComment(vacation.getRejectComment()) // <-- 이 라인을 추가합니다.
                 .build();
     }
 
@@ -80,6 +82,7 @@ public class VacationHistoryResDto {
                 .approverEmployeeNo(approverEmployeeNo)
                 .processedAt(processedAt)
                 .applicantDepartment(applicantDepartment)
+                .rejectComment(vacation.getRejectComment()) // <-- 이 라인을 추가합니다.
                 .build();
     }
 }

@@ -65,6 +65,11 @@ public class UserServiceImpl implements UserService {
         Position foundPos = positionRepository.findById(positionId)
                 .orElseThrow(() -> new EntityNotFoundException("Position not found with ID: " + positionId));
 
+        String empHrRole = "N";
+        if (foundPos.getPositionId().equals(1L) || foundPos.getPositionId().equals(2L)) {
+            empHrRole = "Y";
+        }
+
         User newUser = User.builder()
                 .userName(dto.getUserName())
                 .email(dto.getEmail())
@@ -77,6 +82,7 @@ public class UserServiceImpl implements UserService {
                 .position(foundPos)
                 .hireDate(dto.getHireDate() != null ? dto.getHireDate() : LocalDate.now())
                 .createdAt(LocalDateTime.now())
+                .hrRole(empHrRole)
                 .build();
 
         User savedUser = userRepository.save(newUser);
@@ -136,6 +142,9 @@ public class UserServiceImpl implements UserService {
                     .build());
         }
         user.setRetireDate(dto.getRetireDate());
+        if (dto.getHrRole() != null && !dto.getHrRole().equals(user.getHrRole())) {
+            user.setHrRole(dto.getHrRole());
+        }
 
         userRepository.save(user);
     }
@@ -217,7 +226,7 @@ public class UserServiceImpl implements UserService {
                 .address(user.getAddress())
                 .activate(user.getActivate())
                 .profileImage(user.getProfileImage())
-                .hrRole(user.getPosition().getHrRole())
+                .hrRole(hrRole)
                 .build());
     }
 
@@ -226,19 +235,19 @@ public class UserServiceImpl implements UserService {
         if (StringUtils.hasText(userName) || StringUtils.hasText(departmentName) || StringUtils.hasText(hrRole)) {
             List<User> users;
             if (StringUtils.hasText(userName) && StringUtils.hasText(departmentName) && StringUtils.hasText(hrRole)) {
-                users = userRepository.findByUserNameContainingAndDepartmentNameContainingAndPositionHrRole(userName, departmentName, hrRole);
+                users = userRepository.findByUserNameContainingAndDepartmentNameContainingAndHrRole(userName, departmentName, hrRole);
             } else if (StringUtils.hasText(userName) && StringUtils.hasText(departmentName)) {
                 users = userRepository.findByUserNameContainingAndDepartmentNameContaining(userName, departmentName);
             } else if (StringUtils.hasText(userName) && StringUtils.hasText(hrRole)) {
-                users = userRepository.findByUserNameContainingAndPositionHrRole(userName, hrRole);
+                users = userRepository.findByUserNameContainingAndHrRole(userName, hrRole);
             } else if (StringUtils.hasText(departmentName) && StringUtils.hasText(hrRole)) {
-                users = userRepository.findByDepartmentNameContainingAndPositionHrRole(departmentName, hrRole);
+                users = userRepository.findByDepartmentNameContainingAndHrRole(departmentName, hrRole);
             } else if (StringUtils.hasText(userName)) {
                 users = userRepository.findByUserNameContaining(userName);
             } else if (StringUtils.hasText(departmentName)) {
                 users = userRepository.findByDepartmentNameContaining(departmentName);
             } else {
-                users = userRepository.findByPositionHrRole(hrRole);
+                users = userRepository.findByHrRole(hrRole);
             }
             return users.stream().map(user -> UserResDto.builder()
                     .employeeNo(user.getEmployeeNo())
@@ -251,7 +260,7 @@ public class UserServiceImpl implements UserService {
                     .address(user.getAddress())
                     .activate(user.getActivate())
                     .profileImage(user.getProfileImage())
-                    .hrRole(user.getPosition().getHrRole())
+                    .hrRole(hrRole)
                     .build()).collect(Collectors.toList());
         } else {
             Page<User> users = userRepository.findAll(pageable);
@@ -266,7 +275,7 @@ public class UserServiceImpl implements UserService {
                     .address(user.getAddress())
                     .activate(user.getActivate())
                     .profileImage(user.getProfileImage())
-                    .hrRole(user.getPosition().getHrRole())
+                    .hrRole(hrRole)
                     .build());
         }
     }

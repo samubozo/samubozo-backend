@@ -14,7 +14,6 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -31,32 +30,62 @@ public class TestDataInitializer implements CommandLineRunner {
     @Override
     public void run(String... args) throws Exception {
         // 부서 더미 데이터 생성 및 저장
-        createDepartment(1L, "경영지원", "#FFAB91", "https://i.pravatar.cc/150?img=10");
-        createDepartment(2L, "인사팀", "#B39DDB", "https://i.pravatar.cc/150?img=11");
-        createDepartment(3L, "회계팀", "#81D4FA", "https://i.pravatar.cc/150?img=12");
-        createDepartment(4L, "영업팀", "#A5D6A7", "https://i.pravatar.cc/150?img=13");
+        createDepartment(1L, "경영지원", "#FFAB91", "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=facearea&w=400&h=400\n");
+        createDepartment(2L, "인사팀", "#B39DDB", "https://images.unsplash.com/photo-1519125323398-675f0ddb6308?auto=format&fit=facearea&w=400&h=400\n");
+        createDepartment(3L, "회계팀", "#81D4FA", "https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?auto=format&fit=facearea&w=400&h=400\n");
+        createDepartment(4L, "영업팀", "#A5D6A7", "https://images.unsplash.com/photo-1521737852567-6949f3f9f2b5?auto=format&fit=facearea&w=400&h=400");
 
         // 직책 더미 데이터 생성 및 저장
-        createPosition(1L, "사장", "Y");
-        createPosition(2L, "부장", "Y");
-        createPosition(3L, "책임", "N");
-        createPosition(4L, "선임", "N");
-        createPosition(5L, "사원", "N");
+        createPosition(1L, "사장");
+        createPosition(2L, "부장");
+        createPosition(3L, "책임");
+        createPosition(4L, "선임");
+        createPosition(5L, "사원");
 
         // test1 계정 생성: 사장, 경영지원
-        createTestUser("test1", "test1@s.com", "1234", 1L, 1L, DEFAULT_PROFILE_IMAGE_URL + "1");
+        createTestUser("신현국", "uiuo1266@gmail.com", "1234", 1L, 1L, DEFAULT_PROFILE_IMAGE_URL + "12",
+                "010-1111-2222",
+                LocalDate.of(1996, 3, 11),
+                "M",
+                LocalDate.of(2010, 5, 1),
+                "서울시 성동구",
+                "960311-1084736");
 
         // test2 계정 생성: 부장, 인사팀
-        createTestUser("test2", "test2@s.com", "1234", 2L, 2L, DEFAULT_PROFILE_IMAGE_URL + "2");
+        createTestUser("이호영", "skyroad0704@gmail.com", "1234", 2L, 2L, DEFAULT_PROFILE_IMAGE_URL + "54",
+                "010-9876-5432",
+                LocalDate.of(1994, 12, 24),
+                "M",
+                LocalDate.of(2013, 4, 10),
+                "서울시 동작구",
+                "941224-1036482");
 
         // test3 계정 생성: 책임, 회계팀
-        createTestUser("test3", "test3@s.com", "1234", 3L, 3L, DEFAULT_PROFILE_IMAGE_URL + "3");
+        createTestUser("김예은", "yeeun6328@gmail.com", "1234", 3L, 3L, DEFAULT_PROFILE_IMAGE_URL + "23",
+                "010-5555-8888",
+                LocalDate.of(1997, 10, 26),
+                "F",
+                LocalDate.of(2018, 9, 18),
+                "서울시 강서구",
+                "971026-2022746");
 
         // test4 계정 생성: 사원, 영업팀
-        createTestUser("test4", "test4@s.com", "1234", 5L, 4L, DEFAULT_PROFILE_IMAGE_URL + "4");
+        createTestUser("강원빈", "fnfn1997@naver.com", "1234", 5L, 4L, DEFAULT_PROFILE_IMAGE_URL + "59",
+                "010-3333-8498",
+                LocalDate.of(2001, 5, 18),
+                "M",
+                LocalDate.of(2023, 4, 20),
+                "경기도 성남시",
+                "010518-3027485");
 
         // test5 계정 생성: 선임, 경영지원
-        createTestUser("test5", "test5@s.com", "1234", 4L, 1L, DEFAULT_PROFILE_IMAGE_URL + "5");
+        createTestUser("주영찬", "dudcks7624@gmail.com", "1234", 4L, 1L, DEFAULT_PROFILE_IMAGE_URL + "68",
+                "010-9382-8512",
+                LocalDate.of(1999, 6, 8),
+                "M",
+                LocalDate.of(2025, 2, 12),
+                "경기도 남양주",
+                "990608-1048372");
     }
 
     private void createDepartment(Long id, String name, String color, String imageUrl) {
@@ -74,12 +103,11 @@ public class TestDataInitializer implements CommandLineRunner {
         }
     }
 
-    private void createPosition(Long id, String name, String hrRole) {
+    private void createPosition(Long id, String name) {
         if (positionRepository.findById(id).isEmpty()) {
             Position position = Position.builder()
                     .positionId(id)
                     .positionName(name)
-                    .hrRole(hrRole)
                     .build();
             positionRepository.save(position);
             log.info("Position {} created.", name);
@@ -88,28 +116,37 @@ public class TestDataInitializer implements CommandLineRunner {
         }
     }
 
-    private void createTestUser(String userName, String email, String password, Long positionId, Long departmentId, String profileImageUrl) {
+    private void createTestUser(String userName, String email, String password, Long positionId, Long departmentId, String profileImageUrl, String phone,
+                                LocalDate birthDate,
+                                String gender,
+                                LocalDate hireDate,
+                                String address,
+                                String residentRegNo) {
         if (userRepository.findByEmail(email).isEmpty()) {
             log.info("Creating test user: {}", email);
 
             Department department = Department.builder().departmentId(departmentId).build();
             Position position = Position.builder().positionId(positionId).build();
 
+            String hrRole = (positionId == 1L || positionId == 2L) ? "Y" : "N";
+
             User testUser = User.builder()
                     .userName(userName)
                     .email(email)
                     .password(passwordEncoder.encode(password))
-                    .phone("010-1234-5678")
-                    .birthDate(LocalDate.of(1990, 1, 1))
-                    .gender("M")
+                    .phone(phone)
+                    .residentRegNo(residentRegNo)
+                    .birthDate(birthDate)
+                    .gender(gender)
                     .createdAt(LocalDateTime.now())
-                    .hireDate(LocalDate.of(2023, 1, 1))
-                    .address("서울시 강남구")
+                    .hireDate(hireDate)
+                    .address(address)
                     .profileImage(profileImageUrl)
                     .retireDate(null)
                     .activate("Y")
                     .department(department)
                     .position(position)
+                    .hrRole(hrRole)
                     .build();
 
             userRepository.save(testUser);
