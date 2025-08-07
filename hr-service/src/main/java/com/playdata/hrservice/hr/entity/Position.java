@@ -21,8 +21,4 @@ public class Position {
     @Column(name = "position_name", length = 255, nullable = false)
     private String positionName;
 
-    @Column(name = "hr_role", length = 4, nullable = false)
-    @Builder.Default
-    private String hrRole = "N";
-
 }

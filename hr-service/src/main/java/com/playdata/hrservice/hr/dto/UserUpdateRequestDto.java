@@ -29,5 +29,6 @@ public class UserUpdateRequestDto {
     private String accountHolder;
     private LocalDate retireDate;
     private String activate;
+    private String hrRole;
 
 }
