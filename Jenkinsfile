@@ -1,5 +1,5 @@
 // ======================================================
-// 최종 완성형 Jenkinsfile (변수 범위 문제 회피 로직)
+// 최종 디버깅용 Jenkinsfile (AWS CLI 결과 원본 출력)
 // ======================================================
 
 def deployHost = "172.31.9.208"
@@ -32,68 +32,53 @@ pipeline {
             steps {
                 script {
                     def allServices = env.SERVICE_DIRS.split(",").toList()
-                    def finalChangedServices = []
+                    def changedServices = []
 
                     if (params.MANUAL_BUILD_SERVICES.trim()) {
                         echo "Manual build triggered for: ${params.MANUAL_BUILD_SERVICES}"
-                        finalChangedServices = params.MANUAL_BUILD_SERVICES.split(',').collect { it.trim() }
+                        changedServices = params.MANUAL_BUILD_SERVICES.split(',').collect { it.trim() }
 
                     } else {
-                        // ✨ 수정: 각 단계별로 빌드 대상을 별도의 리스트에 저장합니다.
-                        def ecrEmptyServices = []
-                        def gitChangedServices = []
-
-                        // 1. ECR 체크 결과를 ecrEmptyServices 리스트에 저장
                         echo "--- Checking for services with no images in ECR ---"
                         withAWS(region: "${REGION}", credentials: "aws-key") {
                             allServices.each { service ->
-                                def statusCode = sh(script: "aws ecr describe-images --repository-name ${service} --max-items 1 > /dev/null 2>&1", returnStatus: true)
-                                if (statusCode != 0) {
-                                    echo "-> No images found for '${service}' in ECR. Adding to build list."
-                                    ecrEmptyServices.add(service)
-                                }
-                            }
-                        }
+                                try {
+                                    echo "\n--- DEBUGGING ECR FOR: ${service} ---"
+                                    // ✨✨✨ 핵심: 반환된 JSON 결과를 로그에 그대로 출력합니다 ✨✨✨
+                                    def imageJson = sh(script: "aws ecr describe-images --repository-name ${service}", returnStdout: true).trim()
+                                    echo "RAW JSON for ${service}:\n${imageJson}"
 
-                        // 2. Git 변경 감지 결과를 gitChangedServices 리스트에 저장
-                        echo "\n--- Checking for services with code changes via Git ---"
-                        def commitCount = sh(script: "git rev-list --count HEAD", returnStdout: true).trim().toInteger()
-                        if (commitCount > 1) {
-                            def changedFilesOutput = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim()
-                            if (changedFilesOutput) {
-                                def changedFiles = changedFilesOutput.split('\n').toList()
-                                def commonModules = env.COMMON_MODULES.split(",").toList()
-                                if (commonModules.any { module -> changedFiles.any { it.startsWith(module + "/") } }) {
-                                    echo "-> Common module changed. Adding all services to build list."
-                                    gitChangedServices.addAll(allServices)
-                                } else {
-                                    allServices.each { service ->
-                                        if (changedFiles.any { it.startsWith(service + "/") }) {
-                                            echo "-> Code changes detected for '${service}'. Adding to build list."
-                                            gitChangedServices.add(service)
-                                        }
+                                    def imageInfo = new groovy.json.JsonSlurper().parseText(imageJson)
+
+                                    if (imageInfo.imageDetails.isEmpty()) {
+                                        echo "-> RESULT: Parsed as EMPTY. Adding to build list."
+                                        changedServices.add(service)
+                                    } else {
+                                        echo "-> RESULT: Parsed as NOT EMPTY. Skipping."
                                     }
+                                } catch (Exception e) {
+                                    echo "-> COMMAND FAILED for ${service} with exception: ${e.getMessage()}"
+                                    echo "-> Adding to build list."
+                                    changedServices.add(service)
                                 }
                             }
                         }
-
-                        // ✨ 수정: 마지막에 두 리스트를 합칩니다.
-                        finalChangedServices.addAll(ecrEmptyServices)
-                        finalChangedServices.addAll(gitChangedServices)
                     }
 
-                    if (finalChangedServices.isEmpty()) {
+                    // 최종 빌드 목록 확정
+                    if (changedServices.isEmpty()) {
                         echo "\nNo services to build."
                         env.CHANGED_SERVICES = ""
                         currentBuild.result = 'SUCCESS'
                     } else {
-                        env.CHANGED_SERVICES = finalChangedServices.unique().join(",")
+                        env.CHANGED_SERVICES = changedServices.unique().join(",")
                     }
                     echo "\n>>> Final services to be built: ${env.CHANGED_SERVICES}"
                 }
             }
         }
 
+//         // 이하 스테이지는 동일
 //         stage('Build & Push Changed Services in Parallel') {
 //             when {
 //                 expression { env.CHANGED_SERVICES }
@@ -103,9 +88,7 @@ pipeline {
 //                     script {
 //                         def changedServices = (env.CHANGED_SERVICES ?: '').split(",").toList()
 //                         def parallelTasks = [:]
-//
 //                         sh "aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_URL}"
-//
 //                         changedServices.each { service ->
 //                             parallelTasks["Build & Push ${service}"] = {
 //                                 sh """
@@ -116,7 +99,7 @@ pipeline {
 //                                     echo "--- Building and Pushing Docker image for ${service} ---"
 //                                     docker build -t ${service}:latest ./${service}
 //                                     docker tag ${service}:latest ${ECR_URL}/${service}:latest
-//                                     docker push ${ECR_URL}/${service}:latest
+//                                     docker push ${service}:latest
 //                                 """
 //                             }
 //                         }
