@@ -85,8 +85,8 @@ public class EventController {
 
     // isAllDay가 true인 모든 일정 조회
     @GetMapping("/all-day")
-    public ResponseEntity<List<EventResponse>> getIsAllDayEvents() {
-        List<EventResponse> response = eventService.getIsAllDayEvents();
+    public ResponseEntity<List<EventResponse>> getIsAllDayEvents(@AuthenticationPrincipal TokenUserInfo tokenUserInfo) {
+        List<EventResponse> response = eventService.getIsAllDayEvents(tokenUserInfo.getEmployeeNo());
         return ResponseEntity.ok(response);
     }
 }
