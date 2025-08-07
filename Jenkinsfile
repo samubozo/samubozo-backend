@@ -6,14 +6,12 @@ def deployHost = "172.31.9.208" // 배포 인스턴스의 private 주소
 pipeline {
     agent any // 어느 젠킨스 서버에서나 실행이 가능
     environment {
-        // --- 변경된 부분 시작 ---
-        SERVICE_DIRS = "approval-service,attendance-service,auth-service,certificate-service,chatbot-service,config-service,gateway-service,hr-service,message-service,notification-service,payroll-service,schedule-service,vacation-service"
+        SERVICE_DIRS = "approval-service,attendance-service,auth-service,certificate-service,chatbot-service,config-service,discovery-service,gateway-service,hr-service,message-service,notification-service,payroll-service,schedule-service,vacation-service"
         ECR_URL = "886331869898.dkr.ecr.ap-northeast-2.amazonaws.com"
-        // --- 변경된 부분 끝 ---
         REGION = "ap-northeast-2"
+        CHANGED_SERVICES = "" // 초기값 설정
     }
     stages {
-        // 각 작업 단위를 스테이지로 나누어서 작성 가능.
         stage('Pull Codes from Github') { // 스테이지 제목 (맘대로 써도 됨)
             steps {
                 checkout scm // 젠킨스와 연결된 소스 컨트롤 매니저(git 등)에서 코드를 가져오는 명령어
@@ -33,49 +31,49 @@ pipeline {
         stage('Detect Changes') {
             steps {
                 script {
-                    // rev-list: 특정 브랜치나 커밋을 기준으로 모든 이전 커밋 목록을 나열
-                    // --count: 목록 출력 말고 커밋 개수만 숫자로 반환
-                    def commitCount = sh(script: "git rev-list --count HEAD", returnStdout: true)
-                                        .trim()
-                                        .toInteger()
+                    def allServices = env.SERVICE_DIRS.split(",")
                     def changedServices = []
-                    def serviceDirs = env.SERVICE_DIRS.split(",")
+                    def shouldBuildAll = false
 
-                    if (commitCount == 1) {
-                        // 최초 커밋이라면 모든 서비스 빌드
-                        echo "Initial commit detected. All services will be built."
-                        changedServices = serviceDirs // 변경된 서비스는 모든 서비스다.
+                    // ECR에 이미지가 존재하는지 확인
+                    withAWS(region: "${REGION}", credentials: "aws-key") {
+                        try {
+                            // ECR 리포지토리 목록을 가져와서 비어있는지 확인
+                            def repoListJson = sh(script: "aws ecr describe-repositories --output json", returnStdout: true)
+                            def repoList = new groovy.json.JsonSlurper().parseText(repoListJson)
+                            if (repoList.repositories.isEmpty()) {
+                                echo "No ECR repositories found. Building all services for the first time."
+                                shouldBuildAll = true
+                            }
+                        } catch (Exception e) {
+                            echo "Failed to check ECR repositories: ${e.getMessage()}. Assuming first build."
+                            shouldBuildAll = true
+                        }
+                    }
 
+                    if (shouldBuildAll) {
+                        changedServices = allServices
                     } else {
-                        // 변경된 파일 감지
-                        def changedFiles = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true)
-                                            .trim()
-                                            .split('\n') // 변경된 파일을 줄 단위로 분리
+                        // Git 커밋 기반 변경 감지 로직
+                        def commitCount = sh(script: "git rev-list --count HEAD", returnStdout: true).trim().toInteger()
+                        if (commitCount == 1) {
+                            echo "Initial commit detected. All services will be built."
+                            changedServices = allServices
+                        } else {
+                            def changedFiles = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim().split('\n')
+                            echo "Changed files: ${changedFiles}"
 
-                        // 변경된 파일 출력
-                        // [user-service/src/main/resources/application.yml,
-                        // user-service/src/main/java/com/playdata/userservice/controller/UserController.java,
-                        // ordering-service/src/main/resources/application.yml]
-                        echo "Changed files: ${changedFiles}"
-
-
-                        serviceDirs.each { service ->
-                            // changedFiles라는 리스트를 조회해서 service 변수에 들어온 서비스 이름과
-                            // 하나라도 일치하는 이름이 있다면 true, 하나도 존재하지 않으면 false
-                            // service: user-service -> 변경된 파일 경로가 user-service/로 시작한다면 true
-                            if (changedFiles.any { it.startsWith(service + "/") }) {
-                                changedServices.add(service)
+                            allServices.each { service ->
+                                if (changedFiles.any { it.startsWith(service + "/") }) {
+                                    changedServices.add(service)
+                                }
                             }
                         }
                     }
 
-                    //변경된 서비스 이름을 모아놓은 리스트를 다른 스테이지에서도 사용하기 위해 환경 변수로 선언.
-                    // join() -> 지정한 문자열을 구분자로 하여 리스트 요소를 하나의 문자열로 리턴. 중복 제거.
-                    // 환경변수는 문자열만 선언할 수 있어서 join을 사용함.
                     env.CHANGED_SERVICES = changedServices.join(",")
                     if (env.CHANGED_SERVICES == "") {
                         echo "No changes detected in service directories. Skipping build and deployment."
-                        // 성공 상태로 파이프라인을 종료
                         currentBuild.result = 'SUCCESS'
                     }
                 }
@@ -83,8 +81,6 @@ pipeline {
         }
 
         stage('Build Changed Services') {
-            // 이 스테이지는 빌드되어야 할 서비스가 존재한다면 실행되는 스테이지.
-            // 이전 스테이지에서 세팅한 CHANGED_SERVICES라는 환경변수가 비어있지 않아야만 실행.
             when {
                 expression { env.CHANGED_SERVICES != "" }
             }
@@ -110,8 +106,7 @@ pipeline {
             }
             steps {
                 script {
-                    // jenkins에 저장된 credentials를 사용하여 AWS 자격증명을 설정.
-                    withAWS(region: "${REGION}", credentials: "aws-key") {
+                    withAWS(region: "${REGION}", credentials: "jenkins-ssh-key") {
                         def changedServices = env.CHANGED_SERVICES.split(",")
                         changedServices.each { service ->
                             sh """
@@ -132,8 +127,6 @@ pipeline {
                             """
                         }
                     }
-
-
                 }
             }
         }
