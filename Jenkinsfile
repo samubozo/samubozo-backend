@@ -33,8 +33,9 @@ pipeline {
         stage('Detect Changes') {
             steps {
                 script {
-                    def allServices = env.SERVICE_DIRS.split(",")
-                    def commonModules = env.COMMON_MODULES.split(",")
+                    // 🚨 수정: .split() 결과를 .toList()로 변환하여 배열이 아닌 리스트로 만듭니다.
+                    def allServices = env.SERVICE_DIRS.split(",").toList()
+                    def commonModules = env.COMMON_MODULES.split(",").toList()
                     def changedServices = []
                     def shouldBuildAll = false
 
@@ -66,10 +67,9 @@ pipeline {
                             if (changedFilesOutput == "") {
                                 echo "No changes detected between HEAD~1 and HEAD."
                             } else {
-                                def changedFiles = changedFilesOutput.split('\n')
+                                def changedFiles = changedFilesOutput.split('\n').toList()
                                 echo "Changed files: ${changedFiles}"
 
-                                // 공통 모듈이 변경되었는지 확인
                                 if (commonModules.any { module -> changedFiles.any { it.startsWith(module + "/") } }) {
                                     echo "Common module changed. Building all services."
                                     changedServices = allServices
@@ -84,6 +84,7 @@ pipeline {
                         }
                     }
 
+                    // 이제 changedServices는 항상 리스트 타입이므로 .isEmpty() 호출이 안전합니다.
                     if (changedServices.isEmpty()) {
                         echo "No changes detected in service directories. Skipping build and deployment."
                         env.CHANGED_SERVICES = ""
@@ -97,7 +98,6 @@ pipeline {
             }
         }
 
-        // ECR 로그인 준비 단계를 별도 stage로 분리
         stage('Prepare ECR Login') {
             when {
                 expression { env.CHANGED_SERVICES != "" }
@@ -118,19 +118,16 @@ pipeline {
             }
         }
 
-        // 병렬 빌드 & 푸시를 위한 stage
         stage('Build & Push Changed Services in Parallel') {
             when {
                 expression { env.CHANGED_SERVICES != "" }
             }
             steps {
                 script {
-                    def changedServices = env.CHANGED_SERVICES.split(",")
-                    // 병렬로 실행할 작업들을 맵(Map) 형태로 정의
+                    def changedServices = env.CHANGED_SERVICES.split(",").toList()
                     def parallelTasks = [:]
 
                     changedServices.each { service ->
-                        // 각 서비스에 대한 빌드/푸시 작업을 정의
                         parallelTasks["Build & Push ${service}"] = {
                             sh """
                                 echo "--- Building ${service} ---"
@@ -145,43 +142,41 @@ pipeline {
                             """
                         }
                     }
-                    // 정의된 작업들을 병렬로 실행
                     parallel parallelTasks
                 }
             }
         }
 
-//         stage('Deploy Changed Services to AWS EKS') {
-//             when {
-//                 expression { env.CHANGED_SERVICES != "" }
-//             }
-//             steps {
-//                 sshagent(credentials: ["deploy-key"]) {
-//                     sh """
-//                         echo "[INFO] SCP docker-compose.yml 전송 중..."
-//                         scp -o StrictHostKeyChecking=no docker-compose.yml ubuntu@${deployHost}:/home/ubuntu/docker-compose.yml
-//
-//                         echo "[INFO] SSH 접속 및 배포 실행..."
-//                         ssh -o StrictHostKeyChecking=no ubuntu@${deployHost} '
-//                             set -e  # 에러 발생 시 즉시 종료
-//
-//                             # EC2 인스턴스에 AWS CLI와 ECR 접근 권한이 있는 IAM Role이 설정되어 있어야 합니다.
-//                             echo "[INFO] ECR 로그인 중..."
-//                             aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_URL}
-//
-//                             cd /home/ubuntu
-//
-//                             CHANGED_SERVICES_FOR_COMPOSE="${env.CHANGED_SERVICES.replace(",", " ")}"
-//
-//                             echo "[INFO] 이미지 Pull 중: ${CHANGED_SERVICES_FOR_COMPOSE}"
-//                             docker-compose pull ${CHANGED_SERVICES_FOR_COMPOSE}
-//
-//                             echo "[INFO] 서비스 재시작 중..."
-//                             docker-compose up -d --remove-orphans ${CHANGED_SERVICES_FOR_COMPOSE}
-//                         '
-//                     """
-//                 }
-//             }
-//         }
+        stage('Deploy Changed Services to AWS EC2') {
+            when {
+                expression { env.CHANGED_SERVICES != "" }
+            }
+            steps {
+                sshagent(credentials: ["deploy-key"]) {
+                    sh """
+                        echo "[INFO] SCP docker-compose.yml 전송 중..."
+                        scp -o StrictHostKeyChecking=no docker-compose.yml ubuntu@${deployHost}:/home/ubuntu/docker-compose.yml
+
+                        echo "[INFO] SSH 접속 및 배포 실행..."
+                        ssh -o StrictHostKeyChecking=no ubuntu@${deployHost} '
+                            set -e  # 에러 발생 시 즉시 종료
+
+                            echo "[INFO] ECR 로그인 중..."
+                            aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_URL}
+
+                            cd /home/ubuntu
+
+                            CHANGED_SERVICES_FOR_COMPOSE="${env.CHANGED_SERVICES.replace(",", " ")}"
+
+                            echo "[INFO] 이미지 Pull 중: ${CHANGED_SERVICES_FOR_COMPOSE}"
+                            docker-compose pull ${CHANGED_SERVICES_FOR_COMPOSE}
+
+                            echo "[INFO] 서비스 재시작 중..."
+                            docker-compose up -d --remove-orphans ${CHANGED_SERVICES_FOR_COMPOSE}
+                        '
+                    """
+                }
+            }
+        }
     }
 }
