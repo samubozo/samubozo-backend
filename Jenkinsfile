@@ -13,7 +13,6 @@ pipeline {
         ECR_URL = "886331869898.dkr.ecr.ap-northeast-2.amazonaws.com"
         REGION = "ap-northeast-2"
         COMMON_MODULES = "common-module,parent-module"
-        # Helm 배포 관련 변수
         EKS_CLUSTER_NAME = "samubozo-eks"
     }
 
