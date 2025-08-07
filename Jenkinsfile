@@ -1,5 +1,5 @@
 // ======================================================
-// Jenkinsfile - 전역 변수를 사용한 완전 리팩토링 버전
+// Jenkinsfile - 자동 빌드 전용 리팩토링 버전
 // ======================================================
 
 // 전역 변수 선언 (pipeline 블록 밖에 선언)
@@ -8,10 +8,6 @@ def deployHost = "172.31.9.208"
 
 pipeline {
     agent any
-
-    parameters {
-        string(name: 'MANUAL_BUILD_SERVICES', defaultValue: '', description: '수동으로 빌드/배포할 서비스 목록 (쉼표로 구분). 비워두면 자동 감지 로직을 따릅니다.')
-    }
 
     environment {
         SERVICE_DIRS = "approval-service,attendance-service,auth-service,certificate-service,chatbot-service,config-service,gateway-service,hr-service,message-service,notification-service,payroll-service,schedule-service,vacation-service"
@@ -48,50 +44,40 @@ pipeline {
                     def allServices = env.SERVICE_DIRS.split(",").toList()
                     def detectedServices = []
 
-                    // 1. 수동 빌드 체크
-                    if (params.MANUAL_BUILD_SERVICES?.trim()) {
-                        echo "\n📌 Manual build requested"
-                        echo "Services: ${params.MANUAL_BUILD_SERVICES}"
+                    echo "\n🔍 Starting automatic change detection..."
 
-                        detectedServices = params.MANUAL_BUILD_SERVICES.split(',').collect { it.trim() }
-                        GLOBAL_CHANGED_SERVICES = detectedServices.join(",")
+                    // 1. ECR 빈 레포지토리 체크
+                    echo "\n--- Phase 1: ECR Repository Check ---"
+                    def ecrEmptyServices = checkECRRepositories(allServices)
 
+                    if (ecrEmptyServices) {
+                        echo "📦 ECR empty services found: ${ecrEmptyServices.size()} services"
+                        echo "   Services: ${ecrEmptyServices.join(', ')}"
+                        detectedServices.addAll(ecrEmptyServices)
+                        echo "⚡ Skipping Git check - ECR rebuild required"
                     } else {
-                        echo "\n🔍 Starting automatic change detection..."
+                        echo "✅ All services have images in ECR"
 
-                        // 2. ECR 빈 레포지토리 체크
-                        echo "\n--- Phase 1: ECR Repository Check ---"
-                        def ecrEmptyServices = checkECRRepositories(allServices)
+                        // 2. Git 변경사항 체크 (ECR이 모두 차있을 때만)
+                        echo "\n--- Phase 2: Git Changes Check ---"
+                        def gitChangedServices = checkGitChanges(allServices)
 
-                        if (ecrEmptyServices) {
-                            echo "📦 ECR empty services found: ${ecrEmptyServices.size()} services"
-                            echo "   Services: ${ecrEmptyServices.join(', ')}"
-                            detectedServices.addAll(ecrEmptyServices)
-                            echo "⚡ Skipping Git check - ECR rebuild required"
+                        if (gitChangedServices) {
+                            echo "📝 Git changes found: ${gitChangedServices.size()} services"
+                            echo "   Services: ${gitChangedServices.join(', ')}"
+                            detectedServices.addAll(gitChangedServices)
                         } else {
-                            echo "✅ All services have images in ECR"
-
-                            // 3. Git 변경사항 체크 (ECR이 모두 차있을 때만)
-                            echo "\n--- Phase 2: Git Changes Check ---"
-                            def gitChangedServices = checkGitChanges(allServices)
-
-                            if (gitChangedServices) {
-                                echo "📝 Git changes found: ${gitChangedServices.size()} services"
-                                echo "   Services: ${gitChangedServices.join(', ')}"
-                                detectedServices.addAll(gitChangedServices)
-                            } else {
-                                echo "✅ No Git changes detected"
-                            }
-                        }
-
-                        // 4. 최종 결과 처리
-                        if (detectedServices) {
-                            def uniqueServices = detectedServices.unique()
-                            GLOBAL_CHANGED_SERVICES = uniqueServices.join(",")
+                            echo "✅ No Git changes detected"
                         }
                     }
 
-                    // 5. 결과 출력
+                    // 3. 최종 결과 처리
+                    if (detectedServices) {
+                        def uniqueServices = detectedServices.unique()
+                        GLOBAL_CHANGED_SERVICES = uniqueServices.join(",")
+                    }
+
+                    // 4. 결과 출력
                     echo "\n========================================="
                     if (GLOBAL_CHANGED_SERVICES) {
                         def serviceList = GLOBAL_CHANGED_SERVICES.split(",")
@@ -138,9 +124,10 @@ pipeline {
                             try {
                                 echo "\n📦 Building ${service}..."
 
-                                // Gradle 빌드
+                                // Gradle 빌드 (실행 권한 추가)
                                 sh """
                                     cd ${service}
+                                    chmod +x ./gradlew
                                     ./gradlew clean build -x test
                                     cd ..
                                 """
@@ -323,9 +310,10 @@ def createBuildTask(serviceName) {
         try {
             echo "\n🔨 Building ${serviceName}..."
 
-            // Gradle 빌드
+            // Gradle 빌드 (실행 권한 추가)
             sh """
                 cd ${serviceName}
+                chmod +x ./gradlew
                 ./gradlew clean build -x test
                 cd ..
             """
