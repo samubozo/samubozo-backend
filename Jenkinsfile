@@ -1,5 +1,5 @@
 // ======================================================
-// 최종 완성형 Jenkinsfile (파일 시스템을 이용한 버그 우회)
+// 최종 완성형 Jenkinsfile (파일 시스템을 이용한 버그 우회 - 수정본)
 // ======================================================
 
 def deployHost = "172.31.9.208"
@@ -8,7 +8,7 @@ pipeline {
     agent any
 
     parameters {
-        string(name: 'MANUAL_BUILD_SERVICES', defaultValue: '', description: '수동으로 빌드/배포할 서비스 목록 (쉼표로 구분). 비워두면 자동 감지 로지을 따릅니다.')
+        string(name: 'MANUAL_BUILD_SERVICES', defaultValue: '', description: '수동으로 빌드/배포할 서비스 목록 (쉼표로 구분). 비워두면 자동 감지 로직을 따릅니다.')
     }
 
     environment {
@@ -18,6 +18,7 @@ pipeline {
         CHANGED_SERVICES = ""
         COMMON_MODULES = "common-module,parent-module"
     }
+
     stages {
         stage('Initial Setup') {
             steps {
@@ -41,59 +42,77 @@ pipeline {
                         finalChangedServices = params.MANUAL_BUILD_SERVICES.split(',').collect { it.trim() }
 
                     } else {
-                        // ✨ 수정: 결과를 변수가 아닌 파일에 기록합니다.
-                        // 1. ECR 체크 결과를 임시 파일(ecr_changes.txt)에 저장
+                        // ✨ 수정: ECR 체크 결과를 직접 리스트에 저장
                         echo "--- Checking for services with no images in ECR ---"
+                        def ecrEmptyServices = []
+
                         withAWS(region: "${REGION}", credentials: "aws-key") {
-                            def ecrEmptyServices = []
                             allServices.each { service ->
-                                def statusCode = sh(script: "aws ecr describe-images --repository-name ${service} --max-items 1 > /dev/null 2>&1", returnStatus: true)
+                                def statusCode = sh(
+                                    script: "aws ecr describe-images --repository-name ${service} --max-items 1 > /dev/null 2>&1",
+                                    returnStatus: true
+                                )
                                 if (statusCode != 0) {
                                     echo "-> No images found for '${service}' in ECR. Adding to list."
                                     ecrEmptyServices.add(service)
                                 }
                             }
-                            // 찾은 목록을 파일에 쓴다.
-                            writeFile file: 'ecr_changes.txt', text: ecrEmptyServices.join(',')
+                        }
+
+                        // ECR 결과를 바로 finalChangedServices에 추가
+                        if (!ecrEmptyServices.isEmpty()) {
+                            echo "ECR empty services found: ${ecrEmptyServices.join(',')}"
+                            finalChangedServices.addAll(ecrEmptyServices)
                         }
 
                         // 2. Git 변경 감지
                         echo "\n--- Checking for services with code changes via Git ---"
                         def gitChangedServices = []
                         def commitCount = sh(script: "git rev-list --count HEAD", returnStdout: true).trim().toInteger()
+
                         if (commitCount > 1) {
                             def changedFilesOutput = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim()
                             if (changedFilesOutput) {
                                 def changedFiles = changedFilesOutput.split('\n').toList()
                                 def commonModules = env.COMMON_MODULES.split(",").toList()
+
+                                // 공통 모듈이 변경되면 모든 서비스 빌드
                                 if (commonModules.any { module -> changedFiles.any { it.startsWith(module + "/") } }) {
+                                    echo "Common module changed, all services will be built"
                                     gitChangedServices.addAll(allServices)
                                 } else {
+                                    // 개별 서비스 변경 확인
                                     allServices.each { service ->
                                         if (changedFiles.any { it.startsWith(service + "/") }) {
+                                            echo "Git changes detected in: ${service}"
                                             gitChangedServices.add(service)
                                         }
                                     }
                                 }
                             }
+                        } else {
+                            echo "This is the first commit, checking all services"
+                            // 첫 커밋인 경우 모든 서비스 체크 (ECR 체크만 진행됨)
                         }
 
-                        // ✨ 수정: 파일에서 ECR 체크 결과를 읽어와 Git 결과와 합칩니다.
-                        def ecrServicesFromFile = readFile('ecr_changes.txt').trim()
-                        if (ecrServicesFromFile) {
-                            finalChangedServices.addAll(ecrServicesFromFile.split(','))
+                        // Git 변경사항 추가
+                        if (!gitChangedServices.isEmpty()) {
+                            echo "Git changed services: ${gitChangedServices.join(',')}"
+                            finalChangedServices.addAll(gitChangedServices)
                         }
-                        finalChangedServices.addAll(gitChangedServices)
                     }
 
+                    // 중복 제거 및 최종 결과 설정
                     if (finalChangedServices.isEmpty()) {
-                        echo "\nNo services to build."
+                        echo "\n⚠️ No services to build."
                         env.CHANGED_SERVICES = ""
                         currentBuild.result = 'SUCCESS'
                     } else {
-                        env.CHANGED_SERVICES = finalChangedServices.unique().join(",")
+                        def uniqueServices = finalChangedServices.unique()
+                        env.CHANGED_SERVICES = uniqueServices.join(",")
+                        echo "\n✅ Final services to be built: ${env.CHANGED_SERVICES}"
+                        echo "Total count: ${uniqueServices.size()}"
                     }
-                    echo "\n>>> Final services to be built: ${env.CHANGED_SERVICES}"
                 }
             }
         }
