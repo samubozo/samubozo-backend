@@ -28,24 +28,6 @@ services:
       start_period: 30s
     restart: always
 
-  discovery-service:
-    image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/discovery-service:latest
-    container_name: discovery-service # 오류 수정
-    ports:
-      - "8761:8761" # Eureka 대시보드용 포트 추가
-    networks:
-      - msa-network
-    depends_on: # 오류 수정
-      config-service:
-        condition: service_healthy
-    healthcheck: # Healthcheck 추가
-      test: ["CMD", "curl", "-f", "http://discovery-service:8761/actuator/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
-    restart: always
-
   # --- API 게이트웨이 ---
   gateway-service:
     image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/gateway-service:latest

@@ -1,5 +1,5 @@
 // ======================================================
-// Jenkinsfile - 자동 빌드 전용 리팩토링 버전
+// Jenkinsfile - Dockerfile 빌드 위임 버전
 // ======================================================
 
 // 전역 변수 선언 (pipeline 블록 밖에 선언)
@@ -124,15 +124,17 @@ pipeline {
                             try {
                                 echo "\n📦 Building ${service}..."
 
-                                // Gradle 빌드 (실행 권한 추가)
-                                sh """
-                                    cd ${service}
-                                    chmod +x ./gradlew
-                                    ./gradlew clean build -x test
-                                    cd ..
-                                """
+                                // Dockerfile에 빌드를 위임했으므로 Jenkinsfile의 Gradle 빌드 과정은 삭제
+                                // // Gradle 빌드 (실행 권한 추가)
+                                // sh """
+                                //     cd ${service}
+                                //     chmod +x ./gradlew
+                                //     ./gradlew clean build -x test
+                                //     cd ..
+                                // """
 
                                 // Docker 이미지 빌드 및 푸시
+                                // Dockerfile이 있는 서비스 폴더를 컨텍스트로 지정
                                 sh """
                                     docker build -t ${service}:latest ./${service}
                                     docker tag ${service}:latest ${ECR_URL}/${service}:latest
@@ -160,29 +162,7 @@ pipeline {
         }
 
 //         stage('Deploy Services') {
-//             when {
-//                 expression {
-//                     return GLOBAL_CHANGED_SERVICES != null && GLOBAL_CHANGED_SERVICES != ""
-//                 }
-//             }
-//             steps {
-//                 script {
-//                     echo "========================================="
-//                     echo "     Deployment Stage Starting"
-//                     echo "========================================="
-//
-//                     def servicesToDeploy = GLOBAL_CHANGED_SERVICES.split(",").toList()
-//                     echo "🚀 Deploying ${servicesToDeploy.size()} services..."
-//
-//                     // 배포 로직 추가 (필요시)
-//                     servicesToDeploy.each { service ->
-//                         echo "  • Deploying ${service} to ${deployHost}"
-//                         // 실제 배포 명령 추가
-//                     }
-//
-//                     echo "\n✅ Deployment completed!"
-//                 }
-//             }
+//             // ...
 //         }
     }
 
@@ -310,13 +290,14 @@ def createBuildTask(serviceName) {
         try {
             echo "\n🔨 Building ${serviceName}..."
 
-            // Gradle 빌드 (실행 권한 추가)
-            sh """
-                cd ${serviceName}
-                chmod +x ./gradlew
-                ./gradlew clean build -x test
-                cd ..
-            """
+            // Dockerfile에 빌드를 위임했으므로 Jenkinsfile의 Gradle 빌드 과정은 삭제
+            // // Gradle 빌드 (실행 권한 추가)
+            // sh """
+            //     cd ${serviceName}
+            //     chmod +x ./gradlew
+            //     ./gradlew clean build -x test
+            //     cd ..
+            // """
 
             // Docker 이미지 빌드 및 푸시
             sh """
