@@ -1,9 +1,0 @@
-replicaCount: 2
-
-image:
-  repository: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/attendance-service
-  tag: latest
-
-service:
-  type: ClusterIP
-  port: 8002

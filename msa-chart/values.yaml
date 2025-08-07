@@ -1,0 +1,120 @@
+
+# Helm 차트에서 사용할 전역 값들을 정의하는 곳.
+imagePullSecrets:
+  - name: ecr-secret
+
+global:
+  labels:
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 1.0.0
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/actuator/prometheus"
+  image:
+    repository: 730335335278.dkr.ecr.ap-northeast-2.amazonaws.com
+    pullPolicy: IfNotPresent
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+  livenessProbe:
+    httpGet:
+      path: /actuator/health
+      port: http
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /actuator/health
+      port: http
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+config-service:
+  name: config-service
+  replicaCount: 1
+  port: 8888
+  livenessProbe:
+    enabled: false
+  readinessProbe:
+    enabled: false
+
+gateway-service:
+  name: gateway-service
+  replicaCount: 2
+  port: 8000
+  service:
+    type: LoadBalancer
+    port: 8000
+    targetPort: 8000
+  livenessProbe:
+    enabled: false
+  readinessProbe:
+    enabled: false
+
+approval-service:
+  name: approval-service
+  replicaCount: 1
+  port: 8080
+
+attendance-service:
+  name: attendance-service
+  replicaCount: 1
+  port: 8080
+
+auth-service:
+  name: auth-service
+  replicaCount: 1
+  port: 9001
+
+certificate-service:
+  name: certificate-service
+  replicaCount: 1
+  port: 8080
+
+chatbot-service:
+  name: chatbot-service
+  replicaCount: 1
+  port: 8080
+
+hr-service:
+  name: hr-service
+  replicaCount: 1
+  port: 8080
+
+message-service:
+  name: message-service
+  replicaCount: 1
+  port: 8080
+
+notification-service:
+  name: notification-service
+  replicaCount: 1
+  port: 8080
+
+payroll-service:
+  name: payroll-service
+  replicaCount: 1
+  port: 8080
+
+schedule-service:
+  name: schedule-service
+  replicaCount: 1
+  port: 8080
+
+vacation-service:
+  name: vacation-service
+  replicaCount: 1
+  port: 8080
