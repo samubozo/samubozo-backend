@@ -17,7 +17,7 @@ global:
     - name: TZ
       value: Asia/Seoul
     - name: SPRING_PROFILES_ACTIVE
-      value: k8s
+      value: dev,deploy
     - name: SPRING_CLOUD_KUBERNETES_DISCOVERY_ENABLED
       value: "true"
     - name: SPRING_CLOUD_KUBERNETES_RELOAD_ENABLED
