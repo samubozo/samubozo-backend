@@ -124,15 +124,6 @@ pipeline {
                             try {
                                 echo "\n📦 Building ${service}..."
 
-                                // Dockerfile에 빌드를 위임했으므로 Jenkinsfile의 Gradle 빌드 과정은 삭제
-                                // // Gradle 빌드 (실행 권한 추가)
-                                // sh """
-                                //     cd ${service}
-                                //     chmod +x ./gradlew
-                                //     ./gradlew clean build -x test
-                                //     cd ..
-                                // """
-
                                 // Docker 이미지 빌드 및 푸시
                                 // Dockerfile이 있는 서비스 폴더를 컨텍스트로 지정
                                 sh """
