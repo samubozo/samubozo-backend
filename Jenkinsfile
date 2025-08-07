@@ -78,32 +78,34 @@ pipeline {
 
                         if (ecrResult) {
                             changedServicesList.addAll(ecrResult.split(','))
-                        }
+                        }else{
+                            // Git 변경 감지
+                            echo "\n--- Checking for services with code changes via Git ---"
+                            def commitCount = sh(script: "git rev-list --count HEAD", returnStdout: true).trim().toInteger()
 
-                        // Git 변경 감지
-                        echo "\n--- Checking for services with code changes via Git ---"
-                        def commitCount = sh(script: "git rev-list --count HEAD", returnStdout: true).trim().toInteger()
+                            if (commitCount > 1) {
+                                def changedFilesOutput = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim()
+                                if (changedFilesOutput) {
+                                    echo "Changed files:\n${changedFilesOutput}"
+                                    def changedFiles = changedFilesOutput.split('\n').toList()
+                                    def commonModules = env.COMMON_MODULES.split(",").toList()
 
-                        if (commitCount > 1) {
-                            def changedFilesOutput = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim()
-                            if (changedFilesOutput) {
-                                echo "Changed files:\n${changedFilesOutput}"
-                                def changedFiles = changedFilesOutput.split('\n').toList()
-                                def commonModules = env.COMMON_MODULES.split(",").toList()
-
-                                if (commonModules.any { module -> changedFiles.any { it.startsWith(module + "/") } }) {
-                                    echo "Common module changed, all services will be built"
-                                    changedServicesList.addAll(allServices)
-                                } else {
-                                    allServices.each { service ->
-                                        if (changedFiles.any { it.startsWith(service + "/") }) {
-                                            echo "Git changes detected in: ${service}"
-                                            changedServicesList.add(service)
+                                    if (commonModules.any { module -> changedFiles.any { it.startsWith(module + "/") } }) {
+                                        echo "Common module changed, all services will be built"
+                                        changedServicesList.addAll(allServices)
+                                    } else {
+                                        allServices.each { service ->
+                                            if (changedFiles.any { it.startsWith(service + "/") }) {
+                                                echo "Git changes detected in: ${service}"
+                                                changedServicesList.add(service)
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
+
+
 
                         // 최종 결과
                         if (changedServicesList.isEmpty()) {
