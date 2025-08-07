@@ -1,5 +1,5 @@
 // ======================================================
-// 최종 완성형 Jenkinsfile (withAWS 버그 우회)
+// 최종 완성형 Jenkinsfile (withCredentials 오타 수정)
 // ======================================================
 
 def deployHost = "172.31.9.208"
@@ -43,13 +43,10 @@ pipeline {
                         def ecrEmptyServices = []
                         def gitChangedServices = []
 
-                        // ✨✨✨ 수정: withAWS 대신 withCredentials를 사용하여 플러그인 버그를 우회합니다. ✨✨✨
                         echo "--- Checking for services with no images in ECR ---"
-                        // 'aws-key'라는 ID의 자격증명을 불러와 환경변수(AWS_ACCESS_KEY_ID 등)로 설정합니다.
-                        withCredentials([aws(credentials: 'aws-key')]) {
+                        // ✨✨✨ 수정: credentials -> credentialsId 로 오타 수정 ✨✨✨
+                        withCredentials([aws(credentialsId: 'aws-key')]) {
                             allServices.each { service ->
-                                // AWS CLI는 환경변수를 자동으로 읽어 인증합니다.
-                                // 리전 정보는 직접 명시해줍니다.
                                 def statusCode = sh(script: "aws ecr describe-images --repository-name ${service} --region ${REGION} --max-items 1 > /dev/null 2>&1", returnStatus: true)
                                 if (statusCode != 0) {
                                     echo "-> No images found for '${service}' in ECR (exit code: ${statusCode}). Adding to build list."
@@ -98,8 +95,6 @@ pipeline {
 //                 expression { env.CHANGED_SERVICES }
 //             }
 //             steps {
-//                 // 이 스테이지의 withAWS는 ECR 로그인에만 사용되므로 그대로 두어도 괜찮습니다.
-//                 // 만약 여기서도 문제가 발생하면 이 부분도 withCredentials로 변경할 수 있습니다.
 //                 withAWS(region: "${REGION}", credentials: "aws-key") {
 //                     script {
 //                         def changedServices = (env.CHANGED_SERVICES ?: '').split(",").toList()
