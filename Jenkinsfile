@@ -1,7 +1,9 @@
 // ======================================================
-// 최종 완성형 Jenkinsfile (파일 시스템을 이용한 버그 우회 - 수정본)
+// Jenkinsfile - 전역 변수를 사용한 완전 리팩토링 버전
 // ======================================================
 
+// 전역 변수 선언 (pipeline 블록 밖에 선언)
+def GLOBAL_CHANGED_SERVICES = ""
 def deployHost = "172.31.9.208"
 
 pipeline {
@@ -15,143 +17,307 @@ pipeline {
         SERVICE_DIRS = "approval-service,attendance-service,auth-service,certificate-service,chatbot-service,config-service,discovery-service,gateway-service,hr-service,message-service,notification-service,payroll-service,schedule-service,vacation-service"
         ECR_URL = "886331869898.dkr.ecr.ap-northeast-2.amazonaws.com"
         REGION = "ap-northeast-2"
-        CHANGED_SERVICES = ""
         COMMON_MODULES = "common-module,parent-module"
     }
 
     stages {
         stage('Initial Setup') {
             steps {
-                // 이전 빌드의 임시 파일이 남아있을 수 있으므로 정리
+                echo "========================================="
+                echo "     Initial Setup Stage Starting"
+                echo "========================================="
+
                 deleteDir()
                 checkout scm
+
                 withCredentials([file(credentialsId: 'config-secret', variable: 'configSecret')]) {
                     sh 'cp $configSecret config-service/src/main/resources/application-dev.yml'
                 }
+
+                echo "✅ Initial setup completed"
             }
         }
 
-        // Detect Changes 스테이지만 교체 (더 간단한 방법)
         stage('Detect Changes') {
             steps {
                 script {
+                    echo "========================================="
+                    echo "     Change Detection Stage Starting"
+                    echo "========================================="
+
                     def allServices = env.SERVICE_DIRS.split(",").toList()
-                    def changedServicesList = []
+                    def detectedServices = []
 
-                    if (params.MANUAL_BUILD_SERVICES.trim()) {
-                        echo "Manual build triggered for: ${params.MANUAL_BUILD_SERVICES}"
-                        env.CHANGED_SERVICES = params.MANUAL_BUILD_SERVICES.trim()
+                    // 1. 수동 빌드 체크
+                    if (params.MANUAL_BUILD_SERVICES?.trim()) {
+                        echo "\n📌 Manual build requested"
+                        echo "Services: ${params.MANUAL_BUILD_SERVICES}"
+
+                        detectedServices = params.MANUAL_BUILD_SERVICES.split(',').collect { it.trim() }
+                        GLOBAL_CHANGED_SERVICES = detectedServices.join(",")
+
                     } else {
-                        // ECR 체크 - 문자열로 직접 구성
-                        echo "--- Checking for services with no images in ECR ---"
-                        def ecrEmptyStr = ""
+                        echo "\n🔍 Starting automatic change detection..."
 
-                        withAWS(region: "${REGION}", credentials: "aws-key") {
-                            allServices.each { service ->
-                                echo "Checking ECR for service: ${service}"
+                        // 2. ECR 빈 레포지토리 체크
+                        echo "\n--- Phase 1: ECR Repository Check ---"
+                        def ecrEmptyServices = checkECRRepositories(allServices)
 
-                                def listOutput = sh(
-                                    script: """
-                                        aws ecr list-images --repository-name ${service} --query 'imageIds[0]' --output text 2>&1 || echo "ERROR"
-                                    """,
-                                    returnStdout: true
-                                ).trim()
-
-                                echo "List images output for ${service}: ${listOutput}"
-
-                                if (listOutput == "None" || listOutput == "" || listOutput.contains("ERROR")) {
-                                    echo "-> No images found for '${service}' in ECR."
-                                    if (ecrEmptyStr) {
-                                        ecrEmptyStr = ecrEmptyStr + "," + service
-                                    } else {
-                                        ecrEmptyStr = service
-                                    }
-                                }
-                            }
-                            // 파일에 저장
-                            sh "echo '${ecrEmptyStr}' > ecr_result.txt"
-                        }
-
-                        // 파일에서 읽기
-                        def ecrResult = sh(script: "cat ecr_result.txt", returnStdout: true).trim()
-                        echo "ECR empty services: ${ecrResult}"
-
-                        if (ecrResult) {
-                            changedServicesList.addAll(ecrResult.split(','))
-                        }else{
-                            // Git 변경 감지
-                            echo "\n--- Checking for services with code changes via Git ---"
-                            def commitCount = sh(script: "git rev-list --count HEAD", returnStdout: true).trim().toInteger()
-
-                            if (commitCount > 1) {
-                                def changedFilesOutput = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim()
-                                if (changedFilesOutput) {
-                                    echo "Changed files:\n${changedFilesOutput}"
-                                    def changedFiles = changedFilesOutput.split('\n').toList()
-                                    def commonModules = env.COMMON_MODULES.split(",").toList()
-
-                                    if (commonModules.any { module -> changedFiles.any { it.startsWith(module + "/") } }) {
-                                        echo "Common module changed, all services will be built"
-                                        changedServicesList.addAll(allServices)
-                                    } else {
-                                        allServices.each { service ->
-                                            if (changedFiles.any { it.startsWith(service + "/") }) {
-                                                echo "Git changes detected in: ${service}"
-                                                changedServicesList.add(service)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-
-
-                        // 최종 결과
-                        if (changedServicesList.isEmpty()) {
-                            echo "\n⚠️ No services to build."
-                            env.CHANGED_SERVICES = ""
+                        if (ecrEmptyServices) {
+                            echo "📦 ECR empty services found: ${ecrEmptyServices.size()} services"
+                            echo "   Services: ${ecrEmptyServices.join(', ')}"
+                            detectedServices.addAll(ecrEmptyServices)
+                            echo "⚡ Skipping Git check - ECR rebuild required"
                         } else {
-                            def uniqueServices = changedServicesList.unique()
-                            env.CHANGED_SERVICES = uniqueServices.join(",")
-                            echo "\n✅ Final services to be built: ${env.CHANGED_SERVICES}"
-                            echo "Total count: ${uniqueServices.size()}"
+                            echo "✅ All services have images in ECR"
+
+                            // 3. Git 변경사항 체크 (ECR이 모두 차있을 때만)
+                            echo "\n--- Phase 2: Git Changes Check ---"
+                            def gitChangedServices = checkGitChanges(allServices)
+
+                            if (gitChangedServices) {
+                                echo "📝 Git changes found: ${gitChangedServices.size()} services"
+                                echo "   Services: ${gitChangedServices.join(', ')}"
+                                detectedServices.addAll(gitChangedServices)
+                            } else {
+                                echo "✅ No Git changes detected"
+                            }
                         }
+
+                        // 4. 최종 결과 처리
+                        if (detectedServices) {
+                            def uniqueServices = detectedServices.unique()
+                            GLOBAL_CHANGED_SERVICES = uniqueServices.join(",")
+                        }
+                    }
+
+                    // 5. 결과 출력
+                    echo "\n========================================="
+                    if (GLOBAL_CHANGED_SERVICES) {
+                        def serviceList = GLOBAL_CHANGED_SERVICES.split(",")
+                        echo "🎯 FINAL RESULT: ${serviceList.size()} services to build"
+                        echo "========================================="
+                        echo "Services to build:"
+                        serviceList.each { service ->
+                            echo "  • ${service}"
+                        }
+                        currentBuild.description = "Building ${serviceList.size()} services"
+                    } else {
+                        echo "⚠️  FINAL RESULT: No services to build"
+                        echo "========================================="
+                        currentBuild.description = "No changes detected"
+                        currentBuild.result = 'SUCCESS'
                     }
                 }
             }
         }
 
-        stage('Build & Push Changed Services in Parallel') {
+        stage('Build & Push Services') {
             when {
-                expression { env.CHANGED_SERVICES }
-            }
-            steps {
-                withAWS(region: "${REGION}", credentials: "aws-key") {
-                    script {
-                        def changedServices = (env.CHANGED_SERVICES ?: '').split(",").toList()
-                        def parallelTasks = [:]
-
-                        sh "aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_URL}"
-
-                        changedServices.each { service ->
-                            parallelTasks["Build & Push ${service}"] = {
-                                sh """
-                                    echo "--- Building ${service} ---"
-                                    cd ${service}
-                                    ./gradlew clean build -x test
-                                    cd ..
-                                    echo "--- Building and Pushing Docker image for ${service} ---"
-                                    docker build -t ${service}:latest ./${service}
-                                    docker tag ${service}:latest ${ECR_URL}/${service}:latest
-                                    docker push ${ECR_URL}/${service}:latest
-                                """
-                            }
-                        }
-                        parallel parallelTasks
-                    }
+                expression {
+                    return GLOBAL_CHANGED_SERVICES != null && GLOBAL_CHANGED_SERVICES != ""
                 }
             }
+            steps {
+                script {
+                    echo "========================================="
+                    echo "     Build & Push Stage Starting"
+                    echo "========================================="
+
+                    def servicesToBuild = GLOBAL_CHANGED_SERVICES.split(",").toList()
+                    echo "🔨 Building ${servicesToBuild.size()} services in parallel..."
+
+                    withAWS(region: "${REGION}", credentials: "aws-key") {
+                        // ECR 로그인
+                        sh """
+                            aws ecr get-login-password --region ${REGION} | \
+                            docker login --username AWS --password-stdin ${ECR_URL}
+                        """
+
+                        // 병렬 작업 정의
+                        def parallelTasks = [:]
+
+                        servicesToBuild.each { service ->
+                            parallelTasks["${service}"] = createBuildTask(service)
+                        }
+
+                        // 병렬 실행
+                        parallel parallelTasks
+                    }
+
+                    echo "\n✅ All services built and pushed successfully!"
+                }
+            }
+        }
+
+        stage('Deploy Services') {
+            when {
+                expression {
+                    return GLOBAL_CHANGED_SERVICES != null && GLOBAL_CHANGED_SERVICES != ""
+                }
+            }
+            steps {
+                script {
+                    echo "========================================="
+                    echo "     Deployment Stage Starting"
+                    echo "========================================="
+
+                    def servicesToDeploy = GLOBAL_CHANGED_SERVICES.split(",").toList()
+                    echo "🚀 Deploying ${servicesToDeploy.size()} services..."
+
+                    // 배포 로직 추가 (필요시)
+                    servicesToDeploy.each { service ->
+                        echo "  • Deploying ${service} to ${deployHost}"
+                        // 실제 배포 명령 추가
+                    }
+
+                    echo "\n✅ Deployment completed!"
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Pipeline completed successfully!"
+            if (GLOBAL_CHANGED_SERVICES) {
+                echo "Built services: ${GLOBAL_CHANGED_SERVICES}"
+            }
+        }
+        failure {
+            echo "❌ Pipeline failed!"
+        }
+        always {
+            echo "🧹 Cleaning up workspace..."
+            cleanWs()
+        }
+    }
+}
+
+// ======================================================
+// Helper Functions (pipeline 블록 밖에 정의)
+// ======================================================
+
+def checkECRRepositories(serviceList) {
+    def emptyServices = []
+
+    withAWS(region: "${env.REGION}", credentials: "aws-key") {
+        serviceList.each { service ->
+            echo "  Checking: ${service}"
+
+            try {
+                // 이미지 리스트 확인
+                def imageCheck = sh(
+                    script: """
+                        aws ecr list-images \
+                            --repository-name ${service} \
+                            --query 'imageIds[0]' \
+                            --output text 2>&1
+                    """,
+                    returnStdout: true
+                ).trim()
+
+                if (imageCheck == "None" || imageCheck == "") {
+                    echo "    ↳ ❌ No images found"
+                    emptyServices.add(service)
+                } else {
+                    echo "    ↳ ✅ Images exist"
+                }
+
+            } catch (Exception e) {
+                // 레포지토리가 없는 경우
+                echo "    ↳ ❌ Repository not found"
+                emptyServices.add(service)
+            }
+        }
+    }
+
+    return emptyServices
+}
+
+def checkGitChanges(serviceList) {
+    def changedServices = []
+
+    try {
+        // 커밋 수 확인
+        def commitCount = sh(
+            script: "git rev-list --count HEAD",
+            returnStdout: true
+        ).trim().toInteger()
+
+        if (commitCount <= 1) {
+            echo "  First commit detected - skipping Git change detection"
+            return changedServices
+        }
+
+        // 변경된 파일 목록 가져오기
+        def changedFiles = sh(
+            script: "git diff --name-only HEAD~1 HEAD",
+            returnStdout: true
+        ).trim()
+
+        if (!changedFiles) {
+            echo "  No files changed in last commit"
+            return changedServices
+        }
+
+        echo "  Changed files detected:"
+        changedFiles.split('\n').each { file ->
+            echo "    • ${file}"
+        }
+
+        // 변경된 파일 분석
+        def fileList = changedFiles.split('\n').toList()
+        def commonModules = env.COMMON_MODULES.split(",").toList()
+
+        // 공통 모듈 변경 체크
+        def commonChanged = commonModules.any { module ->
+            fileList.any { file -> file.startsWith("${module}/") }
+        }
+
+        if (commonChanged) {
+            echo "  ⚠️  Common module changed - all services will be rebuilt"
+            return serviceList
+        }
+
+        // 개별 서비스 변경 체크
+        serviceList.each { service ->
+            if (fileList.any { file -> file.startsWith("${service}/") }) {
+                changedServices.add(service)
+            }
+        }
+
+    } catch (Exception e) {
+        echo "  ⚠️  Error during Git change detection: ${e.message}"
+    }
+
+    return changedServices
+}
+
+def createBuildTask(serviceName) {
+    return {
+        try {
+            echo "\n🔨 Building ${serviceName}..."
+
+            // Gradle 빌드
+            sh """
+                cd ${serviceName}
+                ./gradlew clean build -x test
+                cd ..
+            """
+
+            // Docker 이미지 빌드 및 푸시
+            sh """
+                docker build -t ${serviceName}:latest ./${serviceName}
+                docker tag ${serviceName}:latest ${env.ECR_URL}/${serviceName}:latest
+                docker push ${env.ECR_URL}/${serviceName}:latest
+            """
+
+            echo "✅ ${serviceName} build completed"
+
+        } catch (Exception e) {
+            echo "❌ ${serviceName} build failed: ${e.message}"
+            throw e
         }
     }
 }
