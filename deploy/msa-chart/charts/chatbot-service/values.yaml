@@ -1,3 +1,9 @@
-replicaCount: 2
-image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/chatbot-service:latest
-port: 8005
+replicaCount: 1
+
+image:
+  repository: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/chatbot-service
+  tag: latest
+
+service:
+  type: ClusterIP
+  port: 8080

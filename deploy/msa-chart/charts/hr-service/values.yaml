@@ -1,3 +1,9 @@
 replicaCount: 2
-image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/hr-service:latest
-port: 8008
+
+image:
+  repository: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/hr-service
+  tag: latest
+
+service:
+  type: ClusterIP
+  port: 8008

@@ -1,3 +1,9 @@
-replicaCount: 2
-image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/payroll-service:latest
-port: 8011
+replicaCount: 1
+
+image:
+  repository: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/payroll-service
+  tag: latest
+
+service:
+  type: ClusterIP
+  port: 8080
