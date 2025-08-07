@@ -179,9 +179,11 @@ pipeline {
 
     post {
         success {
-            echo "✅ Pipeline completed successfully!"
-            if (GLOBAL_CHANGED_SERVICES) {
-                echo "Built services: ${GLOBAL_CHANGED_SERVICES}"
+            script {
+                echo "✅ Pipeline completed successfully!"
+                if (GLOBAL_CHANGED_SERVICES) {
+                    echo "Built services: ${GLOBAL_CHANGED_SERVICES}"
+                }
             }
         }
         failure {
