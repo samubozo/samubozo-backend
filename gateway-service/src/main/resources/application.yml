@@ -5,6 +5,12 @@ spring:
   application:
     name: gateway-service
   cloud:
+    kubernetes:
+      client:
+        namespace: ${POD_NAMESPACE}
+        pod-name: ${POD_NAME}
+      discovery:
+        enabled: true
     gateway:
       globalcors:
         cors-configurations:

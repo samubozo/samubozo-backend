@@ -4,6 +4,13 @@ server:
 spring:
   application:
     name: chatbot-service
+  cloud:
+    kubernetes:
+      client:
+        namespace: ${POD_NAMESPACE}
+        pod-name: ${POD_NAME}
+      discovery:
+        enabled: true
 
 springdoc:
   api-docs:

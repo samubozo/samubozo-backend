@@ -21,4 +21,13 @@ spec:
             - containerPort: {{ .Values.service.port }}
           env:
             {{- toYaml .Values.global.env | nindent 14 }}
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+      automountServiceAccountToken: true
 {{- end -}}
