@@ -36,7 +36,7 @@ pipeline {
                     def shouldBuildAll = false
 
                     // ECR에 이미지가 존재하는지 확인
-                    withAWS(region: "${REGION}", credentials: "jenkins-ssh-key") {
+                    withAWS(region: "${REGION}", credentials: "aws-key") {
                         try {
                             // ECR 리포지토리 목록을 가져와서 비어있는지 확인
                             def repoListJson = sh(script: "aws ecr describe-repositories --output json", returnStdout: true)
@@ -106,7 +106,7 @@ pipeline {
             }
             steps {
                 script {
-                    withAWS(region: "${REGION}", credentials: "jenkins-ssh-key") {
+                    withAWS(region: "${REGION}", credentials: "aws-key") {
                         def changedServices = env.CHANGED_SERVICES.split(",")
                         changedServices.each { service ->
                             sh """
