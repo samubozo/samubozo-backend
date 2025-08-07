@@ -48,13 +48,24 @@ pipeline {
 
                         withAWS(region: "${REGION}", credentials: "aws-key") {
                             allServices.each { service ->
-                                def statusCode = sh(
-                                    script: "aws ecr describe-images --repository-name ${service} --max-items 1 > /dev/null 2>&1",
-                                    returnStatus: true
-                                )
-                                if (statusCode != 0) {
+                                echo "Checking ECR for service: ${service}"
+
+                                // 방법 2: list-images 사용 (더 신뢰할 수 있음)
+                                def listOutput = sh(
+                                    script: """
+                                        aws ecr list-images --repository-name ${service} --query 'imageIds[0]' --output text 2>&1 || echo "ERROR"
+                                    """,
+                                    returnStdout: true
+                                ).trim()
+
+                                echo "List images output for ${service}: ${listOutput}"
+
+                                // 이미지가 없거나 레포지토리가 없는 경우 처리
+                                if (listOutput == "None" || listOutput == "" || listOutput.contains("ERROR") || listOutput.contains("RepositoryNotFoundException")) {
                                     echo "-> No images found for '${service}' in ECR. Adding to list."
                                     ecrEmptyServices.add(service)
+                                } else {
+                                    echo "-> Images exist for '${service}' in ECR."
                                 }
                             }
                         }
