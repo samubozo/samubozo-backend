@@ -111,8 +111,7 @@ pipeline {
                 }
             }
         }
-
-        stage('Build & Push Services') {
+        stage('Build & Push Services - Sequential') {
             when {
                 expression {
                     return GLOBAL_CHANGED_SERVICES != null && GLOBAL_CHANGED_SERVICES != ""
@@ -125,7 +124,7 @@ pipeline {
                     echo "========================================="
 
                     def servicesToBuild = GLOBAL_CHANGED_SERVICES.split(",").toList()
-                    echo "🔨 Building ${servicesToBuild.size()} services in parallel..."
+                    echo "🔨 Building ${servicesToBuild.size()} services sequentially..."
 
                     withAWS(region: "${REGION}", credentials: "aws-key") {
                         // ECR 로그인
@@ -134,15 +133,38 @@ pipeline {
                             docker login --username AWS --password-stdin ${ECR_URL}
                         """
 
-                        // 병렬 작업 정의
-                        def parallelTasks = [:]
-
+                        // 순차적으로 빌드
                         servicesToBuild.each { service ->
-                            parallelTasks["${service}"] = createBuildTask(service)
-                        }
+                            try {
+                                echo "\n📦 Building ${service}..."
 
-                        // 병렬 실행
-                        parallel parallelTasks
+                                // Gradle 빌드
+                                sh """
+                                    cd ${service}
+                                    ./gradlew clean build -x test
+                                    cd ..
+                                """
+
+                                // Docker 이미지 빌드 및 푸시
+                                sh """
+                                    docker build -t ${service}:latest ./${service}
+                                    docker tag ${service}:latest ${ECR_URL}/${service}:latest
+                                    docker push ${ECR_URL}/${service}:latest
+                                """
+
+                                echo "✅ ${service} completed"
+
+                                // 메모리 정리를 위한 Docker 이미지 삭제
+                                sh """
+                                    docker rmi ${service}:latest || true
+                                    docker rmi ${ECR_URL}/${service}:latest || true
+                                """
+
+                            } catch (Exception e) {
+                                echo "❌ ${service} failed: ${e.message}"
+                                throw e
+                            }
+                        }
                     }
 
                     echo "\n✅ All services built and pushed successfully!"
@@ -150,31 +172,31 @@ pipeline {
             }
         }
 
-        stage('Deploy Services') {
-            when {
-                expression {
-                    return GLOBAL_CHANGED_SERVICES != null && GLOBAL_CHANGED_SERVICES != ""
-                }
-            }
-            steps {
-                script {
-                    echo "========================================="
-                    echo "     Deployment Stage Starting"
-                    echo "========================================="
-
-                    def servicesToDeploy = GLOBAL_CHANGED_SERVICES.split(",").toList()
-                    echo "🚀 Deploying ${servicesToDeploy.size()} services..."
-
-                    // 배포 로직 추가 (필요시)
-                    servicesToDeploy.each { service ->
-                        echo "  • Deploying ${service} to ${deployHost}"
-                        // 실제 배포 명령 추가
-                    }
-
-                    echo "\n✅ Deployment completed!"
-                }
-            }
-        }
+//         stage('Deploy Services') {
+//             when {
+//                 expression {
+//                     return GLOBAL_CHANGED_SERVICES != null && GLOBAL_CHANGED_SERVICES != ""
+//                 }
+//             }
+//             steps {
+//                 script {
+//                     echo "========================================="
+//                     echo "     Deployment Stage Starting"
+//                     echo "========================================="
+//
+//                     def servicesToDeploy = GLOBAL_CHANGED_SERVICES.split(",").toList()
+//                     echo "🚀 Deploying ${servicesToDeploy.size()} services..."
+//
+//                     // 배포 로직 추가 (필요시)
+//                     servicesToDeploy.each { service ->
+//                         echo "  • Deploying ${service} to ${deployHost}"
+//                         // 실제 배포 명령 추가
+//                     }
+//
+//                     echo "\n✅ Deployment completed!"
+//                 }
+//             }
+//         }
     }
 
     post {
