@@ -1,7 +1,18 @@
-# Docker Compose 파일 포맷의 버전을 지정합니다.
 version: '3.8'
+
+# 앵커(Anchor)를 사용하여 공통 속성을 정의합니다.
+x-common-properties: &common-properties
+  networks:
+    - msa-network
+  depends_on:
+    discovery-service:
+      condition: service_healthy
+    config-service:
+      condition: service_healthy
+  restart: always
+
 services:
-  # --- 기존 서비스 ---
+  # --- 핵심 인프라 서비스 ---
   config-service:
     image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/config-service:latest
     container_name: config-service
@@ -11,208 +22,107 @@ services:
       - "8888:8888"
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://config-service:8888/actuator/health" ]
-      interval: 15s # 15초마다 한번씩 체크
-      timeout: 5s # 5초 안에 완료되어야 한다.
-      retries: 3 # 3번까지 재시도 하기
-      start_period: 30s # 컨테이너 시작 후 60초 동안은 health check 실패를 무시.
-    restart: always # 컨테이너가 모종의 이유로 중지되면 무조건 재시작 시도.
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: always
 
+  discovery-service:
+    image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/discovery-service:latest
+    container_name: discovery-service # 오류 수정
+    ports:
+      - "8761:8761" # Eureka 대시보드용 포트 추가
+    networks:
+      - msa-network
+    depends_on: # 오류 수정
+      config-service:
+        condition: service_healthy
+    healthcheck: # Healthcheck 추가
+      test: ["CMD", "curl", "-f", "http://discovery-service:8761/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: always
+
+  # --- API 게이트웨이 ---
   gateway-service:
     image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/gateway-service:latest
     container_name: gateway-service
-    networks:
-      - msa-network
     ports:
       - "8000:8000"
-    depends_on:
-      discovery-service:
-        condition: service_healthy
-      config-service:
-        condition: service_healthy
-    restart: always
+    <<: *common-properties # 앵커 참조
 
-  # --- 추가/업데이트된 서비스 ---
+  # --- 내부 마이크로서비스 (앵커를 사용하여 간소화) ---
   approval-service:
     image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/approval-service:latest
     container_name: approval-service
-    networks:
-      - msa-network
-    depends_on:
-      discovery-service:
-        condition: service_healthy
-      config-service:
-        condition: service_healthy
-    restart: always
+    <<: *common-properties
 
   attendance-service:
     image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/attendance-service:latest
     container_name: attendance-service
-    networks:
-      - msa-network
-    depends_on:
-      discovery-service:
-        condition: service_healthy
-      config-service:
-        condition: service_healthy
-    restart: always
+    <<: *common-properties
 
   auth-service:
     image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/auth-service:latest
     container_name: auth-service
-    networks:
-      - msa-network
-    depends_on:
-      discovery-service:
-        condition: service_healthy
-      config-service:
-        condition: service_healthy
-    restart: always
+    <<: *common-properties
 
   certificate-service:
     image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/certificate-service:latest
     container_name: certificate-service
-    networks:
-      - msa-network
-    depends_on:
-      discovery-service:
-        condition: service_healthy
-      config-service:
-        condition: service_healthy
-    restart: always
+    <<: *common-properties
 
   chatbot-service:
     image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/chatbot-service:latest
     container_name: chatbot-service
-    networks:
-      - msa-network
-    depends_on:
-      discovery-service:
-        condition: service_healthy
-      config-service:
-        condition: service_healthy
-    restart: always
+    <<: *common-properties
 
   hr-service:
     image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/hr-service:latest
     container_name: hr-service
-    networks:
-      - msa-network
-    depends_on:
-      discovery-service:
-        condition: service_healthy
-      config-service:
-        condition: service_healthy
-    restart: always
+    <<: *common-properties
 
   message-service:
     image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/message-service:latest
     container_name: message-service
-    networks:
-      - msa-network
-    depends_on:
-      discovery-service:
-        condition: service_healthy
-      config-service:
-        condition: service_healthy
-    restart: always
+    <<: *common-properties
 
   notification-service:
     image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/notification-service:latest
     container_name: notification-service
-    networks:
-      - msa-network
-    depends_on:
-      discovery-service:
-        condition: service_healthy
-      config-service:
-        condition: service_healthy
-    restart: always
+    <<: *common-properties
 
-  ordering-service: # 기존 서비스지만 ECR 경로 업데이트
-    image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/ordering-service:latest
-    container_name: ordering-service # 오타 수정: order-service -> ordering-service
-    networks:
-      - msa-network
-    depends_on:
-      discovery-service:
-        condition: service_healthy
-      config-service:
-        condition: service_healthy
-    restart: always
-
+  # 'ordering-service', 'product-service', 'user-service' 등은 주석 처리된 서비스들과 동일한 패턴을 가집니다.
+  # Jenkinsfile에 정의된 모든 서비스에 대해 아래와 같이 추가하면 됩니다.
   payroll-service:
     image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/payroll-service:latest
     container_name: payroll-service
-    networks:
-      - msa-network
-    depends_on:
-      discovery-service:
-        condition: service_healthy
-      config-service:
-        condition: service_healthy
-    restart: always
-
-  product-service: # 기존 서비스지만 ECR 경로 업데이트
-    image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/product-service:latest
-    container_name: product-service
-    networks:
-      - msa-network
-    depends_on:
-      discovery-service:
-        condition: service_healthy
-      config-service:
-        condition: service_healthy
-    restart: always
+    <<: *common-properties
 
   schedule-service:
     image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/schedule-service:latest
     container_name: schedule-service
-    networks:
-      - msa-network
-    depends_on:
-      discovery-service:
-        condition: service_healthy
-      config-service:
-        condition: service_healthy
-    restart: always
-
-  user-service: # 기존 서비스지만 ECR 경로 업데이트
-    image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/user-service:latest
-    container_name: user-service
-    networks:
-      - msa-network
-    depends_on:
-      discovery-service:
-        condition: service_healthy
-      config-service:
-        condition: service_healthy
-    restart: always
+    <<: *common-properties
 
   vacation-service:
     image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/vacation-service:latest
     container_name: vacation-service
-    networks:
-      - msa-network
-    depends_on:
-      discovery-service:
-        condition: service_healthy
-      config-service:
-        condition: service_healthy
-    restart: always
+    <<: *common-properties
 
+  # --- 백엔드 데이터베이스 및 캐시 ---
   redis:
     image: redis:latest
+    container_name: redis
     ports:
       - "6379:6379"
     networks:
       - msa-network
+    restart: always
 
-
-# 서비스들이 연결될 Docker 네트워크를 정의할 수 있습니다.
-# 동일한 호스트 내에서 서로 통신할 수 있도록 해 주는 Docker의 네트워크 드라이버.
+# 모든 서비스가 통신할 공용 네트워크
 networks:
   msa-network:
     driver: bridge
-
-volumes:
-  db-data: # mysql 컨테이너가 사용하는 db-data 볼륨을 docker-compose도 기억해 줌.
