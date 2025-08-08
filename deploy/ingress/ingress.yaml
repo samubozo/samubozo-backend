@@ -1,12 +1,12 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: say4team-ingress
+  name: samubozo-ingress
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: 'true'
     # --- 아래 어노테이션을 추가합니다. ---
-    alb.ingress.kubernetes.io/security-groups: "sg-01106be7b525a4a4f" # <--- 새로 생성한 보안 그룹 ID로 변경!
+    alb.ingress.kubernetes.io/security-groups: "sg-0cfda1e7698b7b31d" # <--- 새로 생성한 보안 그룹 ID로 변경!
     # 다른 ALB 어노테이션이 있다면 함께 추가해 주세요 (예: scheme, target-type 등)
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
