@@ -19,6 +19,6 @@ spec:
             - containerPort: {{ .Values.port }}
           env:
             - name: SPRING_PROFILES_ACTIVE
-              value: "dev,deploy"
+              value: "{{ .Values.global.env.SPRING_PROFILES_ACTIVE }}"
             - name: SPRING_CLOUD_CONFIG_PROFILE_ACTIVE
-              value: "default,deploy"
+              value: "{{ .Values.global.env.SPRING_CLOUD_CONFIG_PROFILE_ACTIVE }}"

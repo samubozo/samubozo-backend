@@ -1,22 +1,18 @@
 # Helm 차트에서 사용할 전역 값들을 정의하는 곳.
 # 나중에 생성할 템플릿 파일에 적용할 공통 값을 세팅하는 곳.
 
-#클러스터 내에서 docker image를 ecr에서 pull 할때 사용할 계정 정보
-#Secret 오브젝트로 생성했고, 그 오브젝트의 이름이 ecr-secret
+# 클러스터 내에서 docker image를 ecr에서 pull 할 때 사용할 계정 정보
+# Secret 오브젝트로 생성했고, 그 오브젝트의 이름이 ecr-secret
 imagePullSecrets:
   - name: ecr-secret
 
-#모든 서비스에서 공통적으로 사용할 값들을 정의
+# 모든 서비스에서 공통적으로 사용할 값들을 정의
 global:
   replicaCount: 1
-  #모든 서비스에서 사용할 공통 환경변수
-  env:
-    - name: TZ
-      value: Asia/Seoul
-    - name: SPRING_PROFILES_ACTIVE
-      value: dev,kubernetes
-    - name: SPRING_CLOUD_CONFIG_URI
-      value: http://config-service:8888
-    - name: SPRING_CLOUD_CONFIG_PROFILE_ACTIVE
-      value: default,kubernetes
 
+  # 모든 서비스에서 사용할 공통 환경변수 (map 형식)
+  env:
+    TZ: Asia/Seoul
+    SPRING_PROFILES_ACTIVE: dev,kubernetes
+    SPRING_CLOUD_CONFIG_URI: http://config-service:8888
+    SPRING_CLOUD_CONFIG_PROFILE_ACTIVE: default,kubernetes
