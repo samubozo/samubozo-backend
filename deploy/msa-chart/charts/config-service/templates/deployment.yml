@@ -39,3 +39,5 @@ spec:
               value: "{{ .Values.global.env.SPRING_PROFILES_ACTIVE }}"
             - name: SPRING_CLOUD_CONFIG_PROFILE_ACTIVE
               value: "{{ .Values.global.env.SPRING_CLOUD_CONFIG_PROFILE_ACTIVE }}"
+            - name: SPRING_CLOUD_CONFIG_URI
+              value: "{{ .Values.global.env.SPRING_CLOUD_CONFIG_URI }}"
