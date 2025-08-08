@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: certificate-service
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ .Values.global.replicaCount | default .Values.replicaCount }}
   selector:
     matchLabels:
       app: certificate-service

@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: payroll-service
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ .Values.global.replicaCount | default .Values.replicaCount }}
   selector:
     matchLabels:
       app: payroll-service

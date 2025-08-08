@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: gateway-service
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ .Values.global.replicaCount | default .Values.replicaCount }}
   strategy:
     type: RollingUpdate
     rollingUpdate:

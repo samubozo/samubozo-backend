@@ -169,14 +169,14 @@ pipeline {
                     withAWS(region: "${REGION}", credentials: "aws-key") {
                         // EKS 클러스터 인증 정보 업데이트
                         sh """
-                            aws eks update-kubeconfig --name ${EKS_CLUSTER_NAME} --region ${REGION}
+                            aws eks update-kubeconfig --name samubozo-k8s --region ap-northeast-2
                         """
 
                         try {
                             echo "\n🚀 Deploying msa-chart to EKS using Helm..."
 
                             sh """
-                                helm upgrade --install msa-app ./deploy/msa-chart \\
+                                helm upgrade --install msa-chart ./deploy/msa-chart \\
                                     --set global.ecrUrl=${ECR_URL} \\
                                     --set global.services=${changedServicesString} \\
                                     --set global.image.tag=latest

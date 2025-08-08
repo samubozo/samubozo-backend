@@ -8,6 +8,7 @@ imagePullSecrets:
 
 #모든 서비스에서 공통적으로 사용할 값들을 정의
 global:
+  replicaCount: 1
   #모든 서비스에서 사용할 공통 환경변수
   env:
     - name: TZ
