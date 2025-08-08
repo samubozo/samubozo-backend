@@ -1,166 +1,315 @@
-// 자주 사용되는 필요한 변수를 전역으로 선언하는 것도 가능.
-def ecrLoginHelper = "docker-credential-ecr-login" // ECR credential helper 이름
-def deployHost = "172.31.9.208" // 배포 인스턴스의 private 주소
+// ======================================================
+// Jenkinsfile - Dockerfile 빌드 위임 버전
+// ======================================================
 
-// 젠킨스의 선언형 파이프라인 정의부 시작 (그루비 언어)
+// 전역 변수 선언 (pipeline 블록 밖에 선언)
+def GLOBAL_CHANGED_SERVICES = ""
+
 pipeline {
-    agent any // 어느 젠킨스 서버에서나 실행이 가능
+    agent any
+
     environment {
-        // --- 변경된 부분 시작 ---
         SERVICE_DIRS = "approval-service,attendance-service,auth-service,certificate-service,chatbot-service,config-service,gateway-service,hr-service,message-service,notification-service,payroll-service,schedule-service,vacation-service"
         ECR_URL = "886331869898.dkr.ecr.ap-northeast-2.amazonaws.com"
-        // --- 변경된 부분 끝 ---
         REGION = "ap-northeast-2"
+        COMMON_MODULES = "common-module,parent-module"
+        EKS_CLUSTER_NAME = "samubozo-eks"
     }
-    stages {
-        // 각 작업 단위를 스테이지로 나누어서 작성 가능.
-        stage('Pull Codes from Github') { // 스테이지 제목 (맘대로 써도 됨)
-            steps {
-                checkout scm // 젠킨스와 연결된 소스 컨트롤 매니저(git 등)에서 코드를 가져오는 명령어
-            }
-        }
 
-        stage('Add Secret To config-service') {
+    stages {
+        stage('Initial Setup') {
             steps {
+                echo "========================================="
+                echo "     Initial Setup Stage Starting"
+                echo "========================================="
+
+                deleteDir()
+                checkout scm
+
                 withCredentials([file(credentialsId: 'config-secret', variable: 'configSecret')]) {
-                    script {
-                        sh 'cp $configSecret config-service/src/main/resources/application-dev.yml'
-                    }
+                    sh 'cp $configSecret config-service/src/main/resources/application-dev.yml'
                 }
+
+                echo "✅ Initial setup completed"
             }
         }
 
         stage('Detect Changes') {
             steps {
                 script {
-                    // rev-list: 특정 브랜치나 커밋을 기준으로 모든 이전 커밋 목록을 나열
-                    // --count: 목록 출력 말고 커밋 개수만 숫자로 반환
-                    def commitCount = sh(script: "git rev-list --count HEAD", returnStdout: true)
-                                        .trim()
-                                        .toInteger()
-                    def changedServices = []
-                    def serviceDirs = env.SERVICE_DIRS.split(",")
+                    echo "========================================="
+                    echo "     Change Detection Stage Starting"
+                    echo "========================================="
 
-                    if (commitCount == 1) {
-                        // 최초 커밋이라면 모든 서비스 빌드
-                        echo "Initial commit detected. All services will be built."
-                        changedServices = serviceDirs // 변경된 서비스는 모든 서비스다.
+                    def allServices = env.SERVICE_DIRS.split(",").toList()
+                    def detectedServices = []
 
+                    echo "\n🔍 Starting automatic change detection..."
+
+                    // 1. ECR 빈 레포지토리 체크
+                    echo "\n--- Phase 1: ECR Repository Check ---"
+                    def ecrEmptyServices = checkECRRepositories(allServices)
+
+                    if (ecrEmptyServices) {
+                        echo "📦 ECR empty services found: ${ecrEmptyServices.size()} services"
+                        echo "   Services: ${ecrEmptyServices.join(', ')}"
+                        detectedServices.addAll(ecrEmptyServices)
+                        echo "⚡ Skipping Git check - ECR rebuild required"
                     } else {
-                        // 변경된 파일 감지
-                        def changedFiles = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true)
-                                            .trim()
-                                            .split('\n') // 변경된 파일을 줄 단위로 분리
+                        echo "✅ All services have images in ECR"
 
-                        // 변경된 파일 출력
-                        // [user-service/src/main/resources/application.yml,
-                        // user-service/src/main/java/com/playdata/userservice/controller/UserController.java,
-                        // ordering-service/src/main/resources/application.yml]
-                        echo "Changed files: ${changedFiles}"
+                        // 2. Git 변경사항 체크 (ECR이 모두 차있을 때만)
+                        echo "\n--- Phase 2: Git Changes Check ---"
+                        def gitChangedServices = checkGitChanges(allServices)
 
-
-                        serviceDirs.each { service ->
-                            // changedFiles라는 리스트를 조회해서 service 변수에 들어온 서비스 이름과
-                            // 하나라도 일치하는 이름이 있다면 true, 하나도 존재하지 않으면 false
-                            // service: user-service -> 변경된 파일 경로가 user-service/로 시작한다면 true
-                            if (changedFiles.any { it.startsWith(service + "/") }) {
-                                changedServices.add(service)
-                            }
+                        if (gitChangedServices) {
+                            echo "📝 Git changes found: ${gitChangedServices.size()} services"
+                            echo "   Services: ${gitChangedServices.join(', ')}"
+                            detectedServices.addAll(gitChangedServices)
+                        } else {
+                            echo "✅ No Git changes detected"
                         }
                     }
 
-                    //변경된 서비스 이름을 모아놓은 리스트를 다른 스테이지에서도 사용하기 위해 환경 변수로 선언.
-                    // join() -> 지정한 문자열을 구분자로 하여 리스트 요소를 하나의 문자열로 리턴. 중복 제거.
-                    // 환경변수는 문자열만 선언할 수 있어서 join을 사용함.
-                    env.CHANGED_SERVICES = changedServices.join(",")
-                    if (env.CHANGED_SERVICES == "") {
-                        echo "No changes detected in service directories. Skipping build and deployment."
-                        // 성공 상태로 파이프라인을 종료
+                    // 3. 최종 결과 처리
+                    if (detectedServices) {
+                        def uniqueServices = detectedServices.unique()
+                        GLOBAL_CHANGED_SERVICES = uniqueServices.join(",")
+                    }
+
+                    // 4. 결과 출력
+                    echo "\n========================================="
+                    if (GLOBAL_CHANGED_SERVICES) {
+                        def serviceList = GLOBAL_CHANGED_SERVICES.split(",")
+                        echo "🎯 FINAL RESULT: ${serviceList.size()} services to build"
+                        echo "========================================="
+                        echo "Services to build:"
+                        serviceList.each { service ->
+                            echo "  • ${service}"
+                        }
+                        currentBuild.description = "Building ${serviceList.size()} services"
+                    } else {
+                        echo "⚠️  FINAL RESULT: No services to build"
+                        echo "========================================="
+                        currentBuild.description = "No changes detected"
                         currentBuild.result = 'SUCCESS'
                     }
                 }
             }
         }
-
-        stage('Build Changed Services') {
-            // 이 스테이지는 빌드되어야 할 서비스가 존재한다면 실행되는 스테이지.
-            // 이전 스테이지에서 세팅한 CHANGED_SERVICES라는 환경변수가 비어있지 않아야만 실행.
+        stage('Build & Push Services - Sequential') {
             when {
-                expression { env.CHANGED_SERVICES != "" }
-            }
-            steps {
-                script {
-                   def changedServices = env.CHANGED_SERVICES.split(",")
-                   changedServices.each { service ->
-                        sh """
-                        echo "Building ${service}..."
-                        cd ${service}
-                        ./gradlew clean build -x test
-                        ls -al ./build/libs
-                        cd ..
-                        """
-                   }
+                expression {
+                    return GLOBAL_CHANGED_SERVICES != null && GLOBAL_CHANGED_SERVICES != ""
                 }
             }
-        }
-
-        stage('Build Docker Image & Push to AWS ECR') {
-            when {
-                expression { env.CHANGED_SERVICES != "" }
-            }
             steps {
                 script {
-                    // jenkins에 저장된 credentials를 사용하여 AWS 자격증명을 설정.
+                    echo "========================================="
+                    echo "     Build & Push Stage Starting"
+                    echo "========================================="
+
+                    def servicesToBuild = GLOBAL_CHANGED_SERVICES.split(",").toList()
+                    echo "🔨 Building ${servicesToBuild.size()} services sequentially..."
+
                     withAWS(region: "${REGION}", credentials: "aws-key") {
-                        def changedServices = env.CHANGED_SERVICES.split(",")
-                        changedServices.each { service ->
-                            sh """
-                            # ECR에 이미지를 push하기 위해 인증 정보를 대신 검증해 주는 도구 다운로드.
-                            # /usr/local/bin/ 경로에 해당 파일을 이동
-                            curl -O https://amazon-ecr-credential-helper-releases.s3.us-east-2.amazonaws.com/0.4.0/linux-amd64/${ecrLoginHelper}
-                            chmod +x ${ecrLoginHelper}
-                            mv ${ecrLoginHelper} /usr/local/bin/
+                        // ECR 로그인
+                        sh """
+                            aws ecr get-login-password --region ${REGION} | \
+                            docker login --username AWS --password-stdin ${ECR_URL}
+                        """
 
-                            # Docker에게 push 명령을 내리면 지정된 URL로 push할 수 있게 설정.
-                            # 자동으로 로그인 도구를 쓰게 설정
-                            mkdir -p ~/.docker
-                            echo '{"credHelpers": {"${ECR_URL}": "ecr-login"}}' > ~/.docker/config.json
+                        // 순차적으로 빌드
+                        servicesToBuild.each { service ->
+                            try {
+                                echo "\n📦 Building ${service}..."
 
-                            docker build -t ${service}:latest ${service}
-                            docker tag ${service}:latest ${ECR_URL}/${service}:latest
-                            docker push ${ECR_URL}/${service}:latest
-                            """
+                                // Docker 이미지 빌드 및 푸시
+                                sh """
+                                    docker build -t ${service}:latest ./${service}
+                                    docker tag ${service}:latest ${ECR_URL}/${service}:latest
+                                    docker push ${ECR_URL}/${service}:latest
+                                """
+
+                                echo "✅ ${service} completed"
+
+                                // 메모리 정리를 위한 Docker 이미지 삭제
+                                sh """
+                                    docker rmi ${service}:latest || true
+                                    docker rmi ${ECR_URL}/${service}:latest || true
+                                """
+
+                            } catch (Exception e) {
+                                echo "❌ ${service} failed: ${e.message}"
+                                throw e
+                            }
                         }
                     }
 
-
+                    echo "\n✅ All services built and pushed successfully!"
                 }
             }
         }
 
-        stage('Deploy Changed Services to AWS EC2') {
+        stage('Deploy Services to EKS') {
+            when {
+                expression {
+                    return GLOBAL_CHANGED_SERVICES != null && GLOBAL_CHANGED_SERVICES != ""
+                }
+            }
             steps {
-                sshagent(credentials: ["deploy-key"]) {
-                    sh """
-                        echo "[INFO] SCP docker-compose.yml 전송 중..."
-                        scp -vvv -o StrictHostKeyChecking=no docker-compose.yml ubuntu@${deployHost}:/home/ubuntu/docker-compose.yml
+                script {
+                    echo "========================================="
+                    echo "     Deploy Services Stage Starting"
+                    echo "========================================="
 
-                        echo "[INFO] SSH 접속 및 배포 실행..."
-                        ssh -v -o StrictHostKeyChecking=no ubuntu@${deployHost} '
-                            set -e  # 에러 발생 시 즉시 종료
-                            cd /home/ubuntu && \\
-                            echo "[INFO] ECR 로그인 중..." && \\
-                            aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_URL} && \\
-                            echo "[INFO] 이미지 Pull 중: ${env.CHANGED_SERVICES}" && \\
-                            docker-compose pull ${env.CHANGED_SERVICES.replace(",", " ")} && \\
-                            echo "[INFO] 서비스 재시작 중..." && \\
-                            docker-compose up -d ${env.CHANGED_SERVICES.replace(",", " ")}
-                        '
-                    """
+                    def changedServicesString = GLOBAL_CHANGED_SERVICES.split(",").join(",")
+                    echo "🎯 Deploying services: ${changedServicesString}"
+
+                    withAWS(region: "${REGION}", credentials: "eks-admin") {
+                        // EKS 클러스터 인증 정보 업데이트
+                        sh """
+                            aws eks update-kubeconfig --name ${EKS_CLUSTER_NAME} --region ${REGION}
+                        """
+
+                        try {
+                            echo "\n🚀 Deploying msa-chart to EKS using Helm..."
+
+                            sh """
+                                helm upgrade --install msa-app ./deploy/msa-chart \\
+                                    --set global.ecrUrl=${ECR_URL} \\
+                                    --set global.services=${changedServicesString} \\
+                                    --set global.image.tag=latest
+                            """
+
+                            echo "✅ msa-chart deployment completed"
+
+                        } catch (Exception e) {
+                            echo "❌ msa-chart deployment failed: ${e.message}"
+                            throw e
+                        }
+                    }
+                    echo "\n✅ All services deployed successfully!"
                 }
             }
         }
-
-
     }
+
+    post {
+        success {
+            script {
+                echo "✅ Pipeline completed successfully!"
+                if (GLOBAL_CHANGED_SERVICES) {
+                    echo "Built services: ${GLOBAL_CHANGED_SERVICES}"
+                }
+            }
+        }
+        failure {
+            echo "❌ Pipeline failed!"
+        }
+        always {
+            echo "🧹 Cleaning up workspace..."
+            deleteDir()
+        }
+    }
+}
+
+// ======================================================
+// Helper Functions (pipeline 블록 밖에 정의)
+// ======================================================
+
+def checkECRRepositories(serviceList) {
+    def emptyServices = []
+
+    withAWS(region: "${env.REGION}", credentials: "aws-key") {
+        serviceList.each { service ->
+            echo "  Checking: ${service}"
+
+            try {
+                // 이미지 리스트 확인
+                def imageCheck = sh(
+                    script: """
+                        aws ecr list-images \
+                            --repository-name ${service} \
+                            --query 'imageIds[0]' \
+                            --output text 2>&1
+                    """,
+                    returnStdout: true
+                ).trim()
+
+                if (imageCheck == "None" || imageCheck == "") {
+                    echo "    ↳ ❌ No images found"
+                    emptyServices.add(service)
+                } else {
+                    echo "    ↳ ✅ Images exist"
+                }
+
+            } catch (Exception e) {
+                // 레포지토리가 없는 경우
+                echo "    ↳ ❌ Repository not found"
+                emptyServices.add(service)
+            }
+        }
+    }
+
+    return emptyServices
+}
+
+def checkGitChanges(serviceList) {
+    def changedServices = []
+
+    try {
+        // 커밋 수 확인
+        def commitCount = sh(
+            script: "git rev-list --count HEAD",
+            returnStdout: true
+        ).trim().toInteger()
+
+        if (commitCount <= 1) {
+            echo "  First commit detected - skipping Git change detection"
+            return changedServices
+        }
+
+        // 변경된 파일 목록 가져오기
+        def changedFiles = sh(
+            script: "git diff --name-only HEAD~1 HEAD",
+            returnStdout: true
+        ).trim()
+
+        if (!changedFiles) {
+            echo "  No files changed in last commit"
+            return changedServices
+        }
+
+        echo "  Changed files detected:"
+        changedFiles.split('\n').each { file ->
+            echo "    • ${file}"
+        }
+
+        // 변경된 파일 분석
+        def fileList = changedFiles.split('\n').toList()
+        def commonModules = env.COMMON_MODULES.split(",").toList()
+
+        // 공통 모듈 변경 체크
+        def commonChanged = commonModules.any { module ->
+            fileList.any { file -> file.startsWith("${module}/") }
+        }
+
+        if (commonChanged) {
+            echo "  ⚠️  Common module changed - all services will be rebuilt"
+            return serviceList
+        }
+
+        // 개별 서비스 변경 체크
+        serviceList.each { service ->
+            if (fileList.any { file -> file.startsWith("${service}/") }) {
+                changedServices.add(service)
+            }
+        }
+
+    } catch (Exception e) {
+        echo "  ⚠️  Error during Git change detection: ${e.message}"
+    }
+
+    return changedServices
 }
