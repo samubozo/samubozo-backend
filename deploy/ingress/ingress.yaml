@@ -6,7 +6,7 @@ metadata:
   annotations:
     alb.ingress.kubernetes.io/scheme: internet-facing  # 인터넷 공개용 ALB
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'  # HTTP, HTTPS 리스닝
-    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:886331869898:certificate/c9f03991-f600-42ac-a89c-057f556a30e3  # 발급받은 인증서 ARN
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-northeast-2:886331869898:certificate/b6dc2d28-c26b-4d91-8e7c-71e420345dc9  # 발급받은 인증서 ARN
     alb.ingress.kubernetes.io/ssl-redirect: '443'  # HTTP → HTTPS 리다이렉트 설정
 spec:
   ingressClassName: alb
