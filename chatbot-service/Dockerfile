@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # build라는 별칭으로 만들어진 스테이지에서
 # *.jar 파일을 app.jar로 복사해서 이미지에 세팅
-COPY --from=build /app/build/libs/*.jar app.jar
+COPY --from=build /app/build/libs/chatbot-service-0.0.1-SNAPSHOT.jar app.jar
 
 
 # CMD는 기본 실행 명령어를 의미. 컨테이너 실행 시에 다른 명령어가 주어지면 그 명령어로 대체됨.
