@@ -15,4 +15,4 @@ global:
     TZ: Asia/Seoul
     SPRING_PROFILES_ACTIVE: dev,kubernetes
     SPRING_CLOUD_CONFIG_URI: http://config-service:8888
-    SPRING_CLOUD_CONFIG_PROFILE_ACTIVE: default,kubernetes
+    SPRING_CLOUD_CONFIG_PROFILE_ACTIVE: kubernetes
