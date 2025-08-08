@@ -166,7 +166,7 @@ pipeline {
                     def changedServicesString = GLOBAL_CHANGED_SERVICES.split(",").join(",")
                     echo "🎯 Deploying services: ${changedServicesString}"
 
-                    withAWS(region: "${REGION}", credentials: "eks-admin") {
+                    withAWS(region: "${REGION}", credentials: "aws-key") {
                         // EKS 클러스터 인증 정보 업데이트
                         sh """
                             aws eks update-kubeconfig --name ${EKS_CLUSTER_NAME} --region ${REGION}

@@ -5,3 +5,17 @@
 #Secret 오브젝트로 생성했고, 그 오브젝트의 이름이 ecr-secret
 imagePullSecrets:
   - name: ecr-secret
+
+#모든 서비스에서 공통적으로 사용할 값들을 정의
+global:
+  #모든 서비스에서 사용할 공통 환경변수
+  env:
+    - name: TZ
+      value: Asia/Seoul
+    - name: SPRING_PROFILES_ACTIVE
+      value: dev,kubernetes
+    - name: SPRING_CLOUD_CONFIG_URI
+      value: http://config-service:8888
+    - name: SPRING_CLOUD_CONFIG_PROFILE_ACTIVE
+      value: default,kubernetes
+
