@@ -87,7 +87,7 @@ pipeline {
                     echo "========================================="
                     echo "     Build & Push Stage Starting"
                     echo "========================================="
-
+                    def newTag = env.GIT_COMMIT
                     def servicesToBuild = GLOBAL_CHANGED_SERVICES.split(",").toList()
                     echo "🔨 Building ${servicesToBuild.size()} services sequentially..."
 
@@ -105,17 +105,17 @@ pipeline {
 
                                 // Docker 이미지 빌드 및 푸시
                                 sh """
-                                    docker build -t ${service}:latest ./${service}
-                                    docker tag ${service}:latest ${ECR_URL}/${service}:latest
-                                    docker push ${ECR_URL}/${service}:latest
+                                    docker build --platform linux/amd64 -t ${service}:${newTag} ${service}
+                                    docker tag ${service}:${newTag} ${ECR_URL}/${service}:${newTag}
+                                    docker push ${ECR_URL}/${service}:${newTag}
                                 """
 
                                 echo "✅ ${service} completed"
 
                                 // 메모리 정리를 위한 개별 Docker 이미지 삭제
                                 sh """
-                                    docker rmi ${service}:latest || true
-                                    docker rmi ${ECR_URL}/${service}:latest || true
+                                    docker rmi ${service}:${newTag} || true
+                                    docker rmi ${ECR_URL}/${service}:${newTag} || true
                                 """
 
                             } catch (Exception e) {
