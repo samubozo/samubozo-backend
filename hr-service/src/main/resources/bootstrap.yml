@@ -2,7 +2,7 @@ spring:
   cloud:
     config:
 
-      # CONFIG_SERVER_URI 환경 변수가 설정되어 있으면 해당 값 사용
+      # CONFIG_SERVER_URI 환경 변수가 설정되어 있으면 해당 값 사용.
       # 없으면 기본값인 http://localhost:8888 사용
       uri: ${CONFIG_SERVER_URI:http://localhost:8888}
       # 환경변수가 전달이 안되면 로컬개발로 판단 로컬프로파일 활성화

@@ -106,7 +106,7 @@ pipeline {
                                 // Docker 이미지 빌드 및 푸시
                                 sh """
                                     docker build --platform linux/amd64 -t ${service}:${newTag} ${service}
-                                    docker tag ${service}:${newTag} ${ECR_URL}/${service}:${newTag}
+                                    docker tag ${service}:${newTag} ${ECR_URL}/${service}:latest
                                     docker push ${ECR_URL}/${service}:latest
                                 """
 
