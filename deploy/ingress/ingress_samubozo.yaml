@@ -1,0 +1,32 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: samubozo-ingress
+  annotations:
+    # 인증서 발급 로직을 담당하는 cert-manager에게 letsencrypt-prod라는 도구를 이용해서 인증서를 발급 받어라.
+    # Let's Encrypt는 무료 SSL 인증서를 발급해주는 유명한 기관
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # http 요청이 들어오면 자동으로 https로 리다이렉트(응답 및 재요청) 처리해라.
+    nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+
+spec:
+  # 설치한 ingress controller의 종류를 명시 -> 우리가 설치한 게 nginx라는 도구를 사용한 ingress
+  # nginx: 정적 웹 서버(오픈소스). 웹사이트 호스팅, 로드 밸런싱 등에 사용되는 서버.
+  ingressClassName: nginx
+  # 특정 도메인에 대한 보안 설정 (HTTPS) 등록
+  # api-playdatashop-tls라는 secret 오브젝트에 발급받은 인증서를 저장 -> HTTPS 연결 처리
+  tls:
+    - hosts:
+        - apiv1.samubozo.co.kr
+      secretName: api-samubozo-cert
+  rules:
+    - host: apiv1.samubozo.co.kr
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway-service
+                port:
+                  number: 8000
