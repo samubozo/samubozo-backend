@@ -42,42 +42,20 @@ pipeline {
                     echo "========================================="
 
                     def allServices = env.SERVICE_DIRS.split(",").toList()
-                    def detectedServices = []
+                    def changedServices = []
 
-                    echo "\n🔍 Starting automatic change detection..."
+                    echo "\n🔍 Starting Git changes check..."
 
-                    // 1. ECR 빈 레포지토리 체크
-                    echo "\n--- Phase 1: ECR Repository Check ---"
-                    def ecrEmptyServices = checkECRRepositories(allServices)
+                    // Git 변경사항만 체크
+                    changedServices = checkGitChanges(allServices)
 
-                    if (ecrEmptyServices) {
-                        echo "📦 ECR empty services found: ${ecrEmptyServices.size()} services"
-                        echo "   Services: ${ecrEmptyServices.join(', ')}"
-                        detectedServices.addAll(ecrEmptyServices)
-                        echo "⚡ Skipping Git check - ECR rebuild required"
-                    } else {
-                        echo "✅ All services have images in ECR"
-
-                        // 2. Git 변경사항 체크 (ECR이 모두 차있을 때만)
-                        echo "\n--- Phase 2: Git Changes Check ---"
-                        def gitChangedServices = checkGitChanges(allServices)
-
-                        if (gitChangedServices) {
-                            echo "📝 Git changes found: ${gitChangedServices.size()} services"
-                            echo "   Services: ${gitChangedServices.join(', ')}"
-                            detectedServices.addAll(gitChangedServices)
-                        } else {
-                            echo "✅ No Git changes detected"
-                        }
-                    }
-
-                    // 3. 최종 결과 처리
-                    if (detectedServices) {
-                        def uniqueServices = detectedServices.unique()
+                    // 최종 결과 처리
+                    if (changedServices) {
+                        def uniqueServices = changedServices.unique()
                         GLOBAL_CHANGED_SERVICES = uniqueServices.join(",")
                     }
 
-                    // 4. 결과 출력
+                    // 결과 출력
                     echo "\n========================================="
                     if (GLOBAL_CHANGED_SERVICES) {
                         def serviceList = GLOBAL_CHANGED_SERVICES.split(",")
@@ -89,14 +67,15 @@ pipeline {
                         }
                         currentBuild.description = "Building ${serviceList.size()} services"
                     } else {
-                        echo "⚠️  FINAL RESULT: No services to build"
+                        echo "✅ FINAL RESULT: No services to build"
                         echo "========================================="
                         currentBuild.description = "No changes detected"
-                        currentBuild.result = 'SUCCESS'
+                        currentBuild.result = 'SUCCESS' // 변경사항이 없으면 파이프라인을 중단하지 않고 성공 처리
                     }
                 }
             }
         }
+
         stage('Build & Push Services - Sequential') {
             when {
                 expression {
@@ -133,7 +112,7 @@ pipeline {
 
                                 echo "✅ ${service} completed"
 
-                                // 메모리 정리를 위한 Docker 이미지 삭제
+                                // 메모리 정리를 위한 개별 Docker 이미지 삭제
                                 sh """
                                     docker rmi ${service}:latest || true
                                     docker rmi ${ECR_URL}/${service}:latest || true
@@ -208,8 +187,14 @@ pipeline {
             echo "❌ Pipeline failed!"
         }
         always {
-            echo "🧹 Cleaning up workspace..."
+            echo "🧹 Cleaning up..."
+
+            // 사용하지 않는 모든 도커 리소스 (이미지, 컨테이너, 네트워크 등) 정리
+            sh 'docker system prune -af'
+
+            // Jenkins 워크스페이스 정리
             deleteDir()
+            echo "✅ Cleanup finished."
         }
     }
 }
@@ -217,43 +202,6 @@ pipeline {
 // ======================================================
 // Helper Functions (pipeline 블록 밖에 정의)
 // ======================================================
-
-def checkECRRepositories(serviceList) {
-    def emptyServices = []
-
-    withAWS(region: "${env.REGION}", credentials: "aws-key") {
-        serviceList.each { service ->
-            echo "  Checking: ${service}"
-
-            try {
-                // 이미지 리스트 확인
-                def imageCheck = sh(
-                    script: """
-                        aws ecr list-images \
-                            --repository-name ${service} \
-                            --query 'imageIds[0]' \
-                            --output text 2>&1
-                    """,
-                    returnStdout: true
-                ).trim()
-
-                if (imageCheck == "None" || imageCheck == "") {
-                    echo "    ↳ ❌ No images found"
-                    emptyServices.add(service)
-                } else {
-                    echo "    ↳ ✅ Images exist"
-                }
-
-            } catch (Exception e) {
-                // 레포지토리가 없는 경우
-                echo "    ↳ ❌ Repository not found"
-                emptyServices.add(service)
-            }
-        }
-    }
-
-    return emptyServices
-}
 
 def checkGitChanges(serviceList) {
     def changedServices = []
@@ -270,7 +218,7 @@ def checkGitChanges(serviceList) {
             return changedServices
         }
 
-        // 변경된 파일 목록 가져오기
+        // 마지막 커밋에서 변경된 파일 목록 가져오기
         def changedFiles = sh(
             script: "git diff --name-only HEAD~1 HEAD",
             returnStdout: true
