@@ -148,7 +148,7 @@ pipeline {
                     withAWS(region: "${REGION}", credentials: "aws-key") {
                         // EKS 클러스터 인증 정보 업데이트
                         sh """
-                            aws eks update-kubeconfig --name samubozo-k8s --region ap-northeast-2
+                            aws eks update-kubeconfig --name samubozo-eks --region ap-northeast-2
                         """
 
                         try {

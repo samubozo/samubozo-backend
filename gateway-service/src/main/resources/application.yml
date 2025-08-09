@@ -35,7 +35,7 @@ spring:
             postLogger: true
       routes:
         - id: auth-service
-          uri: lb://AUTH-SERVICE
+          uri: lb://auth-service
           predicates:
             - Path=/auth-service/auth/login
             - Method=POST
@@ -45,7 +45,7 @@ spring:
 
         #인증 관리
         - id: auth-service
-          uri: lb://AUTH-SERVICE
+          uri: lb://auth-service
           predicates:
             - Path=/auth-service/**
           filters:
@@ -55,7 +55,7 @@ spring:
 
         #인사 관리
         - id: hr-service
-          uri: lb://HR-SERVICE
+          uri: lb://hr-service
           predicates:
             - Path=/hr-service/**
           filters:
@@ -65,7 +65,7 @@ spring:
 
         # attendance-service 라우트
         - id: attendance-service # 이 ID는 실제 ID로 변경해주세요. (gateway config에 없어서 가정)
-          uri: lb://ATTENDANCE-SERVICE
+          uri: lb://attendance-service
           predicates:
             - Path=/attendance-service/** # 들어오는 요청 경로
           filters:
@@ -77,7 +77,7 @@ spring:
 
         #연차 관리
         - id: vacation-service
-          uri: lb://VACATION-SERVICE
+          uri: lb://vacation-service
           predicates:
             - Path=/vacation-service/**
           filters:
@@ -87,7 +87,7 @@ spring:
 
         #급여 관리
         - id: payroll-service
-          uri: lb://PAYROLL-SERVICE
+          uri: lb://payroll-service
           predicates:
             - Path=/payroll-service/**
           filters:
@@ -97,7 +97,7 @@ spring:
 
         #일정 관리
         - id: schedule-service
-          uri: lb://SCHEDULE-SERVICE
+          uri: lb://schedule-service
           predicates:
             - Path=/schedule-service/**
           filters:
@@ -107,7 +107,7 @@ spring:
 
         #챗봇 서비스
         - id: chatbot-service
-          uri: lb://CHATBOT-SERVICE
+          uri: lb://chatbot-service
           predicates:
             - Path=/chatbot-service/**
           filters:
@@ -117,7 +117,7 @@ spring:
 
         #증명서 서비스
         - id: certificate-service
-          uri: lb://CERTIFICATE-SERVICE
+          uri: lb://certificate-service
           predicates:
             - Path=/certificate-service/**
           filters:
@@ -127,7 +127,7 @@ spring:
 
         #메시지 서비스
         - id: message-service
-          uri: lb://MESSAGE-SERVICE
+          uri: lb://message-service
           predicates:
             - Path=/message-service/**
           filters:
@@ -137,7 +137,7 @@ spring:
 
         #알림 서비스
         - id: notification-service
-          uri: lb://NOTIFICATION-SERVICE
+          uri: lb://notification-service
           predicates:
             - Path=/notification-service/**
           filters:
@@ -147,7 +147,7 @@ spring:
 
         #결재 서비스
         - id: approval-service
-          uri: lb://APPROVAL-SERVICE
+          uri: lb://approval-service
           predicates:
             - Path=/approval-service/**
           filters:
