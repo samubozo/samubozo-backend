@@ -13,6 +13,7 @@ spring:
               - "http://localhost:5173" #로컬 사용자 프론트 서버
               - "http://page-samubozo.s3-website.ap-northeast-2.amazonaws.com" #AWS 정적 개발 서버
               - "https://samubozo.co.kr" #AWS 정적 서버
+              - "https://www.samubozo.co.kr" #AWS 정적 서버
             allowed-methods:
               - GET
               - POST
