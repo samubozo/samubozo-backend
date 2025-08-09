@@ -107,7 +107,7 @@ pipeline {
                                 sh """
                                     docker build --platform linux/amd64 -t ${service}:${newTag} ${service}
                                     docker tag ${service}:${newTag} ${ECR_URL}/${service}:${newTag}
-                                    docker push ${ECR_URL}/${service}:${newTag}
+                                    docker push ${ECR_URL}/${service}:latest
                                 """
 
                                 echo "✅ ${service} completed"
@@ -130,49 +130,49 @@ pipeline {
             }
         }
 
-        stage('Deploy Services to EKS') {
-            when {
-                expression {
-                    return GLOBAL_CHANGED_SERVICES != null && GLOBAL_CHANGED_SERVICES != ""
-                }
-            }
-            steps {
-                script {
-                    echo "========================================="
-                    echo "     Deploy Services Stage Starting"
-                    echo "========================================="
-
-                    def changedServicesString = GLOBAL_CHANGED_SERVICES.split(",").join(",")
-                    echo "🎯 Deploying services: ${changedServicesString}"
-
-                    withAWS(region: "${REGION}", credentials: "aws-key") {
-                        // EKS 클러스터 인증 정보 업데이트
-                        sh """
-                            aws eks update-kubeconfig --name samubozo-eks --region ap-northeast-2
-                        """
-
-                        try {
-                            echo "\n🚀 Deploying msa-chart to EKS using Helm..."
-
-                            sh """
-                                helm upgrade --install msa-chart ./deploy/msa-chart \\
-                                    --set global.ecrUrl=${ECR_URL} \\
-                                    --set global.services=${changedServicesString} \\
-                                    --set global.image.tag=latest
-                            """
-
-                            echo "✅ msa-chart deployment completed"
-
-                        } catch (Exception e) {
-                            echo "❌ msa-chart deployment failed: ${e.message}"
-                            throw e
-                        }
-                    }
-                    echo "\n✅ All services deployed successfully!"
-                }
-            }
-        }
-    }
+//         stage('Deploy Services to EKS') {
+//             when {
+//                 expression {
+//                     return GLOBAL_CHANGED_SERVICES != null && GLOBAL_CHANGED_SERVICES != ""
+//                 }
+//             }
+//             steps {
+//                 script {
+//                     echo "========================================="
+//                     echo "     Deploy Services Stage Starting"
+//                     echo "========================================="
+//
+//                     def changedServicesString = GLOBAL_CHANGED_SERVICES.split(",").join(",")
+//                     echo "🎯 Deploying services: ${changedServicesString}"
+//                     def newTag = env.GIT_COMMIT
+//                     withAWS(region: "${REGION}", credentials: "aws-key") {
+//                         // EKS 클러스터 인증 정보 업데이트
+//                         sh """
+//                             aws eks update-kubeconfig --name samubozo-eks --region ap-northeast-2
+//                         """
+//
+//                         try {
+//                             echo "\n🚀 Deploying msa-chart to EKS using Helm..."
+//
+//                             sh """
+//                                 helm upgrade --install msa-chart ./deploy/msa-chart \\
+//                                     --set global.ecrUrl=${ECR_URL} \\
+//                                     --set global.services=${changedServicesString} \\
+//                                     --set global.image.tag=${newTag} \\
+//                             """
+//
+//                             echo "✅ msa-chart deployment completed"
+//
+//                         } catch (Exception e) {
+//                             echo "❌ msa-chart deployment failed: ${e.message}"
+//                             throw e
+//                         }
+//                     }
+//                     echo "\n✅ All services deployed successfully!"
+//                 }
+//             }
+//         }
+//     }
 
     post {
         success {

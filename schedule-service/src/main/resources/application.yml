@@ -1,5 +1,3 @@
-server:
-  port: 0 # server는 Map이고, port는 그 Map의 키입니다.
 
 spring:
   application: # spring은 Map이고, application은 그 Map의 키입니다.

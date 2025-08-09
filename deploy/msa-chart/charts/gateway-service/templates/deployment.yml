@@ -19,6 +19,7 @@ spec:
         app: gateway-service
     #pod 에 설정되는 컨테이너 설정
     spec:
+      serviceAccountName: gateway-service-account
       imagePullSecrets:
         # values.yaml 파일에 imagePullSecret이라는 데이터가 있다면 실행
         # - name : .(현재 반복중인 항목) | quote(인용부호로 감싸서 적용)
