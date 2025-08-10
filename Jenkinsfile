@@ -70,7 +70,7 @@ pipeline {
                         echo "✅ FINAL RESULT: No services to build"
                         echo "========================================="
                         currentBuild.description = "No changes detected"
-                        currentBuild.result = 'SUCCESS' // 변경사항이 없으면 파이프라인을 중단하지 않고 성공 처리
+                        currentBuild.result = 'SUCCESS'
                     }
                 }
             }
@@ -94,7 +94,7 @@ pipeline {
                     withAWS(region: "${REGION}", credentials: "aws-key") {
                         // ECR 로그인
                         sh """
-                            aws ecr get-login-password --region ${REGION} | \
+                            aws ecr get-login-password --region ${REGION} | \\
                             docker login --username AWS --password-stdin ${ECR_URL}
                         """
 
@@ -106,8 +106,8 @@ pipeline {
                                 // Docker 이미지 빌드 및 푸시
                                 sh """
                                     docker build --platform linux/amd64 -t ${service}:${newTag} ${service}
-                                    docker tag ${service}:${newTag} ${ECR_URL}/${service}:latest
-                                    docker push ${ECR_URL}/${service}:latest
+                                    docker tag ${service}:${newTag} ${ECR_URL}/${service}:${newTag}
+                                    docker push ${ECR_URL}/${service}:${newTag}
                                 """
 
                                 echo "✅ ${service} completed"
@@ -130,48 +130,52 @@ pipeline {
             }
         }
 
-//         stage('Deploy Services to EKS') {
-//             when {
-//                 expression {
-//                     return GLOBAL_CHANGED_SERVICES != null && GLOBAL_CHANGED_SERVICES != ""
-//                 }
-//             }
-//             steps {
-//                 script {
-//                     echo "========================================="
-//                     echo "     Deploy Services Stage Starting"
-//                     echo "========================================="
-//
-//                     def changedServicesString = GLOBAL_CHANGED_SERVICES.split(",").join(",")
-//                     echo "🎯 Deploying services: ${changedServicesString}"
-//                     def newTag = env.GIT_COMMIT
-//                     withAWS(region: "${REGION}", credentials: "aws-key") {
-//                         // EKS 클러스터 인증 정보 업데이트
-//                         sh """
-//                             aws eks update-kubeconfig --name samubozo-eks --region ap-northeast-2
-//                         """
-//
-//                         try {
-//                             echo "\n🚀 Deploying msa-chart to EKS using Helm..."
-//
-//                             sh """
-//                                 helm upgrade --install msa-chart ./deploy/msa-chart \\
-//                                     --set global.ecrUrl=${ECR_URL} \\
-//                                     --set global.services=${changedServicesString} \\
-//                                     --set global.image.tag=${newTag} \\
-//                             """
-//
-//                             echo "✅ msa-chart deployment completed"
-//
-//                         } catch (Exception e) {
-//                             echo "❌ msa-chart deployment failed: ${e.message}"
-//                             throw e
-//                         }
-//                     }
-//                     echo "\n✅ All services deployed successfully!"
-//                 }
-//             }
-//         }
+        stage('Update K8s Repo') {
+            when {
+                expression {
+                    return GLOBAL_CHANGED_SERVICES != null && GLOBAL_CHANGED_SERVICES != ""
+                }
+            }
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: "git-login-info", usernameVariable: "GIT_USERNAME", passwordVariable: 'GIT_PASSWORD')]) {
+                        echo "========================================="
+                        echo "     Updating K8s Git Repo Stage Starting"
+                        echo "========================================="
+                        sh '''
+                            cd ..
+                            if [ -d "samubozo-backend" ]; then
+                                echo "Deleting existing samubozo-backend directory..."
+                                rm -rf samubozo-backend
+                            fi
+                            git clone https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/samubozo/samubozo-backend.git
+                        '''
+
+                        def servicesToUpdate = GLOBAL_CHANGED_SERVICES.split(",")
+                        def newTag = env.GIT_COMMIT
+
+                        servicesToUpdate.each { service ->
+                            echo "Updating image tag for ${service} to ${newTag}"
+                            // Helm values.yaml 파일의 image.tag를 업데이트하는 예시
+                            sh """
+                                cd ../samubozo-backend
+                                sed -i "s|image: ${ECR_URL}/${service}:latest|image: ${ECR_URL}/${service}:${newTag}|" ./deploy/msa-chart/charts/${service}/values.yaml
+                            """
+                        }
+
+                        sh '''
+                            cd ../samubozo-backend
+                            git config user.name "Jenkins"
+                            git config user.email "jenkins@example.com"
+                            git add .
+                            git commit -m "Update images for services: ${GLOBAL_CHANGED_SERVICES}"
+                            git push origin ingressTest
+                        '''
+                        echo "✅ K8s Git repo updated successfully!"
+                    }
+                }
+            }
+        }
     }
 
     post {
