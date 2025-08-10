@@ -170,7 +170,12 @@ public class MessageServiceImpl implements MessageService {
                 log.warn("인증된 사용자 정보가 없어 알림을 읽음 처리할 수 없습니다. employeeNo: {}", authenticatedEmployeeNo);
             }
         }
-        return convertToDto(message);
+        MessageResponse messageResponse = convertToDto(message);
+        HrServiceClient hrServiceClient = this.hrServiceClient; // HR 서비스 클라이언트
+        UserFeignResDto senderInfo = hrServiceClient.getUserByEmployeeNo(messageResponse.getSenderId());
+
+        messageResponse.setSenderDepartmentName(senderInfo.getDepartment().getName());
+        return messageResponse;
     }
 
     @Override
