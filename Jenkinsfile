@@ -148,7 +148,7 @@ pipeline {
                                 echo "Deleting existing samubozo-backend directory..."
                                 rm -rf samubozo-backend
                             fi
-                            git clone https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/samubozo/samubozo-backend.git
+                            git clone -b ingressTest https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/samubozo/samubozo-backend.git
                         '''
 
                         def servicesToUpdate = GLOBAL_CHANGED_SERVICES.split(",")
