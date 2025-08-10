@@ -7,6 +7,6 @@
 
 
 
-image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/config-service:latest
+image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/config-service:7f4884f7abee1ccf5a7e40c60d7e6f868d2a1000
 
 port: 8888
