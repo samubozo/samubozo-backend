@@ -4,12 +4,6 @@ metadata:
   name: gateway-service
 spec:
   replicas: {{ .Values.global.replicaCount | default .Values.replicaCount }}
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 1
-      maxSurge: 1
-  minReadySeconds: 5
   selector:
     matchLabels:
       app: gateway-service
@@ -17,24 +11,14 @@ spec:
     metadata:
       labels:
         app: gateway-service
-    #pod 에 설정되는 컨테이너 설정
     spec:
-      serviceAccountName: gateway-service-account
       imagePullSecrets:
-        # values.yaml 파일에 imagePullSecret이라는 데이터가 있다면 실행
-        # - name : .(현재 반복중인 항목) | quote(인용부호로 감싸서 적용)
-{{/*        {{- if $.Values.imagePullSecrets}}*/}}
-{{/*          {{- range $.Values.imagePullSecrets}}*/}}
-{{/*        - name: {{ . | quote}}*/}}
-{{/*          {{- end}}*/}}
-{{/*          {{- end}}*/}}
         - name: ecr-secret
       containers:
-        - name: gateway-service-container
-          image: {{ .Values.image}}
-          imagePullPolicy: Always
+        - name: gateway-service
+          image: {{ .Values.image }}
           ports:
-            - containerPort: {{ .Values.port}}
+            - containerPort: {{ .Values.port }}
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: "{{ .Values.global.env.SPRING_PROFILES_ACTIVE }}"
@@ -42,3 +26,12 @@ spec:
               value: "{{ .Values.global.env.SPRING_CLOUD_CONFIG_PROFILE_ACTIVE }}"
             - name: SPRING_CLOUD_CONFIG_URI
               value: "{{ .Values.global.env.SPRING_CLOUD_CONFIG_URI }}"
+            - name: SERVER_PORT
+              value: "8000"
+          resources:
+            requests:
+              cpu: "{{ .Values.global.resources.requests.cpu }}"
+              memory: "{{ .Values.global.resources.requests.memory }}"
+            limits:
+              cpu: "{{ .Values.global.resources.limits.cpu }}"
+              memory: "{{ .Values.global.resources.limits.memory }}"
