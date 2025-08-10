@@ -35,7 +35,6 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-security'
-    implementation 'org.springframework.boot:spring-boot-starter-amqp'
 
     // 아파치 pdf
     implementation group: 'org.apache.pdfbox', name: 'pdfbox', version: '2.0.31'
