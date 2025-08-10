@@ -61,11 +61,9 @@ public class WorkStatus extends BaseEntity {
     @Column(name = "is_late", nullable = false)
     private boolean isLate;
 
-    public void setIsLate(boolean isLate) {
-        this.isLate = isLate;
-    }
+    
 
-    // 필요한 setter 메서드 추가
+    
     public void setAttendance(Attendance attendance) {
         this.attendance = attendance;
     }
@@ -90,40 +88,9 @@ public class WorkStatus extends BaseEntity {
         this.reason = reason;
     }
 
-    // 지각 기록
-    public static WorkStatus recordLate(Long userId, LocalDate date, LocalDateTime checkIn, String reason) {
-        return WorkStatus.builder()
-                .userId(userId)
-                .date(date)
-                .statusType(WorkStatusType.LATE)
-                .checkInTime(checkIn)
-                .reason(reason)
-                .isLate(true) // 지각이므로 isLate는 true
-                .build();
-    }
+    
 
-    // 조퇴 기록
-    public static WorkStatus recordEarlyLeave(Long userId, LocalDate date, LocalDateTime checkOut, String reason) {
-        return WorkStatus.builder()
-                .userId(userId)
-                .date(date)
-                .statusType(WorkStatusType.EARLY_LEAVE)
-                .checkOutTime(checkOut)
-                .reason(reason)
-                .isLate(false) // 조퇴는 지각이 아님
-                .build();
-    }
+    
 
-    // 편의 메서드들 (선택사항)
-    public void setAbsenceStatus(WorkStatusType statusType, String reason) {
-        this.statusType = statusType;
-        this.reason = reason;
-        this.isLate = false; // 부재는 지각 아님
-    }
-
-    public void setVacationStatus(WorkStatusType statusType, String reason) {
-        this.statusType = statusType;
-        this.reason = reason;
-        this.isLate = false; // 휴가는 지각 아님
-    }
+    
 }

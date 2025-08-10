@@ -110,19 +110,5 @@ public class Absence {
         return this.approvalStatus == ApprovalStatus.PENDING;
     }
 
-    public boolean isApproved() {
-        return this.approvalStatus == ApprovalStatus.APPROVED;
-    }
-
-    public boolean isRejected() {
-        return this.approvalStatus == ApprovalStatus.REJECTED;
-    }
-
-    public boolean requiresApproval() {
-        return this.type.requiresApproval();
-    }
-
-    public boolean isSelfApproved() {
-        return this.type.isSelfApproved();
-    }
+    
 }

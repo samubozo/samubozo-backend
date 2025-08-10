@@ -427,21 +427,7 @@ public class VacationServiceImpl implements VacationService {
         log.info("사용자(ID: {})의 연차를 {}일 차감했습니다. 남은 연차: {}", employeeNo, deductionDays, vacationBalance.getRemainingDays());
     }
 
-    /**
-     * 연차 잔액을 복구합니다.
-     * @param employeeNo 사용자 사번
-     * @param restoredDays 복구할 일수
-     */
-    @Override
-    public void restoreVacationBalance(Long employeeNo, BigDecimal restoredDays) {
-        VacationBalance vacationBalance = vacationBalanceRepository.findByUserId(employeeNo)
-                .orElseThrow(() -> new IllegalArgumentException("해당 사용자의 연차 정보를 찾을 수 없습니다: " + employeeNo));
-
-        // 사용된 연차를 되돌리는 것이므로 usedDays를 감소시킵니다.
-        vacationBalance.useDays(restoredDays.negate()); // useDays 메서드에서 음수 처리 가능하도록 수정 필요
-        vacationBalanceRepository.save(vacationBalance);
-        log.info("사용자(ID: {})의 연차를 {}일 복구했습니다. 남은 연차: {}", employeeNo, restoredDays, vacationBalance.getRemainingDays());
-    }
+    
 
     /**
      * 휴가 신청 내역을 데이터베이스에 저장합니다.

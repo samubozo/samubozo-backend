@@ -13,6 +13,6 @@ public interface WorkStatusRepository extends JpaRepository<WorkStatus, Long> {
     Optional<WorkStatus> findByAttendanceId(Long attendanceId);
     List<WorkStatus> findByUserIdInAndDateBetween(List<Long> userIds, LocalDate startDate, LocalDate endDate);
     Optional<WorkStatus> findByUserIdAndDate(Long userId, LocalDate date);
-    List<WorkStatus> findByUserId(Long userId);
-    List<WorkStatus> findByDateBetween(LocalDate startDate, LocalDate endDate);
+    
+    
 }
