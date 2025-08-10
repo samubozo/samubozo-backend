@@ -41,8 +41,8 @@ public class NotificationController {
 
     // 메세지를 알림보다 먼저 볼시 ID로 알림 읽음 처리
     @PostMapping("/mark-read-by-message-id")
-    public ResponseEntity<NotificationResponse> markReadByMessageId(@RequestBody Long notificationId) {
-        NotificationResponse response = notificationService.markNotificationAsRead(notificationId);
+    public ResponseEntity<NotificationResponse> markReadByMessageId(@RequestBody Long messageId) {
+        NotificationResponse response = notificationService.markNotificationAsRead(messageId);
         return ResponseEntity.ok(response);
     }
     @PostMapping("/delete-by-message-id")

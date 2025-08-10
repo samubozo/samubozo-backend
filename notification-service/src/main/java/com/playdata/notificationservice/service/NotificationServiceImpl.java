@@ -104,15 +104,15 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Transactional
     @Override
-    public NotificationResponse markNotificationAsRead(Long notificationId) {
-        Notification notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new IllegalArgumentException("Notification not found with id: " + notificationId));
+    public NotificationResponse markNotificationAsRead(Long messageId) {
+        Notification notification = notificationRepository.findOneByMessageId(messageId)
+                .orElseThrow(() -> new IllegalArgumentException("Notification not found with messageId: " + messageId));
 
         if (!notification.getIsRead()) {
             notification.setIsRead(true);
             notification.setReadAt(LocalDateTime.now());
             notificationRepository.save(notification);
-            log.info("Notification {} marked as read for employeeNo {}", notificationId, notification.getEmployeeNo());
+            log.info("Notification {} marked as read for employeeNo {}", messageId, notification.getEmployeeNo());
         }
         return convertToDto(notification);
     }
