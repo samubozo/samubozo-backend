@@ -8,6 +8,10 @@ metadata:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     # http 요청이 들어오면 자동으로 https로 리다이렉트(응답 및 재요청) 처리해라.
     nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+    # Read timeout 설정: 서버가 응답을 읽는 시간 (SSE의 경우 중요)
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    # Send timeout 설정: 서버가 요청을 보내는 시간
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 
 spec:
   # 설치한 ingress controller의 종류를 명시 -> 우리가 설치한 게 nginx라는 도구를 사용한 ingress
