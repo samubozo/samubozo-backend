@@ -25,6 +25,17 @@ pipeline {
 
                 deleteDir()
                 checkout scm
+                // 최신 원격으로 강제 동기화 (shallow도 풀기)
+                sh '''
+                  set -e
+                  BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+                  git fetch --all --prune
+                  # shallow clone이면 전체 기록 받기
+                  if git rev-parse --is-shallow-repository >/dev/null 2>&1; then
+                    git fetch --unshallow || true
+                  fi
+                  git reset --hard "origin/${BRANCH}"
+                '''
 
                 withCredentials([file(credentialsId: 'config-secret', variable: 'configSecret')]) {
                     sh 'cp $configSecret config-service/src/main/resources/application-dev.yml'
