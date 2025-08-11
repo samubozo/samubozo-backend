@@ -25,17 +25,7 @@ pipeline {
 
                 deleteDir()
                 checkout scm
-                // 최신 원격으로 강제 동기화 (shallow도 풀기)
-                sh '''
-                  set -e
-                  BRANCH="$(git rev-parse --abbrev-ref HEAD)"
-                  git fetch --all --prune
-                  # shallow clone이면 전체 기록 받기
-                  if git rev-parse --is-shallow-repository >/dev/null 2>&1; then
-                    git fetch --unshallow || true
-                  fi
-                  git reset --hard "origin/${BRANCH}"
-                '''
+
 
                 withCredentials([file(credentialsId: 'config-secret', variable: 'configSecret')]) {
                     sh 'cp $configSecret config-service/src/main/resources/application-dev.yml'
@@ -219,60 +209,67 @@ pipeline {
 // ======================================================
 
 def checkGitChanges(serviceList) {
-    def changedServices = []
+  def changedServices = []
 
-    try {
-        // 커밋 수 확인
-        def commitCount = sh(
-            script: "git rev-list --count HEAD",
-            returnStdout: true
-        ).trim().toInteger()
+  try {
+    // 브랜치 이름 결정 (Jenkins 멀티브랜치면 BRANCH_NAME 사용)
+    def branchName = env.BRANCH_NAME ?: 'ingressTest'
 
-        if (commitCount <= 1) {
-            echo "  First commit detected - skipping Git change detection"
-            return changedServices
-        }
+    // 항상 원격 최신과 동기화
+    sh """
+      set -e
+      git fetch --all --prune
+      if git rev-parse --is-shallow-repository >/dev/null 2>&1; then
+        git fetch --unshallow || true
+      fi
+    """
 
-        // 마지막 커밋에서 변경된 파일 목록 가져오기
-        def changedFiles = sh(
-            script: "git diff --name-only HEAD~1 HEAD",
-            returnStdout: true
-        ).trim()
+    // 원격 브랜치 커밋 수 확인
+    def remoteCount = sh(
+      script: "git rev-list --count origin/${branchName}",
+      returnStdout: true
+    ).trim().toInteger()
 
-        if (!changedFiles) {
-            echo "  No files changed in last commit"
-            return changedServices
-        }
-
-        echo "  Changed files detected:"
-        changedFiles.split('\n').each { file ->
-            echo "    • ${file}"
-        }
-
-        // 변경된 파일 분석
-        def fileList = changedFiles.split('\n').toList()
-        def commonModules = env.COMMON_MODULES.split(",").toList()
-
-        // 공통 모듈 변경 체크
-        def commonChanged = commonModules.any { module ->
-            fileList.any { file -> file.startsWith("${module}/") }
-        }
-
-        if (commonChanged) {
-            echo "  ⚠️  Common module changed - all services will be rebuilt"
-            return serviceList
-        }
-
-        // 개별 서비스 변경 체크
-        serviceList.each { service ->
-            if (fileList.any { file -> file.startsWith("${service}/") }) {
-                changedServices.add(service)
-            }
-        }
-
-    } catch (Exception e) {
-        echo "  ⚠️  Error during Git change detection: ${e.message}"
+    if (remoteCount <= 1) {
+      echo "  First commit on origin/${branchName} - skipping change detection"
+      return changedServices
     }
 
-    return changedServices
+    // 원격 최신 두 커밋 사이 변경 파일 목록
+    def changedFiles = sh(
+      script: "git diff --name-only origin/${branchName}~1 origin/${branchName}",
+      returnStdout: true
+    ).trim()
+
+    if (!changedFiles) {
+      echo "  No files changed between last two commits on origin/${branchName}"
+      return changedServices
+    }
+
+    echo "  Changed files on origin/${branchName}:"
+    changedFiles.split('\\n').each { file -> echo "    • ${file}" }
+
+    // 공통 모듈 변경 시 전체 리빌드
+    def fileList = changedFiles.split('\\n').toList()
+    def commonModules = env.COMMON_MODULES.split(",").toList()
+    def commonChanged = commonModules.any { module ->
+      fileList.any { file -> file.startsWith("${module}/") }
+    }
+    if (commonChanged) {
+      echo "  ⚠️  Common module changed - all services will be rebuilt"
+      return serviceList
+    }
+
+    // 개별 서비스 변경 감지
+    serviceList.each { service ->
+      if (fileList.any { file -> file.startsWith("${service}/") }) {
+        changedServices.add(service)
+      }
+    }
+
+  } catch (Exception e) {
+    echo "  ⚠️  Error during Git change detection: ${e.message}"
+  }
+
+  return changedServices
 }
