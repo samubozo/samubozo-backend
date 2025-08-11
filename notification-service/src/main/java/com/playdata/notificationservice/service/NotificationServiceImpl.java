@@ -3,9 +3,10 @@ package com.playdata.notificationservice.service;
 import com.playdata.notificationservice.dto.NotificationResponse;
 import com.playdata.notificationservice.entity.Notification;
 import com.playdata.notificationservice.repository.NotificationRepository;
-import com.playdata.notificationservice.type.NotificationType; // NotificationType import 추가
+import com.playdata.notificationservice.type.NotificationType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -61,6 +62,22 @@ public class NotificationServiceImpl implements NotificationService {
 
         log.info("SSE Emitter subscribed for employeeNo: {}", employeeNo);
         return emitter;
+    }
+    // 30초마다 모든 연결에 핑 메시지 전송
+    @Scheduled(fixedRate = 30000)
+    public void sendPingToAllEmitters() {
+        emitters.forEach((employeeNo, emitter) -> {
+            try {
+                // 연결 유지를 위한 더미 메시지(핑) 전송
+                emitter.send(SseEmitter.event().name("ping").data("Keep alive"));
+                log.debug("Ping sent to employeeNo: {}", employeeNo);
+            } catch (IOException e) {
+                // 연결 끊김(Broken Pipe) 에러 발생 시 해당 Emitter 제거
+                log.warn("Broken pipe detected for employeeNo: {}. Removing emitter.", employeeNo);
+                emitters.remove(employeeNo);
+                emitter.completeWithError(e);
+            }
+        });
     }
 
     @Transactional
