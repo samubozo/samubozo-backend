@@ -44,11 +44,13 @@ pipeline {
 
                     def allServices = env.SERVICE_DIRS.split(",").toList()
                     def changedServices = []
+                    def previousCommit = getPreviousCommit()
 
                     echo "\n🔍 Starting Git changes check..."
 
                     // Git 변경사항만 체크
-                    changedServices = checkGitChanges(allServices)
+                    // 수정: 마지막 성공 빌드와 현재 빌드 커밋을 비교하도록 변경
+                    changedServices = checkGitChanges(allServices, previousCommit)
 
                     // 최종 결과 처리
                     if (changedServices) {
@@ -208,68 +210,85 @@ pipeline {
 // Helper Functions (pipeline 블록 밖에 정의)
 // ======================================================
 
-def checkGitChanges(serviceList) {
-  def changedServices = []
+def checkGitChanges(serviceList, previousCommit) {
+    def changedServices = []
 
-  try {
-    // 브랜치 이름 결정 (Jenkins 멀티브랜치면 BRANCH_NAME 사용)
-    def branchName = env.BRANCH_NAME ?: 'ingressTest'
+    try {
+        // 커밋 수 확인
+        def commitCount = sh(
+            script: "git rev-list --count HEAD",
+            returnStdout: true
+        ).trim().toInteger()
 
-    // 항상 원격 최신과 동기화
-    sh """
-      set -e
-      git fetch --all --prune
-      if git rev-parse --is-shallow-repository >/dev/null 2>&1; then
-        git fetch --unshallow || true
-      fi
-    """
+        // 첫 번째 빌드인 경우
+        if (commitCount <= 1 || previousCommit == null) {
+            echo "  First commit or no previous successful build detected - will build all services."
+            return serviceList
+        }
 
-    // 원격 브랜치 커밋 수 확인
-    def remoteCount = sh(
-      script: "git rev-list --count origin/${branchName}",
-      returnStdout: true
-    ).trim().toInteger()
+        // 마지막 성공 빌드와 현재 빌드의 커밋을 비교
+        def changedFiles = sh(
+            script: "git diff --name-only ${previousCommit} HEAD",
+            returnStdout: true
+        ).trim()
 
-    if (remoteCount <= 1) {
-      echo "  First commit on origin/${branchName} - skipping change detection"
-      return changedServices
+        if (!changedFiles) {
+            echo "  No files changed since the last successful build."
+            return changedServices
+        }
+
+        echo "  Changed files detected since commit ${previousCommit}:"
+        changedFiles.split('\n').each { file ->
+            echo "    • ${file}"
+        }
+
+        // 변경된 파일 분석
+        def fileList = changedFiles.split('\n').toList()
+        def commonModules = env.COMMON_MODULES.split(",").toList()
+
+        // 공통 모듈 변경 체크
+        def commonChanged = commonModules.any { module ->
+            fileList.any { file -> file.startsWith("${module}/") }
+        }
+
+        if (commonChanged) {
+            echo "  ⚠️  Common module changed - all services will be rebuilt"
+            return serviceList
+        }
+
+        // 개별 서비스 변경 체크
+        serviceList.each { service ->
+            if (fileList.any { file -> file.startsWith("${service}/") }) {
+                changedServices.add(service)
+            }
+        }
+
+    } catch (Exception e) {
+        echo "  ⚠️  Error during Git change detection: ${e.message}"
+        // 에러 발생 시 모든 서비스를 빌드하도록 기본 처리
+        return serviceList
     }
 
-    // 원격 최신 두 커밋 사이 변경 파일 목록
-    def changedFiles = sh(
-      script: "git diff --name-only origin/${branchName}~1 origin/${branchName}",
-      returnStdout: true
-    ).trim()
+    return changedServices
+}
 
-    if (!changedFiles) {
-      echo "  No files changed between last two commits on origin/${branchName}"
-      return changedServices
+// 수정: 이전 성공 빌드의 커밋 정보를 가져오는 헬퍼 함수 추가
+def getPreviousCommit() {
+    def previousCommit = null
+    def previousBuild = currentBuild.getPreviousSuccessfulBuild()
+    if (previousBuild) {
+        def previousBuildCause = previousBuild.getCauses().find { it instanceof hudson.model.Cause.UserIdCause }
+        if (previousBuildCause) {
+            // 이전에 성공한 빌드의 커밋 해시를 가져옴
+            previousCommit = previousBuild.getBuildByNumber(previousBuild.getNumber()).getChangeSet().getRevisions().first()?.getHash()
+            if (!previousCommit) {
+                // ChangeSet이 없는 경우, SCM 정보에서 가져옴
+                def lastScmRevision = previousBuild.getAction(hudson.scm.RevisionParameterAction.class)?.getRevisions()?.first()
+                if (lastScmRevision) {
+                    previousCommit = lastScmRevision.hash
+                }
+            }
+        }
     }
-
-    echo "  Changed files on origin/${branchName}:"
-    changedFiles.split('\\n').each { file -> echo "    • ${file}" }
-
-    // 공통 모듈 변경 시 전체 리빌드
-    def fileList = changedFiles.split('\\n').toList()
-    def commonModules = env.COMMON_MODULES.split(",").toList()
-    def commonChanged = commonModules.any { module ->
-      fileList.any { file -> file.startsWith("${module}/") }
-    }
-    if (commonChanged) {
-      echo "  ⚠️  Common module changed - all services will be rebuilt"
-      return serviceList
-    }
-
-    // 개별 서비스 변경 감지
-    serviceList.each { service ->
-      if (fileList.any { file -> file.startsWith("${service}/") }) {
-        changedServices.add(service)
-      }
-    }
-
-  } catch (Exception e) {
-    echo "  ⚠️  Error during Git change detection: ${e.message}"
-  }
-
-  return changedServices
+    return previousCommit
 }
