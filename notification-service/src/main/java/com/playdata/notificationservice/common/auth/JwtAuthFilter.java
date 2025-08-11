@@ -21,7 +21,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class JwtAuthFilter extends OncePerRequestFilter {
-    // ← 여기 추가
+
     @Override
     protected boolean shouldNotFilterAsyncDispatch() {
         return false; // async 디스패치(예: SSE)에도 필터 실행

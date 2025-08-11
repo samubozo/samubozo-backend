@@ -44,13 +44,11 @@ pipeline {
 
                     def allServices = env.SERVICE_DIRS.split(",").toList()
                     def changedServices = []
-                    def previousCommit = getPreviousCommit()
 
                     echo "\n🔍 Starting Git changes check..."
 
                     // Git 변경사항만 체크
-                    // 수정: 마지막 성공 빌드와 현재 빌드 커밋을 비교하도록 변경
-                    changedServices = checkGitChanges(allServices, previousCommit)
+                    changedServices = checkGitChanges(allServices)
 
                     // 최종 결과 처리
                     if (changedServices) {
@@ -210,7 +208,7 @@ pipeline {
 // Helper Functions (pipeline 블록 밖에 정의)
 // ======================================================
 
-def checkGitChanges(serviceList, previousCommit) {
+def checkGitChanges(serviceList) {
     def changedServices = []
 
     try {
@@ -220,24 +218,23 @@ def checkGitChanges(serviceList, previousCommit) {
             returnStdout: true
         ).trim().toInteger()
 
-        // 첫 번째 빌드인 경우
-        if (commitCount <= 1 || previousCommit == null) {
-            echo "  First commit or no previous successful build detected - will build all services."
-            return serviceList
+        if (commitCount <= 1) {
+            echo "  First commit detected - skipping Git change detection"
+            return changedServices
         }
 
-        // 마지막 성공 빌드와 현재 빌드의 커밋을 비교
+        // 마지막 커밋에서 변경된 파일 목록 가져오기
         def changedFiles = sh(
-            script: "git diff --name-only ${previousCommit} HEAD",
+            script: "git diff --name-only HEAD~1 HEAD",
             returnStdout: true
         ).trim()
 
         if (!changedFiles) {
-            echo "  No files changed since the last successful build."
+            echo "  No files changed in last commit"
             return changedServices
         }
 
-        echo "  Changed files detected since commit ${previousCommit}:"
+        echo "  Changed files detected:"
         changedFiles.split('\n').each { file ->
             echo "    • ${file}"
         }
@@ -265,30 +262,7 @@ def checkGitChanges(serviceList, previousCommit) {
 
     } catch (Exception e) {
         echo "  ⚠️  Error during Git change detection: ${e.message}"
-        // 에러 발생 시 모든 서비스를 빌드하도록 기본 처리
-        return serviceList
     }
 
     return changedServices
-}
-
-// 수정: 이전 성공 빌드의 커밋 정보를 가져오는 헬퍼 함수 추가
-def getPreviousCommit() {
-    def previousCommit = null
-    def previousBuild = currentBuild.getPreviousSuccessfulBuild()
-    if (previousBuild) {
-        def previousBuildCause = previousBuild.getCauses().find { it instanceof hudson.model.Cause.UserIdCause }
-        if (previousBuildCause) {
-            // 이전에 성공한 빌드의 커밋 해시를 가져옴
-            previousCommit = previousBuild.getBuildByNumber(previousBuild.getNumber()).getChangeSet().getRevisions().first()?.getHash()
-            if (!previousCommit) {
-                // ChangeSet이 없는 경우, SCM 정보에서 가져옴
-                def lastScmRevision = previousBuild.getAction(hudson.scm.RevisionParameterAction.class)?.getRevisions()?.first()
-                if (lastScmRevision) {
-                    previousCommit = lastScmRevision.hash
-                }
-            }
-        }
-    }
-    return previousCommit
 }
