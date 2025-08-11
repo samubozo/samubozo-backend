@@ -63,22 +63,20 @@ public class NotificationServiceImpl implements NotificationService {
         log.info("SSE Emitter subscribed for employeeNo: {}", employeeNo);
         return emitter;
     }
-    // 30초마다 모든 연결에 핑 메시지 전송
-    @Scheduled(fixedRate = 30000)
+    @Scheduled(fixedRate = 15000) // 15초 권장 (타임아웃보다 훨씬 짧게)
     public void sendPingToAllEmitters() {
         emitters.forEach((employeeNo, emitter) -> {
             try {
-                // 연결 유지를 위한 더미 메시지(핑) 전송
-                emitter.send(SseEmitter.event().name("ping").data("Keep alive"));
-                log.debug("Ping sent to employeeNo: {}", employeeNo);
+                // 코멘트 프레임: ": keepalive\n\n" 형태로 전송됨 (클라 onmessage에 안 뜸)
+                emitter.send(SseEmitter.event().comment("keepalive"));
             } catch (IOException e) {
-                // 연결 끊김(Broken Pipe) 에러 발생 시 해당 Emitter 제거
-                log.warn("Broken pipe detected for employeeNo: {}. Removing emitter.", employeeNo);
+                log.warn("Broken pipe: {} -> remove", employeeNo);
                 emitters.remove(employeeNo);
                 emitter.completeWithError(e);
             }
         });
     }
+
 
     @Transactional
     @Override
