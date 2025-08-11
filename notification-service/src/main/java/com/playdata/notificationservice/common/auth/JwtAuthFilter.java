@@ -30,18 +30,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String userRole = null;
         String employeeNoStr = null;
 
-        // SSE 구독 요청의 경우, 쿼리 파라미터에서 인증 정보 추출
-        if (requestURI.contains("/notifications/subscribe")) {
-            log.info("SSE connection detected. Reading auth info from query parameters.");
-            userEmail = request.getParameter("userEmail");
-            userRole = request.getParameter("userRole");
-            employeeNoStr = request.getParameter("employeeNo");
-        } else {
-            // 그 외 모든 요청은 기존 방식대로 헤더에서 인증 정보 추출
-            userEmail = request.getHeader("X-User-Email");
-            userRole = request.getHeader("X-User-Role");
-            employeeNoStr = request.getHeader("X-User-Employee-No");
-        }
+        userEmail = request.getHeader("X-User-Email");
+        userRole = request.getHeader("X-User-Role");
+        employeeNoStr = request.getHeader("X-User-Employee-No");
 
         Long employeeNo = null;
         if (employeeNoStr != null) {
