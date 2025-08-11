@@ -28,6 +28,8 @@ spec:
               value: "{{ .Values.global.env.SPRING_CLOUD_CONFIG_URI }}"
             - name: SERVER_PORT
               value: "8010"
+            - name: TZ
+              value: {{ default "Asia/Seoul" .Values.global.env.TZ | quote }}
           resources:
             requests:
               cpu: "{{ .Values.global.resources.requests.cpu }}"
