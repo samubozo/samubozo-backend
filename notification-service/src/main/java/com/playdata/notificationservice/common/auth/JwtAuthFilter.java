@@ -25,14 +25,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
 
-        String requestURI = request.getRequestURI();
-        String userEmail = null;
-        String userRole = null;
-        String employeeNoStr = null;
-
-        userEmail = request.getHeader("X-User-Email");
-        userRole = request.getHeader("X-User-Role");
-        employeeNoStr = request.getHeader("X-User-Employee-No");
+        String userEmail = request.getHeader("X-User-Email");
+        String userRole = request.getHeader("X-User-Role");
+        String employeeNoStr = request.getHeader("X-User-Employee-No");
 
         Long employeeNo = null;
         if (employeeNoStr != null) {

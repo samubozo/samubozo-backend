@@ -155,12 +155,12 @@ pipeline {
                         def newTag = env.GIT_COMMIT
 
                         servicesToUpdate.each { service ->
-                            echo "Updating image tag for ${service} to ${newTag}"
-                            // Helm values.yaml 파일의 image.tag를 업데이트하는 예시
-                            sh """
-                                cd ../samubozo-backend
-                                sed -i "s|image: ${ECR_URL}/${service}:latest|image: ${ECR_URL}/${service}:${newTag}|" ./deploy/msa-chart/charts/${service}/values.yaml
-                            """
+                          echo "Updating image tag for ${service} to ${newTag}"
+                          sh """
+                            cd ../samubozo-backend
+                            sed -E -i 's|(image:\\s*${ECR_URL}/${service}:)[^[:space:]]+|\\1${newTag}|' \
+                              ./deploy/msa-chart/charts/${service}/values.yaml
+                          """
                         }
 
                         sh '''
