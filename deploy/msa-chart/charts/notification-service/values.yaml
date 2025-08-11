@@ -1,3 +1,3 @@
 
-image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/notification-service:a62b47d7d669df84a7de633ca44af720348e39e8
+image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/notification-service:f117aaec60d122dc7cb41fead57f33e3d54fe581
 port: 8010
