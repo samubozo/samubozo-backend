@@ -35,6 +35,8 @@ public interface UserService {
 
     Page<UserResDto> listUsers(Pageable pageable, String hrRole);
 
+    Page<UserResDto> payrollListUsers(Pageable pageable, int year, int month);
+
     Object searchUsers(String userName, String departmentName, String hrRole, Pageable pageable);
 
     void retireUser(Long employeeNo, String hrRole);

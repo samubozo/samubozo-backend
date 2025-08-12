@@ -80,7 +80,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(EntityNotFoundException.class)
     public ResponseEntity<CommonResDto<?>> handleEntityNotFoundException(EntityNotFoundException ex) {
         log.warn("EntityNotFoundException: {}", ex.getMessage());
-        return buildErrorResponse(HttpStatus.NOT_FOUND, ex.getMessage());
+        return buildErrorResponse(HttpStatus.NO_CONTENT, ex.getMessage());
     }
 
     /**

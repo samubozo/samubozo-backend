@@ -12,8 +12,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDate;
-
 @RestController
 @RequestMapping("/payroll")
 @RequiredArgsConstructor
@@ -86,20 +84,6 @@ public class PayrollController {
         return ResponseEntity.ok(new CommonResDto<>(HttpStatus.OK, "급여 정보 삭제 성공!", null));
     }
 
-    @GetMapping("/me")
-    public ResponseEntity<CommonResDto<PayrollResponseDto>> getMyPayroll(
-            @RequestAttribute("userInfo") TokenUserInfo userInfo) {
-
-        log.info("/api/payroll/me: GET");
-        log.info("userInfo: {}", userInfo);
-
-        LocalDate now = LocalDate.now();
-        PayrollResponseDto payroll = payrollService.getPayrollByMonth(
-                userInfo.getEmployeeNo(), now.getYear(), now.getMonthValue());
-
-        return ResponseEntity.ok(
-                new CommonResDto<>(HttpStatus.OK, "이번 달 급여 조회 성공!", payroll));
-    }
 
     @GetMapping("/me/monthly")
     public ResponseEntity<CommonResDto<PayrollResponseDto>> getMyPayrollByMonth(

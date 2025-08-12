@@ -13,7 +13,7 @@ import java.util.List;
 
 public interface MessageService {
     @Transactional
-    MessageResponse sendMessage(Long senderId, MessageRequest request, MultipartFile[] attachments);
+    List<MessageResponse> sendMessage(Long senderId, MessageRequest request, MultipartFile[] attachments);
 
     // 받은 쪽지함 검색/필터/페이징
     Page<MessageResponse> getReceivedMessages(Long receiverId, String searchType, String searchValue, String period, Boolean unreadOnly, Pageable pageable);

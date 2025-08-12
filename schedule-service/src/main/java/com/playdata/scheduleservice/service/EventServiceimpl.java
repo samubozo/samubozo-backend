@@ -9,6 +9,7 @@ import com.playdata.scheduleservice.repository.CategoryRepository;
 import com.playdata.scheduleservice.repository.EventRepository;
 import com.playdata.scheduleservice.client.HrServiceClient;
 import com.playdata.scheduleservice.dto.UserFeignResDto;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,7 +33,7 @@ public class EventServiceimpl implements EventService {
     public EventResponse createEvent(Long employeeNo, EventRequest request) {
         Long departmentId = getDepartmentId(employeeNo);
         Category category = categoryRepository.findById(request.getCategoryId())
-                .orElseThrow(() -> new IllegalArgumentException("카테고리를 찾을 수 없습니다."));
+                .orElseThrow(() -> new EntityNotFoundException("카테고리를 찾을 수 없습니다."));
 
         // 카테고리 권한 검증
         if (category.getType() == Category.CategoryType.PERSONAL && !category.getOwnerEmployeeNo().equals(employeeNo)) {
@@ -81,7 +82,7 @@ public class EventServiceimpl implements EventService {
     public EventResponse getEventById(Long eventId, Long employeeNo) {
         Long departmentId = getDepartmentId(employeeNo);
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new IllegalArgumentException("일정을 찾을 수 없습니다."));
+                .orElseThrow(() -> new EntityNotFoundException("일정을 찾을 수 없습니다."));
 
         // 일정 권한 검증
         if (event.getCategory().getType() == Category.CategoryType.PERSONAL && !event.getOwnerEmployeeNo().equals(employeeNo)) {
@@ -100,7 +101,7 @@ public class EventServiceimpl implements EventService {
     public EventResponse updateEvent(Long eventId, Long employeeNo, EventRequest request) {
         Long departmentId = getDepartmentId(employeeNo);
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new IllegalArgumentException("일정을 찾을 수 없습니다."));
+                .orElseThrow(() -> new EntityNotFoundException("일정을 찾을 수 없습니다."));
 
         // 일정 권한 검증 (생성자와 동일한 권한 검증)
         if (event.getCategory().getType() == Category.CategoryType.PERSONAL && !event.getOwnerEmployeeNo().equals(employeeNo)) {
@@ -113,7 +114,7 @@ public class EventServiceimpl implements EventService {
         // 카테고리 변경 시 권한 검증
         if (request.getCategoryId() != null && !request.getCategoryId().equals(event.getCategory().getId())) {
             Category newCategory = categoryRepository.findById(request.getCategoryId())
-                    .orElseThrow(() -> new IllegalArgumentException("새로운 카테고리를 찾을 수 없습니다."));
+                    .orElseThrow(() -> new EntityNotFoundException("새로운 카테고리를 찾을 수 없습니다."));
             if (newCategory.getType() == Category.CategoryType.PERSONAL && !newCategory.getOwnerEmployeeNo().equals(employeeNo)) {
                 throw new IllegalArgumentException("새로운 개인 카테고리에 일정을 할당할 권한이 없습니다.");
             }
@@ -139,7 +140,7 @@ public class EventServiceimpl implements EventService {
     public void deleteEvent(Long eventId, Long employeeNo) {
         Long departmentId = getDepartmentId(employeeNo);
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new IllegalArgumentException("일정을 찾을 수 없습니다."));
+                .orElseThrow(() -> new EntityNotFoundException("일정을 찾을 수 없습니다."));
 
         // 일정 권한 검증
         if (event.getCategory().getType() == Category.CategoryType.PERSONAL && !event.getOwnerEmployeeNo().equals(employeeNo)) {

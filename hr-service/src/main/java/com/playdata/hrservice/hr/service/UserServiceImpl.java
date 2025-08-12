@@ -231,6 +231,19 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public Page<UserResDto> payrollListUsers(Pageable pageable, int year, int month) {
+
+        Page<User> users = userRepository.findUsersHavingPayrollInYearMonth(year, month, pageable);
+
+        return users.map(user -> UserResDto.builder()
+                .employeeNo(user.getEmployeeNo())
+                .userName(user.getUserName())
+                .positionName(user.getPosition().getPositionName())
+                .activate(user.getActivate())
+                .build());
+    }
+
+    @Override
     public Object searchUsers(String userName, String departmentName, String hrRole, Pageable pageable) {
         if (StringUtils.hasText(userName) || StringUtils.hasText(departmentName) || StringUtils.hasText(hrRole)) {
             List<User> users;

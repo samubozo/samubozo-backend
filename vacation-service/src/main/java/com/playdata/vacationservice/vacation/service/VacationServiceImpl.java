@@ -3,33 +3,23 @@ package com.playdata.vacationservice.vacation.service;
 import com.playdata.vacationservice.client.ApprovalServiceClient;
 import com.playdata.vacationservice.client.AttendanceServiceClient;
 import com.playdata.vacationservice.client.HrServiceClient;
-import com.playdata.vacationservice.client.dto.VacationApprovalRequestCreateDto;
-import com.playdata.vacationservice.client.dto.ApprovalRequestResponseDto;
-import com.playdata.vacationservice.client.dto.WorkStatusCreateRequestDto;
-import com.playdata.vacationservice.client.dto.UserDetailDto;
-import com.playdata.vacationservice.client.dto.UserFeignResDto; // 추가
+import com.playdata.vacationservice.client.dto.*;
 import com.playdata.vacationservice.common.auth.TokenUserInfo;
-import com.playdata.vacationservice.client.dto.UserResDto;
-import com.playdata.vacationservice.vacation.dto.ApprovalRequestProcessDto;
-import com.playdata.vacationservice.vacation.dto.PendingApprovalDto;
-import com.playdata.vacationservice.vacation.dto.VacationHistoryResDto;
-import com.playdata.vacationservice.vacation.dto.MonthlyVacationStatsDto;
-import com.playdata.vacationservice.vacation.dto.VacationBalanceResDto;
-import com.playdata.vacationservice.vacation.dto.VacationRequestDto;
+import com.playdata.vacationservice.vacation.dto.*;
 import com.playdata.vacationservice.vacation.entity.*;
 import com.playdata.vacationservice.vacation.repository.VacationBalanceRepository;
 import com.playdata.vacationservice.vacation.repository.VacationRepository;
 import feign.FeignException;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.http.HttpStatus;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -213,7 +203,7 @@ public class VacationServiceImpl implements VacationService {
     @Transactional(readOnly = true)
     public VacationBalanceResDto getVacationBalance(Long userId) {
         VacationBalance vacationBalance = vacationBalanceRepository.findByUserId(userId)
-                .orElseThrow(() -> new IllegalArgumentException("해당 사용자의 연차 정보를 찾을 수 없습니다. (User ID: " + userId + ")"));
+                .orElseThrow(() -> new EntityNotFoundException("해당 사용자의 연차 정보를 찾을 수 없습니다. (User ID: " + userId + ")"));
 
         return VacationBalanceResDto.from(vacationBalance);
     }
@@ -323,7 +313,7 @@ public class VacationServiceImpl implements VacationService {
     @Transactional
     public void approveVacation(Long vacationId) {
         Vacation vacation = vacationRepository.findById(vacationId)
-                .orElseThrow(() -> new IllegalArgumentException("해당 휴가 신청을 찾을 수 없습니다: " + vacationId));
+                .orElseThrow(() -> new EntityNotFoundException("해당 휴가 신청을 찾을 수 없습니다: " + vacationId));
 
         if (vacation.getVacationStatus() != VacationStatus.PENDING_APPROVAL) {
             throw new IllegalStateException("대기 중인 휴가 신청만 승인할 수 있습니다.");
@@ -352,7 +342,7 @@ public class VacationServiceImpl implements VacationService {
     @Transactional
     public void rejectVacation(Long vacationId, ApprovalRequestProcessDto requestDto) {
         Vacation vacation = vacationRepository.findById(vacationId)
-                .orElseThrow(() -> new IllegalArgumentException("해당 휴가 신청을 찾을 수 없습니다: " + vacationId));
+                .orElseThrow(() -> new EntityNotFoundException("해당 휴가 신청을 찾을 수 없습니다: " + vacationId));
 
         if (vacation.getVacationStatus() != VacationStatus.PENDING_APPROVAL) {
             throw new IllegalStateException("대기 중인 휴가 신청만 반려할 수 있습니다.");
@@ -382,7 +372,7 @@ public class VacationServiceImpl implements VacationService {
     @Transactional
     public void updateVacationRequest(Long vacationId, Long userId, VacationRequestDto requestDto) {
         Vacation vacation = vacationRepository.findById(vacationId)
-                .orElseThrow(() -> new IllegalArgumentException("해당 휴가 신청을 찾을 수 없습니다: " + vacationId));
+                .orElseThrow(() -> new EntityNotFoundException("해당 휴가 신청을 찾을 수 없습니다: " + vacationId));
 
         // 신청자 본인만 수정 가능하도록 검증
         if (!vacation.getUserId().equals(userId)) {
@@ -417,7 +407,7 @@ public class VacationServiceImpl implements VacationService {
     @Override
     public void deductVacationBalance(Long employeeNo, BigDecimal deductionDays) {
         VacationBalance vacationBalance = vacationBalanceRepository.findByUserId(employeeNo)
-                .orElseThrow(() -> new IllegalArgumentException("해당 사용자의 연차 정보를 찾을 수 없습니다: " + employeeNo));
+                .orElseThrow(() -> new EntityNotFoundException("해당 사용자의 연차 정보를 찾을 수 없습니다: " + employeeNo));
 
         if (vacationBalance.getRemainingDays().compareTo(deductionDays) < 0) {
             throw new IllegalStateException("남은 연차가 부족합니다.");
@@ -435,7 +425,7 @@ public class VacationServiceImpl implements VacationService {
     @Override
     public void restoreVacationBalance(Long employeeNo, BigDecimal restoredDays) {
         VacationBalance vacationBalance = vacationBalanceRepository.findByUserId(employeeNo)
-                .orElseThrow(() -> new IllegalArgumentException("해당 사용자의 연차 정보를 찾을 수 없습니다: " + employeeNo));
+                .orElseThrow(() -> new EntityNotFoundException("해당 사용자의 연차 정보를 찾을 수 없습니다: " + employeeNo));
 
         // 사용된 연차를 되돌리는 것이므로 usedDays를 감소시킵니다.
         vacationBalance.useDays(restoredDays.negate()); // useDays 메서드에서 음수 처리 가능하도록 수정 필요
@@ -543,7 +533,7 @@ public class VacationServiceImpl implements VacationService {
     @Transactional
     public void updateVacationStatus(Long vacationId, VacationStatus status, String rejectComment) {
         Vacation vacation = vacationRepository.findById(vacationId)
-                .orElseThrow(() -> new IllegalArgumentException("해당 휴가 신청을 찾을 수 없습니다: " + vacationId));
+                .orElseThrow(() -> new EntityNotFoundException("해당 휴가 신청을 찾을 수 없습니다: " + vacationId));
         vacation.setVacationStatus(status);
         if (status == VacationStatus.REJECTED) {
             vacation.setRejectComment(rejectComment);
@@ -578,7 +568,6 @@ public class VacationServiceImpl implements VacationService {
 
     /**
      * 결재 서비스에 결재 생성을 요청합니다.
-     * @param employeeNo 사용자 사번
      * @param vacationId 휴가 신청 ID
      * @param userDetails 사용자 상세 정보
      * @param vacationType 휴가 종류
@@ -645,7 +634,7 @@ public class VacationServiceImpl implements VacationService {
 
         // 1. vacationId로 휴가 정보 조회
         Vacation vacation = vacationRepository.findById(vacationId)
-                .orElseThrow(() -> new IllegalArgumentException("해당 휴가 신청을 찾을 수 없습니다: " + vacationId));
+                .orElseThrow(() -> new EntityNotFoundException("해당 휴가 신청을 찾을 수 없습니다: " + vacationId));
 
         // 2. DTO 생성
         WorkStatusCreateRequestDto requestDto = WorkStatusCreateRequestDto.builder()

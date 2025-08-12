@@ -14,6 +14,7 @@ import com.playdata.messageservice.entity.Message;
 import com.playdata.messageservice.repository.AttachmentRepository;
 import com.playdata.messageservice.repository.MessageRepository;
 import com.playdata.messageservice.type.NotificationType;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -27,7 +28,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -47,73 +48,124 @@ public class MessageServiceImpl implements MessageService {
 
     @Transactional
     @Override
-    public MessageResponse sendMessage(Long senderId, MessageRequest request, MultipartFile[] attachments) {
-        Message.MessageBuilder messageBuilder = Message.builder()
-                .senderId(senderId)
-                .subject(request.getSubject())
-                .content(request.getContent())
-                .isRead(false)
-                .sentAt(LocalDateTime.now())
-                .isNotice(request.getIsNotice() != null && request.getIsNotice());
+    public List<MessageResponse> sendMessage(
+            Long senderId,
+            MessageRequest request,
+            MultipartFile[] attachments
+    ) {
+        boolean isNotice = Boolean.TRUE.equals(request.getIsNotice());
 
-        if (request.getIsNotice() != null && request.getIsNotice()) {
-            messageBuilder.receiverId(null); // 공지사항일 경우 receiverId를 null로 설정
-        } else {
-            if (request.getReceiverId() == null) {
-                throw new IllegalArgumentException("일반 쪽지는 수신자 ID가 필수입니다.");
+        // ---- 검증 ----
+        if (!isNotice) {
+            if (request.getReceiverIds() == null || request.getReceiverIds().isEmpty()) {
+                throw new IllegalArgumentException("일반 쪽지는 receiverIds가 1명 이상 필요합니다.");
             }
-            messageBuilder.receiverId(request.getReceiverId());
+        } else {
+            // 공지면 비어있거나(null) 무시
+            if (request.getReceiverIds() != null && !request.getReceiverIds().isEmpty()) {
+                // 정책상 공지는 receiverIds를 사용하지 않음
+            }
         }
 
-        Message message = messageBuilder.build();
-
-        Message savedMessage = messageRepository.save(message);
-
+        // ---- S3 업로드 1회 (URL 재사용) ----
+        record Uploaded(String url, String originalName) {}
+        List<Uploaded> uploadedList = new ArrayList<>();
         if (attachments != null && attachments.length > 0) {
-            Arrays.stream(attachments).forEach(attachmentFile -> {
-                if (!attachmentFile.isEmpty()) {
+            for (MultipartFile f : attachments) {
+                if (f != null && !f.isEmpty()) {
                     try {
-                        String originalFilename = attachmentFile.getOriginalFilename();
-                        String uniqueFileName = UUID.randomUUID() + "_" + originalFilename;
-                        String attachmentUrl = awsS3Config.uploadToS3Bucket(attachmentFile.getBytes(), uniqueFileName);
-
-                        Attachment attachment = Attachment.builder()
-                                .message(savedMessage)
-                                .attachmentUrl(attachmentUrl)
-                                .originalFileName(originalFilename)
-                                .build();
-                        attachmentRepository.save(attachment);
-                        savedMessage.addAttachment(attachment);
+                        String original = f.getOriginalFilename();
+                        String key = UUID.randomUUID() + "_" + original;
+                        String url = awsS3Config.uploadToS3Bucket(f.getBytes(), key);
+                        uploadedList.add(new Uploaded(url, original));
                     } catch (IOException e) {
-                        log.error("Failed to upload attachment to S3", e);
-                        // 파일 업로드 실패 시 예외 처리 또는 null로 진행
+                        throw new RuntimeException("첨부파일 업로드 실패", e);
                     }
                 }
-            });
-        }
-
-        // 쪽지 발송 시 알림 생성 (공지사항이 아닌 경우에만)
-        if ((request.getIsNotice() == null || !request.getIsNotice()) && request.getReceiverId() != null) {
-            TokenUserInfo userInfo = getAuthenticatedUserInfo();
-            if (userInfo != null) {
-                notificationServiceClient.createNotification(
-                        String.valueOf(senderId),
-                        userInfo.getEmail(), // 수정: getUserEmail() -> getEmail()
-                        userInfo.getHrRole(), // 수정: getUserRole() -> getHrRole()
-                        NotificationCreateRequest.builder()
-                                .employeeNo(String.valueOf(request.getReceiverId()))
-                                .type(NotificationType.MESSAGE)
-                                .message("새 쪽지가 도착했습니다: " + request.getSubject())
-                                .messageId(savedMessage.getMessageId())
-                                .build()
-                );
-            } else {
-                log.warn("인증된 사용자 정보가 없어 알림을 생성할 수 없습니다. senderId: {}", senderId);
             }
         }
 
-        return convertToDto(savedMessage);
+        TokenUserInfo userInfo = getAuthenticatedUserInfo();
+        List<MessageResponse> responses = new ArrayList<>();
+
+        // ---- 메시지 생성 ----
+        if (isNotice) {
+            // 공지: receiverId = null 한 건
+            Message msg = Message.builder()
+                    .senderId(senderId)
+                    .receiverId(null)
+                    .subject(request.getSubject())
+                    .content(request.getContent())
+                    .isRead(false)
+                    .sentAt(LocalDateTime.now())
+                    .isNotice(true)
+                    .build();
+            Message saved = messageRepository.save(msg);
+
+            for (Uploaded up : uploadedList) {
+                Attachment att = Attachment.builder()
+                        .message(saved)
+                        .attachmentUrl(up.url())
+                        .originalFileName(up.originalName())
+                        .build();
+                attachmentRepository.save(att);
+                saved.addAttachment(att);
+            }
+            // 공지는 알림 X (정책 유지)
+            responses.add(convertToDto(saved));
+            return responses;
+        }
+
+        // 일반 쪽지: 수신자별 개별 메시지 생성
+        for (Long rid : request.getReceiverIds()) {
+            Message msg = Message.builder()
+                    .senderId(senderId)
+                    .receiverId(rid)
+                    .subject(request.getSubject())
+                    .content(request.getContent())
+                    .isRead(false)
+                    .sentAt(LocalDateTime.now())
+                    .isNotice(false)
+                    .build();
+            Message saved = messageRepository.save(msg);
+
+            for (Uploaded up : uploadedList) {
+                Attachment att = Attachment.builder()
+                        .message(saved)
+                        .attachmentUrl(up.url())
+                        .originalFileName(up.originalName())
+                        .build();
+                attachmentRepository.save(att);
+                saved.addAttachment(att);
+            }
+
+            // 알림 (개별)
+            if (userInfo != null) {
+                try {
+                    notificationServiceClient.createNotification(
+                            String.valueOf(senderId),
+                            userInfo.getEmail(),
+                            userInfo.getHrRole(),
+                            NotificationCreateRequest.builder()
+                                    .employeeNo(String.valueOf(rid))
+                                    .type(NotificationType.MESSAGE)
+                                    .message("새 쪽지가 도착했습니다: " + request.getSubject())
+                                    .messageId(saved.getMessageId())
+                                    .build()
+                    );
+                } catch (Exception e) {
+                    log.warn("알림 실패 rid={}, err={}", rid, e.toString());
+                }
+            } else {
+                log.warn("인증 정보 없음: senderId={}", senderId);
+            }
+
+            responses.add(convertToDto(saved));
+        }
+
+        return responses;
     }
+
 
     @Override
     public Page<MessageResponse> getReceivedMessages(Long receiverId, String searchType, String searchValue, String period, Boolean unreadOnly, Pageable pageable) {
@@ -145,7 +197,7 @@ public class MessageServiceImpl implements MessageService {
     @Override
     public MessageResponse readMessage(Long messageId, Long authenticatedEmployeeNo) {
         Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new IllegalArgumentException("Message not found"));
+                .orElseThrow(() -> new EntityNotFoundException("Message not found"));
 
         // 공지사항이 아니고, 수신자나 발신자가 아니면 접근 불가
         if (!(message.getIsNotice() != null && message.getIsNotice()) && !message.getReceiverId().equals(authenticatedEmployeeNo) && !message.getSenderId().equals(authenticatedEmployeeNo)) {
@@ -187,7 +239,7 @@ public class MessageServiceImpl implements MessageService {
     @Override
     public void deleteMessage(Long messageId, Long employeeNo) {
         Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new IllegalArgumentException("Message not found with id: " + messageId));
+                .orElseThrow(() -> new EntityNotFoundException("Message not found with id: " + messageId));
 
         // 공지사항인 경우 작성자만 삭제 가능
         if (message.getIsNotice() != null && message.getIsNotice()) {
@@ -230,7 +282,7 @@ public class MessageServiceImpl implements MessageService {
     @Override
     public void recallMessage(Long messageId, Long senderEmployeeNo) {
         Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new IllegalArgumentException("Message not found with id: " + messageId));
+                .orElseThrow(() -> new EntityNotFoundException("Message not found with id: " + messageId));
 
         if (!message.getSenderId().equals(senderEmployeeNo)) {
             throw new IllegalArgumentException("Only the sender can recall this message.");

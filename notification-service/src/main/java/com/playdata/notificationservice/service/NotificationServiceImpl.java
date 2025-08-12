@@ -4,6 +4,7 @@ import com.playdata.notificationservice.dto.NotificationResponse;
 import com.playdata.notificationservice.entity.Notification;
 import com.playdata.notificationservice.repository.NotificationRepository;
 import com.playdata.notificationservice.type.NotificationType;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -122,7 +123,7 @@ public class NotificationServiceImpl implements NotificationService {
     public NotificationResponse markNotificationAsRead(Long id) {
 
         Notification notification = notificationRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Notification not found with messageId: " + id));
+                .orElseThrow(() -> new EntityNotFoundException("Notification not found with messageId: " + id));
 
 
         if (!notification.getIsRead()) {

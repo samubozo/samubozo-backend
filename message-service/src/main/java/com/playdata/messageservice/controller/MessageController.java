@@ -17,6 +17,8 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/messages")
 @RequiredArgsConstructor
@@ -26,13 +28,13 @@ public class MessageController {
 
     // 쪽지 보내기
     @PostMapping(consumes = {MediaType.APPLICATION_JSON_VALUE, MediaType.MULTIPART_FORM_DATA_VALUE})
-    public ResponseEntity<MessageResponse> sendMessage(
+    public ResponseEntity<List<MessageResponse>> sendMessage(
             @AuthenticationPrincipal TokenUserInfo tokenUserInfo,
             @RequestPart("request") MessageRequest request,
             @RequestPart(value = "attachments", required = false) MultipartFile[] attachments) {
         // 실제 senderId는 인증된 사용자 정보에서 가져옴
         Long senderId = tokenUserInfo.getEmployeeNo();
-        MessageResponse response = messageService.sendMessage(senderId, request, attachments);
+        List<MessageResponse> response = messageService.sendMessage(senderId, request, attachments);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 

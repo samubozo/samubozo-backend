@@ -1,19 +1,20 @@
 package com.playdata.scheduleservice.service;
 
+import com.playdata.scheduleservice.client.HrServiceClient;
 import com.playdata.scheduleservice.dto.CategoryRequest;
 import com.playdata.scheduleservice.dto.CategoryResponse;
+import com.playdata.scheduleservice.dto.UserFeignResDto;
 import com.playdata.scheduleservice.entity.Category;
 import com.playdata.scheduleservice.entity.Category.CategoryType;
 import com.playdata.scheduleservice.repository.CategoryRepository;
 import com.playdata.scheduleservice.repository.EventRepository;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
-import com.playdata.scheduleservice.client.HrServiceClient;
-import com.playdata.scheduleservice.dto.UserFeignResDto;
 
 @Service
 @RequiredArgsConstructor
@@ -79,7 +80,7 @@ public class CategoryServiceImpl implements CategoryService {
     public CategoryResponse updateCategory(Long categoryId, Long employeeNo, CategoryRequest request) {
         Long departmentId = getDepartmentId(employeeNo);
         Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new IllegalArgumentException("카테고리를 찾을 수 없습니다."));
+                .orElseThrow(() -> new EntityNotFoundException("카테고리를 찾을 수 없습니다."));
 
         // 권한 검증
         if (category.getType() == CategoryType.PERSONAL && !category.getOwnerEmployeeNo().equals(employeeNo)) {
@@ -106,7 +107,7 @@ public class CategoryServiceImpl implements CategoryService {
     public boolean deleteCategory(Long categoryId, Long employeeNo) {
         Long departmentId = getDepartmentId(employeeNo);
         Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new IllegalArgumentException("카테고리를 찾을 수 없습니다."));
+                .orElseThrow(() -> new EntityNotFoundException("카테고리를 찾을 수 없습니다."));
 
         // 권한 검증
         if (category.getType() == CategoryType.PERSONAL && !category.getOwnerEmployeeNo().equals(employeeNo)) {
@@ -131,7 +132,7 @@ public class CategoryServiceImpl implements CategoryService {
     public CategoryResponse updateCategoryCheckbox(Long categoryId, Long employeeNo, Boolean isChecked) {
         Long departmentId = getDepartmentId(employeeNo);
         Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new IllegalArgumentException("카테고리를 찾을 수 없습니다."));
+                .orElseThrow(() -> new EntityNotFoundException("카테고리를 찾을 수 없습니다."));
 
         // 권한 검증
         if (category.getType() == CategoryType.PERSONAL && !category.getOwnerEmployeeNo().equals(employeeNo)) {

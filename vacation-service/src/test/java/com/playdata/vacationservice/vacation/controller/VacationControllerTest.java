@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.playdata.vacationservice.common.auth.TokenUserInfo;
 import com.playdata.vacationservice.vacation.dto.VacationBalanceResDto;
 import com.playdata.vacationservice.vacation.service.VacationService;
+import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -71,7 +72,7 @@ class VacationControllerTest {
         TokenUserInfo mockUserInfo = new TokenUserInfo("test@example.com", "ROLE_USER", userId);
 
         when(vacationService.getVacationBalance(anyLong()))
-                .thenThrow(new IllegalArgumentException("해당 사용자의 연차 정보를 찾을 수 없습니다."));
+                .thenThrow(new EntityNotFoundException("해당 사용자의 연차 정보를 찾을 수 없습니다."));
 
         // When & Then
         mockMvc.perform(get("/vacations/balance")

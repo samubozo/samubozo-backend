@@ -1,7 +1,7 @@
-package com.playdata.authservice.common.exception;
+package com.playdata.notificationservice.common.exception;
 
 
-import com.playdata.authservice.common.dto.CommonErrorDto;
+import com.playdata.notificationservice.common.dto.CommonErrorDto;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

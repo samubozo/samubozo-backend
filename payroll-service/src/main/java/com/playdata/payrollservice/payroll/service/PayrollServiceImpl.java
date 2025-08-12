@@ -4,12 +4,15 @@ import com.playdata.payrollservice.client.AttendanceClient;
 import com.playdata.payrollservice.client.HrClient;
 import com.playdata.payrollservice.common.auth.TokenUserInfo;
 import com.playdata.payrollservice.common.dto.CommonResDto;
-import com.playdata.payrollservice.payroll.dto.*;
+import com.playdata.payrollservice.payroll.dto.AttendanceResDto;
+import com.playdata.payrollservice.payroll.dto.PayrollRequestDto;
+import com.playdata.payrollservice.payroll.dto.PayrollResponseDto;
+import com.playdata.payrollservice.payroll.dto.UserResDto;
 import com.playdata.payrollservice.payroll.entity.Payroll;
 import com.playdata.payrollservice.payroll.repository.PayrollRepository;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -144,7 +147,7 @@ public class PayrollServiceImpl implements PayrollService {
     public PayrollResponseDto updatePayroll(PayrollRequestDto requestDto) {
         Payroll payroll = payrollRepository.findByUserIdAndPayYearAndPayMonth(
                         requestDto.getUserId(), requestDto.getPayYear(), requestDto.getPayMonth())
-                .orElseThrow(() -> new IllegalArgumentException("수정할 급여 정보가 없습니다."));
+                .orElseThrow(() -> new EntityNotFoundException("수정할 급여 정보가 없습니다."));
 
         payroll.setBasePayroll(Optional.ofNullable(requestDto.getBasePayroll()).orElse(payroll.getBasePayroll()));
         payroll.setPositionAllowance(Optional.ofNullable(requestDto.getPositionAllowance()).orElse(payroll.getPositionAllowance()));
@@ -158,7 +161,7 @@ public class PayrollServiceImpl implements PayrollService {
     @Override
     public void deletePayroll(Long userId, int payYear, int payMonth) {
         Payroll payroll = payrollRepository.findByUserIdAndPayYearAndPayMonth(userId, payYear, payMonth)
-                .orElseThrow(() -> new IllegalArgumentException("삭제할 급여 정보가 없습니다."));
+                .orElseThrow(() -> new EntityNotFoundException("삭제할 급여 정보가 없습니다."));
         payrollRepository.delete(payroll);
     }
 
@@ -166,7 +169,7 @@ public class PayrollServiceImpl implements PayrollService {
     @Override
     public PayrollResponseDto getPayrollByMonth(Long userId, int year, int month) {
         Payroll payroll = payrollRepository.findByUserIdAndPayYearAndPayMonth(userId, year, month)
-                .orElseThrow(() -> new IllegalArgumentException("해당 월의 급여 정보가 존재하지 않습니다."));
+                .orElseThrow(() -> new EntityNotFoundException("해당 월의 급여 정보가 존재하지 않습니다."));
 
         if (payroll.getBasePayroll() == null || payroll.getBasePayroll() == 0) {
             String positionName = getUserPosition(userId);

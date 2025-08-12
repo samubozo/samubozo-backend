@@ -98,6 +98,20 @@ public class HRController {
         return new ResponseEntity<>(new CommonResDto<>(HttpStatus.OK, "Success",
                 userService.listUsers(pageable, hrRole)), HttpStatus.OK);
     }
+    @GetMapping("/user/payrollList")
+    public ResponseEntity<?> getUserPayrollList(Pageable pageable,
+                                                @RequestParam("year") int year,
+                                                @RequestParam("month") int month,
+                                                @AuthenticationPrincipal TokenUserInfo tokenUserInfo){
+        String hrRole = tokenUserInfo.getHrRole();
+        if("N".equals(hrRole)) {
+            return ResponseEntity
+                    .status(HttpStatus.FORBIDDEN)
+                    .body(new CommonResDto<>(HttpStatus.FORBIDDEN, "올바르지 않은 권한", null));
+        }
+        return new ResponseEntity<>(new CommonResDto<>(HttpStatus.OK, "Success",
+                userService.payrollListUsers(pageable,year, month)), HttpStatus.OK);
+    };
 
     @GetMapping("/users/search")
     public ResponseEntity<?> searchUsers(

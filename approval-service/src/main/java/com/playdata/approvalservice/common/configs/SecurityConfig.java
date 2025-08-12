@@ -35,11 +35,6 @@ public class SecurityConfig {
         http.authorizeHttpRequests(auth -> {
             auth
                     .requestMatchers("/actuator/**",
-                            "/auth/login",
-                            "/auth/email-valid",
-                            "/auth/verify",
-                            "/auth/verify-code",
-                            "/approvals",
                             "/swagger-ui.html", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-resources/**").permitAll()
                     .anyRequest().authenticated();
         });
