@@ -23,25 +23,21 @@ import java.util.List;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     @Override
+    protected boolean shouldNotFilterAsyncDispatch() {
+        return false; // async 디스패치(예: SSE)에도 필터 실행
+    }
+
+    @Override
+    protected boolean shouldNotFilterErrorDispatch() {
+        return false; // 에러 디스패치에도 필터 실행(권장)
+    }
+
+    @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
 
-        String requestURI = request.getRequestURI();
-        String userEmail = null;
-        String userRole = null;
-        String employeeNoStr = null;
-
-        // SSE 구독 요청의 경우, 쿼리 파라미터에서 인증 정보 추출
-        if (requestURI.contains("/notifications/subscribe")) {
-            log.info("SSE connection detected. Reading auth info from query parameters.");
-            userEmail = request.getParameter("userEmail");
-            userRole = request.getParameter("userRole");
-            employeeNoStr = request.getParameter("employeeNo");
-        } else {
-            // 그 외 모든 요청은 기존 방식대로 헤더에서 인증 정보 추출
-            userEmail = request.getHeader("X-User-Email");
-            userRole = request.getHeader("X-User-Role");
-            employeeNoStr = request.getHeader("X-User-Employee-No");
-        }
+        String userEmail = request.getHeader("X-User-Email");
+        String userRole = request.getHeader("X-User-Role");
+        String employeeNoStr = request.getHeader("X-User-Employee-No");
 
         Long employeeNo = null;
         if (employeeNoStr != null) {

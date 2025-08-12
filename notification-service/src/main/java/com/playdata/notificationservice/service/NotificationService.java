@@ -19,7 +19,7 @@ public interface NotificationService {
     void sendNotificationToClient(Notification notification);
 
     @Transactional
-    NotificationResponse markNotificationAsRead(Long messageId);
+    NotificationResponse markNotificationAsRead(Long id);
 
     @Transactional
     void markNotificationAsReadByMessageId(Long messageId);

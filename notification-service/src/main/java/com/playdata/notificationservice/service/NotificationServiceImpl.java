@@ -3,9 +3,10 @@ package com.playdata.notificationservice.service;
 import com.playdata.notificationservice.dto.NotificationResponse;
 import com.playdata.notificationservice.entity.Notification;
 import com.playdata.notificationservice.repository.NotificationRepository;
-import com.playdata.notificationservice.type.NotificationType; // NotificationType import 추가
+import com.playdata.notificationservice.type.NotificationType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -62,6 +63,20 @@ public class NotificationServiceImpl implements NotificationService {
         log.info("SSE Emitter subscribed for employeeNo: {}", employeeNo);
         return emitter;
     }
+    @Scheduled(fixedRate = 15000) // 15초 권장 (타임아웃보다 훨씬 짧게)
+    public void sendPingToAllEmitters() {
+        emitters.forEach((employeeNo, emitter) -> {
+            try {
+                // 코멘트 프레임: ": keepalive\n\n" 형태로 전송됨 (클라 onmessage에 안 뜸)
+                emitter.send(SseEmitter.event().comment("keepalive"));
+            } catch (IOException e) {
+                log.warn("Broken pipe: {} -> remove", employeeNo);
+                emitters.remove(employeeNo);
+                emitter.completeWithError(e);
+            }
+        });
+    }
+
 
     @Transactional
     @Override
@@ -104,15 +119,17 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Transactional
     @Override
-    public NotificationResponse markNotificationAsRead(Long messageId) {
-        Notification notification = notificationRepository.findOneByMessageId(messageId)
-                .orElseThrow(() -> new IllegalArgumentException("Notification not found with messageId: " + messageId));
+    public NotificationResponse markNotificationAsRead(Long id) {
+
+        Notification notification = notificationRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Notification not found with messageId: " + id));
+
 
         if (!notification.getIsRead()) {
             notification.setIsRead(true);
             notification.setReadAt(LocalDateTime.now());
             notificationRepository.save(notification);
-            log.info("Notification {} marked as read for employeeNo {}", messageId, notification.getEmployeeNo());
+            log.info("Notification {} marked as read for employeeNo {}", id, notification.getEmployeeNo());
         }
         return convertToDto(notification);
     }
