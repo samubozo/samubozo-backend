@@ -239,6 +239,7 @@ public class UserServiceImpl implements UserService {
                 .employeeNo(user.getEmployeeNo())
                 .userName(user.getUserName())
                 .positionName(user.getPosition().getPositionName())
+                .department(new DepartmentResDto(user.getDepartment()))
                 .activate(user.getActivate())
                 .build());
     }

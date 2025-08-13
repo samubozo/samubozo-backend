@@ -54,7 +54,7 @@ public class ChatbotController {
         if (!isBusinessRelated) {
             String conversationId = request.getConversationId() != null && !request.getConversationId().trim().isEmpty() ?
                                     request.getConversationId() : UUID.randomUUID().toString();
-            return ResponseEntity.ok(new ChatResponse("저는 사이트 안내 및 인사 관련에 대한 질문만 답변할 수 있습니다. 다른 질문은 도와드릴 수 없습니다.", conversationId));
+            return ResponseEntity.ok(new ChatResponse("저는 업무 지식 안내 및 인사 관련에 대한 질문만 답변할 수 있습니다. 다른 질문은 도와드릴 수 없습니다.", conversationId));
         }
 
         // ChatRequest에 employeeNo 설정

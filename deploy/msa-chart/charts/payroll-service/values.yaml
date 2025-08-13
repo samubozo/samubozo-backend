@@ -1,3 +1,3 @@
 
-image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/payroll-service:ea8b09ff73a7107c0e2e06f59ff36c6dbe48063f
+image: 886331869898.dkr.ecr.ap-northeast-2.amazonaws.com/payroll-service:d5d44d46fa82f4f07cb6befa1481c08d63c1072e
 port: 8011
