@@ -5,7 +5,7 @@ imagePullSecrets:
   - name: ecr-secret
 
 global:
-  replicaCount: 1
+  replicaCount: 2
 
   # 모든 서비스에서 사용할 공통 환경변수
   env:

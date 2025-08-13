@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: hr-service
 spec:
-  replicas: {{ .Values.global.replicaCount | default .Values.replicaCount }}
+  replicas: 4
   selector:
     matchLabels:
       app: hr-service
