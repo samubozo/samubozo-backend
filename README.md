@@ -120,7 +120,9 @@
 ---
 
 ## 13. 시스템 아키텍처  
-<img width="1102" height="744" alt="drawio" src="https://github.com/user-attachments/assets/58e4f5a7-4b7e-4fd5-b9c4-7aa327d9fada" />
+
+<img width="2313" height="1202" alt="image" src="https://github.com/user-attachments/assets/2f107192-e808-4b56-9770-affbb76327ed" />
+
 
 
 ---
