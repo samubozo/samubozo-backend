@@ -1,0 +1,49 @@
+# https 인증서 적용 절차
+# 1.cert-manager 생성
+# cert-manager 생성을 위한 cert-manager namespace 생성
+# 1-1)kubectl create namespace cert-manager
+# 1-2)Helm 설치
+# 1-3)cert-manager를 설치하기 위한 Jetstack Helm repository 추가
+# 명령어 : helm repo add jetstack https://charts.jetstack.io
+# 1-4)helm repository 업데이트
+# 명령어 : helm repo update
+# 1-5)cert-manager 차트 설치
+# 명령어 : helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --set installCRDs=true
+
+# 2.ClusterIssuer 생성
+# 인증서 발급자를 정의하는 오브젝트 (어느 기관에 누가 인증서를 발급받는 것인가)
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    # 인증서 서버 주소. 해당 서버의 리소스를 통해 인증서 발행
+    server: https://acme-v02.api.letsencrypt.org/directory
+    # 인증서 만료 또는 갱신 필요시 알람 email
+    email: ghdud939@gmail.com
+    privateKeySecretRef: # 인증서 발급 시 사용할 키를 저장하는 k8s Secret의 이름을 지정.
+      name: letsencrypt-prod # 인증 기관 계정용 개인키를 저장할 공간 이름 (cert-manager가 자동으로 관리)
+    solvers: # 도메인 소유권을 검증하기 위한 로직을 정의.
+      - http01:
+          ingress:
+            class: nginx # 우리가 사용하는 nginx ingress controller를 사용하여 인증을 처리하겠다.
+
+--- # 파일 하나에 k8s 오브젝트를 여러개 선언 할 시 각 오브젝트를 구분하는 줄 (지우면 안돼요!)
+
+# 3.ClusterIssue를 사용하여 Certificate 리소스 생성 : Certificate 리소스 생성시에 인증서 발급 시도
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: api-samubozo-cert
+  namespace: default
+spec:
+  secretName: api-samubozo-cert # 발급된 인증서를 저장할 k8s secret name
+  duration: 2160h # 90days -> 유효기간
+  renewBefore: 360h # before 15day -> 갱신 자동 요청 시간 15일 전에 갱신을 요청함.
+  issuerRef:
+    name: letsencrypt-prod # 인증서 발급 시 위에 선언한 ClusterIssuer를 사용하겠다.
+    kind: ClusterIssuer
+  commonName: apiv1.samubozo.co.kr # 인증서를 발급받을 도메인 이름
+  dnsNames:
+    - apiv1.samubozo.co.kr # 인증서 발급받을 도메인 많으면 기타 서브 도메인 추가 가능.

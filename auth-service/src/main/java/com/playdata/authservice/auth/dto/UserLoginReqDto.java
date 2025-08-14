@@ -2,20 +2,10 @@ package com.playdata.authservice.auth.dto;
 
 import lombok.*;
 
-@Getter
-@Setter
-@ToString
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Getter @Setter @ToString @NoArgsConstructor @AllArgsConstructor @Builder
 public class UserLoginReqDto {
 
-    private String token;
     private String email;
-    private String phone;
-    private String address;
-    private String role;
     private String password;
-
 
 }

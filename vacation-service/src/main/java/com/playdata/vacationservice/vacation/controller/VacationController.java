@@ -1,336 +1,291 @@
 package com.playdata.vacationservice.vacation.controller;
 
-
+import com.playdata.vacationservice.common.auth.TokenUserInfo;
 import com.playdata.vacationservice.common.dto.CommonResDto;
+import com.playdata.vacationservice.vacation.dto.ApprovalRequestProcessDto;
+import com.playdata.vacationservice.vacation.dto.PendingApprovalDto;
+import com.playdata.vacationservice.vacation.dto.VacationHistoryResDto;
+import com.playdata.vacationservice.vacation.dto.MonthlyVacationStatsDto;
+import com.playdata.vacationservice.vacation.dto.VacationBalanceResDto;
+import com.playdata.vacationservice.vacation.dto.VacationRequestDto;
+import com.playdata.vacationservice.vacation.entity.Vacation;
+import com.playdata.vacationservice.vacation.entity.VacationStatus;
+import com.playdata.vacationservice.vacation.entity.VacationType;
+import com.playdata.vacationservice.vacation.service.VacationService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.cloud.context.config.annotation.RefreshScope;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 휴가 관련 API 요청을 처리하는 컨트롤러입니다.
+ */
 @RestController
-@RequestMapping("/vacation")
+@RequestMapping("/vacations")
 @RequiredArgsConstructor
-@Slf4j
-@RefreshScope // spring cloud config가 관리하는 파일의 데이터가 변경되면 빈들을 새로고침해주는 어노테이션
 public class VacationController {
 
-    @GetMapping("/hello")
-    public ResponseEntity<CommonResDto> hello() {
-        CommonResDto commonResDto = new CommonResDto();
-        //상태코드
-        commonResDto.setStatusCode(200);
-        //상태메세지
-        commonResDto.setStatusMessage("vacation 서비스 소통성공!");
-        //응답할 데이터
-        commonResDto.setResult("Hello vacation service!");
-        return  ResponseEntity.ok(commonResDto);
+    private final VacationService vacationService;
+
+    /**
+     * 새로운 휴가 신청을 등록합니다.
+     *
+     * @param userInfo   인증된 사용자 정보
+     * @param requestDto 휴가 신청에 필요한 정보를 담은 DTO
+     * @return 성공 시 HTTP 201 Created 응답
+     */
+    @PostMapping("/requestVacation")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Void> requestVacation(
+            @AuthenticationPrincipal TokenUserInfo userInfo,
+            @RequestBody VacationRequestDto requestDto) {
+        vacationService.requestVacation(userInfo , requestDto);
+        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
-//   밑에거는 참고용으로 남겨놔요. 쓸거 쓰시고 지우셔도 될듯
-//    private final UserService userService;
-//    private final JwtTokenProvider jwtTokenProvider;
-//    private final RedisTemplate<String, Object> redisTemplate;
-//    private final Set<String> usedCode = ConcurrentHashMap.newKeySet();
-//
-//
-//    private final Environment env;
-//
-//    @PostMapping("/create")
-//    public ResponseEntity<?> userCreate(@Valid @RequestBody UserSaveReqDto dto,
-//                                        @RequestParam(required = false, defaultValue = "user") String role) {
-//
-//        dto.setRole(role);
-//        User saved = userService.userCreate(dto);
-//
-//        CommonResDto resDto
-//                = new CommonResDto(HttpStatus.CREATED,
-//                "User Created", saved.getName());
-//
-//        return new ResponseEntity<>(resDto, HttpStatus.CREATED);
-//    }
-//
-//    @PostMapping("/doLogin")
-//    public ResponseEntity<?> doLogin(@RequestBody UserLoginReqDto dto) {
-//        User user = userService.login(dto);
-//        String token
-//                = jwtTokenProvider.createToken(user.getEmail(), user.getRole().toString());
-//
-//
-//        String refreshToken
-//                = jwtTokenProvider.createRefreshToken(user.getEmail(), user.getRole().toString());
-//        redisTemplate.opsForValue().set("user:refresh:" + user.getUserId(), refreshToken, 7, TimeUnit.MINUTES);
-//
-//
-//        Map<String, Object> loginInfo = new HashMap<>();
-//        loginInfo.put("token", token);
-//        loginInfo.put("email", user.getEmail());
-//        loginInfo.put("phone", user.getPhone());
-//        loginInfo.put("address", user.getAddress());
-//        loginInfo.put("role", user.getRole().toString());
-//        loginInfo.put("id", user.getUserId());
-//
-//        CommonResDto resDto
-//                = new CommonResDto(HttpStatus.OK,
-//                "Login Success", loginInfo);
-//        return new ResponseEntity<>(resDto, HttpStatus.OK);
-//    }
-//
-//
-//    @PreAuthorize("hasRole('ADMIN')")
-//    @GetMapping("/list")
-//    public ResponseEntity<?> getUserList(Pageable pageable) {
-//        List<UserResDto> dtoList = userService.userList(pageable);
-//        CommonResDto resDto
-//                = new CommonResDto(HttpStatus.OK, "userList 조회 성공", dtoList);
-//
-//        return ResponseEntity.ok().body(resDto);
-//    }
-//
-//    @PreAuthorize("hasAuthority('ROLE_USER')")
-//    @GetMapping("/profile/{id}")
-//    public ResponseEntity<?> getProfile(@PathVariable("id") String  id) {
-//        try {
-//            Long userId = Long.parseLong(id);
-//            User user = userService.findById(userId);
-//            return ResponseEntity.ok().body(user);
-//        } catch (NumberFormatException e) {
-//            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-//                    .body("ID 형식이 잘못되었습니다.");
-//        }
-//    }
-//
-//    @PutMapping("/update/{userId}")
-//    public ResponseEntity<?> updateUser(
-//            @PathVariable Long userId,
-//            @RequestBody UserUpdateRequestDto dto
-//    ) {
-//        User updatedUser = userService.updateUser(userId, dto);
-//
-//        return ResponseEntity.ok().body(new CommonResDto(
-//                HttpStatus.OK,
-//                "회원정보가 수정되었습니다.",
-//                updatedUser
-//        ));
-//    }
-//
-//    @PatchMapping("/address/{userId}")
-//    public ResponseEntity<?> updateAddress(
-//            @PathVariable Long userId,
-//            @RequestBody UserAddressUpdateDto dto
-//    ) {
-//        User updatedUser = userService.updateUserAddress(userId, dto.getAddress());
-//
-//        return ResponseEntity.ok().body(new CommonResDto(
-//                HttpStatus.OK,
-//                "주소가 수정되었습니다.",
-//                updatedUser
-//        ));
-//    }
-//
-//    @DeleteMapping("/delete/{userId}")
-//    public ResponseEntity<?> deleteUser(@PathVariable Long userId) {
-//        userService.deleteUser(userId);
-//        return ResponseEntity.ok(new CommonResDto(
-//                HttpStatus.OK, "회원 탈퇴 완료", Collections.singletonMap("deleted", true)
-//        ));
-//
-//    }
-//
-//    @PutMapping("/restore/{userId}")
-//    public ResponseEntity<?> restoreUser(@PathVariable Long userId) {
-//        userService.restoreUser(userId);
-//        return ResponseEntity.ok(new CommonResDto(
-//                HttpStatus.OK, "회원 복구 완료", null
-//        ));
-//    }
-//
-//
-//    @PostMapping("/token/refresh")
-//    public ResponseEntity<?> refreshToken(@RequestBody TokenRefreshRequestDto requestDto) {
-//        try {
-//            TokenUserInfo userInfo = jwtTokenProvider.validateAndGetTokenUserInfo(requestDto.getRefreshToken());
-//            String savedToken = (String) redisTemplate.opsForValue().get(userInfo.getEmail());
-//
-//            if (!requestDto.getRefreshToken().equals(savedToken)) {
-//                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-//                        .body("Refresh Token mismatch");
-//            }
-//
-//            String newAccessToken = jwtTokenProvider.createToken(userInfo.getEmail(), userInfo.getRole().name());
-//
-//            Map<String, String> tokenMap = new HashMap<>();
-//            tokenMap.put("accessToken", newAccessToken);
-//            return ResponseEntity.ok(tokenMap);
-//
-//        } catch (Exception e) {
-//            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-//                    .body("Invalid Refresh Token: " + e.getMessage());
-//        }
-//    }
-//    @GetMapping("/findByEmail")
-//    public ResponseEntity<?> getUserByEmail(@RequestParam String email) {
-//        try {
-//            Thread.sleep(2000);
-//        } catch (InterruptedException e) {
-//            throw new RuntimeException(e);
-//        }
-//
-//        log.info("getUserByEmail: email: {}", email);
-//        UserResDto dto = userService.findByEmail(email);
-//        CommonResDto resDto
-//                = new CommonResDto(HttpStatus.OK, "이메일로 회원 조회 완료", dto);
-//        return ResponseEntity.ok().body(resDto);
-//    }
-//
-//    @PostMapping("/email-valid")
-//    public ResponseEntity<?> emailVaild(@RequestBody Map<String, String> map) {
-//        String email = map.get("email");
-//        log.info("이메일 인증 요청!: {}", map.get("email"));
-//        String authNum = userService.mailCheck(email);
-//        return ResponseEntity.ok().body(authNum);
-//    }
-//
-//    //인증코드 검증 요청
-//    @PostMapping("/verify")
-//    public ResponseEntity<?> verifyEmail(@RequestBody Map<String, String> map) {
-//        log.info("인증코드검증! map:{}",map);
-//        Map<String, String> result = userService.verifyEmail(map);
-//        return ResponseEntity.ok().body("인증 성공!");
-//
-//    }
-//
-//    //카카오 콜백 요청 처리
-//    @GetMapping("/kakao")
-//    public void kakaoCallback(@RequestParam String code ,
-//                              @RequestParam(required = false) String state, // state 파라미터 추가
-//                              //응답을 평소처럼 주는게 아니라, 직접 커스텀 해서 클라이언트에게 전달
-//                              HttpServletResponse response) throws IOException {
-//        log.info("카카오 콜백 처리 시작! code: {}", code);
-//        //기본 상태
-//        String clientType = "user";
-//
-//
-//        if (state != null && !state.isEmpty()) {
-//            try {
-//                // Base64 디코딩 (프론트에서 btoa로 인코딩했다면)
-//                String decodedState = new String(Base64.getUrlDecoder().decode(state)); // URL-safe Base64 디코더 사용
-//                ObjectMapper mapper = new ObjectMapper();
-//                Map<String, String> stateMap = mapper.readValue(decodedState, Map.class);
-//
-//                String receivedClientType = stateMap.get("clientType");
-//                if ("admin".equals(receivedClientType)) {
-//                    clientType = "admin";
-//                }
-//                // TODO: CSRF 토큰 검증 로직 추가 (stateMap.get("csrfToken")과 서버에 저장된 토큰 비교)
-//
-//                log.info("클라이언트 타입: {}", clientType);
-//
-//            } catch (Exception e) {
-//                log.error("state 파라미터 디코딩 및 파싱 에러: {}", e.getMessage());
-//                // 에러 발생 시 기본값 유지 또는 에러 페이지로 리다이렉트
-//            }
-//        }
-//
-//
-//
-//        //인가 코드로 엑세스토큰받기
-//        String kakaoAccessToken = userService.getKakaoAccessToken(code);
-//        //엑세스 토큰으로 사용자 정보받기
-//        KakaoUserDto dto = userService.getKakaoUserInfo(kakaoAccessToken);
-//        // 회원가입 or 로그인 처리
-//        UserResDto resDto = userService.findOrCreateKakaoUser(dto, clientType);
-//
-//        //JWT 토큰 생성( 우리 사이트 로그인 유지를 위해. 사용자 정보를 위해.)
-//        String token = jwtTokenProvider.createToken(resDto.getEmail(), resDto.getRole().name());
-//        String refreshToken = jwtTokenProvider.createRefreshToken(resDto.getEmail(), resDto.getRole().name());
-//
-//        //redis에 저장
-//        redisTemplate.opsForValue().set("user:refresh:" + resDto.getUserid(), refreshToken, 2, TimeUnit.MINUTES);
-//
-//        String html = "";
-//        //팝업 닫기
-//        if(clientType.equals("user")) {
-//            html = String.format("""
-//                    <!DOCTYPE html>
-//                    <html>
-//                    <head><title>카카오 로그인 완료</title></head>
-//                    <body>
-//                        <script>
-//                            if (window.opener) {
-//                                window.opener.postMessage({
-//                                    type: 'OAUTH_SUCCESS',
-//                                    token: '%s',
-//                                    id: '%s',
-//                                    email: '%s',
-//                                    role: '%s',
-//                                    provider: 'KAKAO'
-//                                }, 'https://say4team.shop');
-//                                window.close();
-//                            } else {
-//                                window.location.href = 'https://say4team.shop';
-//                            }
-//                        </script>
-//                        <p>카카오 로그인 처리 중...</p>
-//                    </body>
-//                    </html>
-//                    """,
-//                    token, resDto.getUserid(), resDto.getEmail(), resDto.getRole().toString());
-//        }else {
-//            html = String.format("""
-//                    <!DOCTYPE html>
-//                    <html>
-//                    <head><title>카카오 로그인 완료</title></head>
-//                    <body>
-//                        <script>
-//                            if (window.opener) {
-//                                window.opener.postMessage({
-//                                    type: 'OAUTH_SUCCESS',
-//                                    token: '%s',
-//                                    id: '%s',
-//                                    email: '%s',
-//                                    role: '%s',
-//                                    provider: 'KAKAO'
-//                                }, 'http://localhost:9090');
-//                                window.close();
-//                            } else {
-//                                window.location.href = 'http://localhost:9090';
-//                            }
-//                        </script>
-//                        <p>카카오 로그인 처리 중...</p>
-//                    </body>
-//                    </html>
-//                    """,
-//                    token, resDto.getUserid(), resDto.getEmail(), resDto.getRole().toString());
-//        }
-//        response.setContentType("text/html;charset=utf-8");
-//        response.getWriter().write(html);
-//    }
-//
-//
-//    @GetMapping("/health-check")
-//    public String healthCheck() {
-//        String msg = "It's Working in User-service!\n";
-//        msg += "token.expiration_time: " + env.getProperty("token.expiration_time");
-//        msg += "token.secret: " + env.getProperty("token.secret");
-//        msg += "aws.accessKey: " + env.getProperty("aws.accessKey");
-//        msg += "aws.secretKey: " + env.getProperty("aws.secretKey");
-//        msg += "message: " + env.getProperty("message");
-//
-//
-//        return msg;
-//    }
-//
-//
+    /**
+     * 현재 로그인된 사용자의 모든 휴가 신청 내역을 조회합니다.
+     *
+     * @param userInfo 인증된 사용자 정보
+     * @param pageable 페이징 정보 (page, size, sort)
+     * @return 페이징 처리된 휴가 신청 내역 목록
+     */
+    @GetMapping("/my-requests")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<CommonResDto<Page<VacationHistoryResDto>>> getMyVacationRequests(
+            @AuthenticationPrincipal TokenUserInfo userInfo,
+            Pageable pageable) {
+        Page<VacationHistoryResDto> myRequests = vacationService.getMyVacationRequests(userInfo.getEmployeeNo(), pageable);
+        return buildSuccessResponse(myRequests, "내 휴가 신청 내역 조회 성공");
+    }
 
+    /**
+     * 결재 대기 중인 모든 휴가 신청 목록을 조회합니다. (결재자용)
+     *
+     * @return 결재 대기 중인 휴가 신청 목록
+     */
+    @GetMapping("/pending-approvals")
+    public ResponseEntity<CommonResDto<List<PendingApprovalDto>>> getPendingApprovals() {
+        List<PendingApprovalDto> pendingApprovals = vacationService.getPendingApprovals();
+        return buildSuccessResponse(pendingApprovals, "결재 대기 목록 조회 성공");
+    }
+
+    /**
+     * 휴가 신청을 승인 처리합니다.
+     *
+     * @param vacationId 승인할 휴가 신청 ID
+     * @return 성공 응답
+     */
+    @PostMapping("/{vacationId}/approve")
+    public ResponseEntity<Void> approveVacation(@PathVariable Long vacationId) {
+        vacationService.approveVacation(vacationId);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 휴가 신청을 반려 처리합니다.
+     *
+     * @param vacationId 반려할 휴가 신청 ID
+     * @param requestDto 반려 사유를 포함하는 DTO
+     * @return 성공 응답
+     */
+    @PostMapping("/{vacationId}/reject")
+    public ResponseEntity<Void> rejectVacation(@PathVariable Long vacationId, @RequestBody ApprovalRequestProcessDto requestDto) {
+        vacationService.rejectVacation(vacationId, requestDto);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 휴가 신청을 수정합니다. (PENDING_APPROVAL 상태만 가능)
+     *
+     * @param vacationId 수정할 휴가 신청 ID
+     * @param userInfo 인증된 사용자 정보
+     * @param requestDto 수정할 휴가 정보를 담은 DTO
+     * @return 성공 응답
+     */
+    @PutMapping("/{vacationId}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Void> updateVacationRequest(
+            @PathVariable Long vacationId,
+            @AuthenticationPrincipal TokenUserInfo userInfo,
+            @RequestBody VacationRequestDto requestDto) {
+        vacationService.updateVacationRequest(vacationId, userInfo.getEmployeeNo(), requestDto);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 휴가 신청 관련 예외를 처리합니다.
+     *
+     * @param ex 발생한 예외
+     * @return 에러 메시지와 함께 HTTP 400 Bad Request 응답
+     */
+    @ExceptionHandler({IllegalStateException.class, IllegalArgumentException.class})
+    public ResponseEntity<String> handleVacationException(RuntimeException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
+    }
+
+    /**
+     * 특정 사용자의 연차 현황을 조회하는 API 엔드포인트입니다.
+     *
+     * @param userInfo 인증된 사용자 정보 (userId 획득용)
+     * @return 연차 현황 정보를 담은 응답 (CommonResDto)
+     */
+    @GetMapping("/balance")
+    public ResponseEntity<CommonResDto<VacationBalanceResDto>> getVacationBalance(@AuthenticationPrincipal TokenUserInfo userInfo) {
+        try {
+            VacationBalanceResDto vacationBalance = vacationService.getVacationBalance(userInfo.getEmployeeNo());
+            return buildSuccessResponse(vacationBalance, "연차 현황 조회 성공");
+        } catch (IllegalArgumentException e) {
+            return buildErrorResponse(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (Exception e) {
+            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "연차 현황 조회 중 오류 발생");
+        }
+    }
+
+    /**
+     * 특정 사용자의 월별 휴가 사용 통계를 조회합니다.
+     *
+     * @param userId 사용자 ID
+     * @param year   조회할 연도
+     * @param month  조회할 월
+     * @return 월별 휴가 통계 응답
+     */
+    @GetMapping("/stats/{userId}/{year}/{month}")
+    public ResponseEntity<CommonResDto<MonthlyVacationStatsDto>> getMonthlyVacationStats(
+            @PathVariable Long userId,
+            @PathVariable int year,
+            @PathVariable int month) {
+        try {
+            MonthlyVacationStatsDto stats = vacationService.getMonthlyVacationStats(userId, year, month);
+            return buildSuccessResponse(stats, "월별 휴가 통계 조회 성공");
+        } catch (Exception e) {
+            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "월별 휴가 통계 조회 중 오류 발생");
+        }
+    }
+
+    /**
+     * 특정 사용자의 월별 반차 기록을 조회합니다.
+     *
+     * @param userId 사용자 ID
+     * @param year   조회할 연도
+     * @param month  조회할 월
+     * @return 월별 반차 기록 목록
+     */
+    @GetMapping("/half-day/{userId}/{year}/{month}")
+    public ResponseEntity<CommonResDto<List<Vacation>>> getMonthlyHalfDayVacations(
+            @PathVariable Long userId,
+            @PathVariable int year,
+            @PathVariable int month) {
+        try {
+            List<Vacation> halfDayVacations = vacationService.getMonthlyHalfDayVacations(userId, year, month);
+            return buildSuccessResponse(halfDayVacations, "월별 반차 기록 조회 성공");
+        } catch (Exception e) {
+            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "월별 반차 기록 조회 중 오류 발생");
+        }
+    }
+
+    /**
+     * 특정 결재자가 처리한 모든 휴가 신청 내역을 조회합니다. (hrRole='Y' 사용자용)
+     *
+     * @param userInfo 인증된 사용자 정보
+     * @return 처리된 휴가 신청 내역 목록
+     */
+    @GetMapping("/processed-approvals")
+    @PreAuthorize("hasRole('HR')") // HR 역할만 접근 가능하도록 설정
+    public ResponseEntity<CommonResDto<List<VacationHistoryResDto>>> getProcessedVacationApprovals(
+            @AuthenticationPrincipal TokenUserInfo userInfo) {
+        List<VacationHistoryResDto> processedApprovals = vacationService.getProcessedVacationApprovals(userInfo);
+        return buildSuccessResponse(processedApprovals, "처리된 휴가 신청 내역 조회 성공");
+    }
+
+    // CommonResDto를 위한 헬퍼 메소드
+    private <T> ResponseEntity<CommonResDto<T>> buildSuccessResponse(T data, String message) {
+        CommonResDto<T> resDto = new CommonResDto<>(HttpStatus.OK, message, data);
+        return ResponseEntity.ok(resDto);
+    }
+
+    private <T> ResponseEntity<CommonResDto<T>> buildErrorResponse(HttpStatus status, String message) {
+        CommonResDto<T> resDto = new CommonResDto<>(status, message, null);
+        return ResponseEntity.status(status).body(resDto);
+    }
+
+    /**
+     * 결재 서비스로부터 휴가 상태 변경 통보를 받아 연차 잔액을 업데이트합니다.
+     * 이 엔드포인트는 내부 서비스 간 통신을 위한 것이므로, 별도의 인증이 필요하지 않습니다.
+     *
+     * @param vacationId 휴가 ID
+     * @param status 변경된 휴가 상태 (APPROVED 또는 REJECTED)
+     * @param userId 해당 휴가 신청자의 ID
+     * @param vacationType 휴가 종류
+     * @param startDate 휴가 시작일
+     * @param endDate 휴가 종료일
+     * @return 성공 응답
+     */
+    @PostMapping("/internal/update-balance-on-approval")
+    public ResponseEntity<Void> updateVacationBalanceOnApproval(
+            @RequestParam("vacationId") Long vacationId,
+            @RequestParam("status") String status,
+            @RequestParam("userId") Long userId,
+            @RequestParam("vacationType") String vacationTypeStr,
+            @RequestParam("startDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam("endDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(value = "rejectComment", required = false) String rejectComment) {
+
+        VacationType vacationType = VacationType.valueOf(vacationTypeStr);
+        VacationStatus newStatus = VacationStatus.valueOf(status);
+
+        if (newStatus == VacationStatus.APPROVED) {
+            BigDecimal deductionDays;
+            if (vacationType == VacationType.ANNUAL_LEAVE) {
+                long daysBetween = ChronoUnit.DAYS.between(startDate, endDate) + 1;
+                deductionDays = new BigDecimal(daysBetween);
+            } else {
+                deductionDays = vacationType.getDeductionDays();
+            }
+            vacationService.deductVacationBalance(userId, deductionDays);
+
+            // WorkStatus 생성을 요청합니다.
+            vacationService.createWorkStatusForApprovedVacation(vacationId, vacationType);
+        } else if (newStatus == VacationStatus.REJECTED) {
+            // 반려 시 연차 복구 로직은 필요 없음. 연차는 승인 시에만 차감되므로.
+        }
+
+        // 휴가 상태 업데이트
+        vacationService.updateVacationStatus(vacationId, newStatus, rejectComment);
+
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 여러 사용자의 특정 기간 동안의 승인된 유급 휴가 일수를 조회합니다.
+     * 내부 서비스 간 통신용 API입니다.
+     *
+     * @param userIds   조회할 사용자 ID 목록
+     * @param startDate 조회 시작일
+     * @param endDate   조회 종료일
+     * @return 사용자 ID별 유급 휴가 일수 Map
+     */
+    @PostMapping("/internal/approved-paid-days")
+    public ResponseEntity<CommonResDto<Map<Long, Double>>> getApprovedPaidVacationDays(
+            @RequestBody List<Long> userIds,
+            @RequestParam("startDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam("endDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        try {
+            Map<Long, Double> result = vacationService.getApprovedPaidVacationDaysForUsers(userIds, startDate, endDate);
+            return buildSuccessResponse(result, "승인된 유급 휴가 일수 조회 성공");
+        } catch (Exception e) {
+            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "승인된 유급 휴가 일수 조회 중 오류 발생");
+        }
+    }
 }
-
-
-
-
-
-
-
-

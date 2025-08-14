@@ -1,0 +1,347 @@
+package com.playdata.hrservice.hr.service;
+
+import com.playdata.hrservice.common.configs.AwsS3Config;
+import com.playdata.hrservice.hr.dto.*;
+import com.playdata.hrservice.hr.entity.Department;
+import com.playdata.hrservice.hr.entity.Position;
+import com.playdata.hrservice.hr.entity.User;
+import com.playdata.hrservice.hr.repository.DepartmentRepository;
+import com.playdata.hrservice.hr.repository.PositionRepository;
+import com.playdata.hrservice.hr.repository.UserRepository;
+import jakarta.persistence.EntityNotFoundException;
+import jakarta.ws.rs.BadRequestException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class UserServiceImpl implements UserService {
+
+    private final UserRepository userRepository;
+    private final DepartmentRepository departmentRepository;
+    private final PositionRepository positionRepository;
+    private final PasswordEncoder encoder;
+    private final AwsS3Config awsS3Config;
+
+    @Transactional
+    @Override
+    public UserResDto createUser(UserSaveReqDto dto, String hrRole) {
+        if (hrRole.equals("N")) {
+            throw new BadRequestException("계정 생성 권한이 없습니다.");
+        }
+
+        if (userRepository.findByEmail(dto.getEmail()).isPresent()) {
+            throw new IllegalArgumentException("이미 존재하는 이메일 입니다!");
+        }
+
+        if (!StringUtils.hasText(dto.getPassword())) {
+            throw new IllegalArgumentException("비밀번호는 필수입니다.");
+        }
+
+        if (dto.getPassword().length() < 8) {
+            throw new IllegalArgumentException("비밀번호는 최소 8자 이상이어야 합니다.");
+        }
+        String finalEncodedPassword = encoder.encode(dto.getPassword());
+
+        Long departmentId = dto.getDepartmentId();
+        Department foundDept = departmentRepository.findById(departmentId)
+                .orElseThrow(() -> new EntityNotFoundException("Department not found with ID: " + departmentId));
+        Long positionId = dto.getPositionId();
+        Position foundPos = positionRepository.findById(positionId)
+                .orElseThrow(() -> new EntityNotFoundException("Position not found with ID: " + positionId));
+
+        String empHrRole = "N";
+        if (foundPos.getPositionId().equals(1L) || foundPos.getPositionId().equals(2L)) {
+            empHrRole = "Y";
+        }
+
+        User newUser = User.builder()
+                .userName(dto.getUserName())
+                .email(dto.getEmail())
+                .password(finalEncodedPassword)
+                .address(dto.getAddress())
+                .phone(dto.getPhone())
+                .birthDate(dto.getBirthDate())
+                .gender(dto.getGender())
+                .department(foundDept)
+                .position(foundPos)
+                .hireDate(dto.getHireDate() != null ? dto.getHireDate() : LocalDate.now())
+                .createdAt(LocalDateTime.now())
+                .hrRole(empHrRole)
+                .build();
+
+        User savedUser = userRepository.save(newUser);
+        return savedUser.fromEntity();
+    }
+
+    @Override
+    public String uploadProfile(UserRequestDto dto) throws Exception{
+        User user = userRepository.findById(dto.getEmployeeNo()).orElseThrow(
+                () -> new EntityNotFoundException("User not found!")
+        );
+
+        String oldUrl = user.getProfileImage();
+        if (oldUrl != null && !oldUrl.isBlank()) {
+            awsS3Config.deleteFromS3Bucket(oldUrl);
+        }
+
+        MultipartFile profileImage = dto.getProfileImage();
+        String uniqueFileName = UUID.randomUUID() + "_" + profileImage.getOriginalFilename();
+        String imageUrl = awsS3Config.uploadToS3Bucket(profileImage.getBytes(), uniqueFileName);
+
+        user.setProfileImage(imageUrl);
+        userRepository.save(user);
+        return imageUrl;
+    }
+
+    @Transactional
+    @Override
+    public void updateUser(Long employeeNo, UserUpdateRequestDto dto, String hrRole) throws Exception {
+        User user = userRepository.findByEmployeeNo(employeeNo).orElseThrow(
+                () -> new EntityNotFoundException("User not found!")
+        );
+        if (hrRole.equals("N")) {
+            throw new BadRequestException("수정 권한이 없습니다.");
+        }
+
+        user.setUserName(dto.getUserName());
+        user.setExternalEmail(dto.getExternalEmail());
+        user.setAddress(dto.getAddress());
+        user.setPhone(dto.getPhone());
+        user.setResidentRegNo(dto.getResidentRegNo());
+        user.setHireDate(dto.getHireDate());
+        user.setActivate(dto.getActivate());
+        user.setBirthDate(dto.getBirthDate());
+        user.setRemarks(dto.getRemarks());
+        user.setBankName(dto.getBankName());
+        user.setAccountNumber(dto.getAccountNumber());
+        user.setAccountHolder(dto.getAccountHolder());
+        user.setDepartment(departmentRepository.findById(dto.getDepartmentId()).orElseThrow(
+                () -> new EntityNotFoundException("Department not found with ID: " + dto.getDepartmentId())
+        ));
+        user.setPosition(positionRepository.findByPositionName(dto.getPositionName()));
+        if (dto.getProfileImage() != null && !dto.getProfileImage().isEmpty()) {
+            uploadProfile(UserRequestDto.builder()
+                    .employeeNo(user.getEmployeeNo())
+                    .profileImage(dto.getProfileImage())
+                    .build());
+        }
+        user.setRetireDate(dto.getRetireDate());
+        if (dto.getHrRole() != null && !dto.getHrRole().equals(user.getHrRole())) {
+            user.setHrRole(dto.getHrRole());
+        }
+
+        userRepository.save(user);
+    }
+
+    @Override
+    public UserResDto getUserByEmployeeNo(Long employeeNo) {
+        return userRepository.findByEmployeeNo(employeeNo).orElseThrow(
+                () -> new EntityNotFoundException("해당 직원은 존재하지 않습니다.")
+        ).fromEntity();
+    }
+
+    @Override
+    public UserLoginFeignResDto getUserByEmail(String email) {
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user != null) {
+            return user.toUserLoginFeignResDto();
+        }
+        return null;
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public UserFeignResDto getEmployeeByEmployeeNo(Long employeeNo) {
+        User user = userRepository.findByEmployeeNo(employeeNo)
+                .orElseThrow(() -> new EntityNotFoundException("User not found with employeeNo: " + employeeNo));
+        return user.toUserFeignResDto();
+    }
+
+    @Override
+    public List<UserFeignResDto> getEmployeeByUserName(String userName) {
+        List<User> users = userRepository.findByUserNameContaining(userName);
+        return users.stream()
+                .map(User::toUserFeignResDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public UserFeignResDto getEmployeeByEmail(String email) {
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user != null) {
+            return user.toUserFeignResDto();
+        }
+        return null;
+    }
+
+    @Override
+    public UserFeignResDto getEmployeeById(Long employeeNo) {
+        User user = userRepository.findByEmployeeNo(employeeNo).orElse(null);
+        if (user != null) {
+            log.info("Found user in DB: {}", user);
+            UserFeignResDto dto = user.toUserFeignResDto();
+            log.info("Converted UserFeignResDto: {}", dto);
+            return dto;
+        }
+        return null;
+    }
+
+    @Override
+    public void updatePassword(UserPwUpdateDto dto) {
+        User user = userRepository.findByEmployeeNo(dto.getEmployeeNo()).orElseThrow(
+                () -> new EntityNotFoundException("User not found!")
+        );
+        user.setPassword(dto.getNewPw());
+        userRepository.save(user);
+    }
+
+    @Override
+    public Page<UserResDto> listUsers(Pageable pageable, String hrRole) {
+        Page<User> users = userRepository.findAll(pageable);
+
+        return users.map(user -> UserResDto.builder()
+                .employeeNo(user.getEmployeeNo())
+                .userName(user.getUserName())
+                .positionName(user.getPosition().getPositionName())
+                .department(new DepartmentResDto(user.getDepartment()))
+                .hireDate(user.getHireDate())
+                .phone(user.getPhone())
+                .email(user.getEmail())
+                .address(user.getAddress())
+                .activate(user.getActivate())
+                .profileImage(user.getProfileImage())
+                .hrRole(hrRole)
+                .build());
+    }
+
+    @Override
+    public Page<UserResDto> payrollListUsers(Pageable pageable, int year, int month) {
+
+        Page<User> users = userRepository.findUsersHavingPayrollInYearMonth(year, month, pageable);
+
+        return users.map(user -> UserResDto.builder()
+                .employeeNo(user.getEmployeeNo())
+                .userName(user.getUserName())
+                .positionName(user.getPosition().getPositionName())
+                .department(new DepartmentResDto(user.getDepartment()))
+                .activate(user.getActivate())
+                .build());
+    }
+
+    @Override
+    public Object searchUsers(String userName, String departmentName, String hrRole, Pageable pageable) {
+        if (StringUtils.hasText(userName) || StringUtils.hasText(departmentName) || StringUtils.hasText(hrRole)) {
+            List<User> users;
+            if (StringUtils.hasText(userName) && StringUtils.hasText(departmentName) && StringUtils.hasText(hrRole)) {
+                users = userRepository.findByUserNameContainingAndDepartmentNameContainingAndHrRole(userName, departmentName, hrRole);
+            } else if (StringUtils.hasText(userName) && StringUtils.hasText(departmentName)) {
+                users = userRepository.findByUserNameContainingAndDepartmentNameContaining(userName, departmentName);
+            } else if (StringUtils.hasText(userName) && StringUtils.hasText(hrRole)) {
+                users = userRepository.findByUserNameContainingAndHrRole(userName, hrRole);
+            } else if (StringUtils.hasText(departmentName) && StringUtils.hasText(hrRole)) {
+                users = userRepository.findByDepartmentNameContainingAndHrRole(departmentName, hrRole);
+            } else if (StringUtils.hasText(userName)) {
+                users = userRepository.findByUserNameContaining(userName);
+            } else if (StringUtils.hasText(departmentName)) {
+                users = userRepository.findByDepartmentNameContaining(departmentName);
+            } else {
+                users = userRepository.findByHrRole(hrRole);
+            }
+            return users.stream().map(user -> UserResDto.builder()
+                    .employeeNo(user.getEmployeeNo())
+                    .userName(user.getUserName())
+                    .positionName(user.getPosition().getPositionName())
+                    .department(new DepartmentResDto(user.getDepartment()))
+                    .hireDate(user.getHireDate())
+                    .phone(user.getPhone())
+                    .email(user.getEmail())
+                    .address(user.getAddress())
+                    .activate(user.getActivate())
+                    .profileImage(user.getProfileImage())
+                    .hrRole(hrRole)
+                    .build()).collect(Collectors.toList());
+        } else {
+            Page<User> users = userRepository.findAll(pageable);
+            return users.map(user -> UserResDto.builder()
+                    .employeeNo(user.getEmployeeNo())
+                    .userName(user.getUserName())
+                    .positionName(user.getPosition().getPositionName())
+                    .department(new DepartmentResDto(user.getDepartment()))
+                    .hireDate(user.getHireDate())
+                    .phone(user.getPhone())
+                    .email(user.getEmail())
+                    .address(user.getAddress())
+                    .activate(user.getActivate())
+                    .profileImage(user.getProfileImage())
+                    .hrRole(hrRole)
+                    .build());
+        }
+    }
+
+    @Override
+    public void retireUser(Long employeeNo, String hrRole) {
+        if (!"Y".equals(hrRole)) {
+            throw new AccessDeniedException("HR 권한이 필요합니다.");
+        }
+        User user = userRepository.findByEmployeeNo(employeeNo).orElseThrow(
+                () -> new EntityNotFoundException("해당 사번 없음.")
+        );
+        user.setRetireDate(LocalDate.now());
+        user.setActivate("N");
+        userRepository.save(user);
+    }
+
+    @Override
+    public boolean hasApprovedExternalSchedule(Long userId, LocalDate date) {
+        return false;
+    }
+
+    @Override
+    public String getApprovedExternalScheduleType(Long userId, LocalDate date) {
+        return null;
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public List<UserResDto> getUsersByIds(List<Long> employeeNos) {
+        List<User> users = userRepository.findByEmployeeNoIn(employeeNos);
+        return users.stream()
+                .map(User::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public List<UserResDto> getUsersWithFirstAnniversaryInMonth(int year, int month) {
+        List<User> users = userRepository.findUsersWithHireDateInMonth(year, month);
+        return users.stream()
+                .map(User::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+}
+
+
+
+
+
+
+
+
+

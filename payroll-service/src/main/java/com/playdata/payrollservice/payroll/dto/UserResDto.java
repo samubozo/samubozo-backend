@@ -1,10 +1,5 @@
 package com.playdata.payrollservice.payroll.dto;
 
-
-
-
-
-import com.playdata.payrollservice.common.auth.Role;
 import lombok.*;
 
 import java.time.LocalDate;
@@ -17,15 +12,16 @@ import java.time.LocalDate;
 @Builder
 public class UserResDto {
 
-    private Long userid;
+    private Long employeeNo;
+    private String userName;
     private String email;
-    private String name;
-    private Role role;
-    private String address;
+    private String positionName;
     private String profileImage;
-    private String socialProvider;
     private String phone;
-    private LocalDate birthdate;
+    private LocalDate birthDate;
+    private String activate;
 
-
+    private String bankName;
+    private String accountNumber;
+    private String accountHolder;
 }

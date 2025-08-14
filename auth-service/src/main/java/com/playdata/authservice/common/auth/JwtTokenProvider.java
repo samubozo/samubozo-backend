@@ -7,47 +7,54 @@ import io.jsonwebtoken.SignatureAlgorithm;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import lombok.extern.slf4j.Slf4j;
+import java.time.Duration;
 import java.util.Date;
 
 
 @Component
+@Slf4j
 public class JwtTokenProvider {
 
     @Value("${jwt.secretKey}")
     private String secretKey;
 
     @Value("${jwt.expiration}")
-    private int expiration;
+    private Duration expiration;
 
     @Value("${jwt.secretKeyRt}")
     private String secretKeyRt;
 
     @Value("${jwt.expirationRt}")
-    private int expirationRt;
+    private Duration expirationRt;
 
 
-    public String createToken(String email, String role){
+    public String createToken(String email, String hrRole, Long employeeNo){
         Claims claims = Jwts.claims().setSubject(email);
-        claims.put("role", role);
+        claims.put("role", hrRole);
+        claims.put("employeeNo", employeeNo);
         Date now = new Date();
 
+        log.info("Access Token Expiration (millis): {}", expiration.toMillis()); // 추가
         return Jwts.builder()
                 .setClaims(claims)
                 .setIssuedAt(now)
-                .setExpiration(new Date(now.getTime() + expiration * 100 * 10000))
+                .setExpiration(new Date(now.getTime() + expiration.toMillis()))
                 .signWith(SignatureAlgorithm.HS256, secretKey)
                 .compact();
     }
 
-    public String createRefreshToken(String email, String role){
+    public String createRefreshToken(String email, String hrRole, Long employeeNo){
         Claims claims = Jwts.claims().setSubject(email);
-        claims.put("role", role);
+        claims.put("role", hrRole);
+        claims.put("employeeNo", employeeNo);
         Date now = new Date();
 
+        log.info("Refresh Token Expiration (millis): {}", expirationRt.toMillis()); // 추가
         return Jwts.builder()
                 .setClaims(claims)
                 .setIssuedAt(now)
-                .setExpiration(new Date(now.getTime() + expirationRt * 60 * 1000))
+                .setExpiration(new Date(now.getTime() + expirationRt.toMillis()))
                 .signWith(SignatureAlgorithm.HS256, secretKeyRt)
                 .compact();
     }
@@ -60,11 +67,25 @@ public class JwtTokenProvider {
                 .parseClaimsJws(token)
                 .getBody();
 
-        System.out.println("claims = " + claims);
+        return TokenUserInfo.builder()
+                .email(claims.getSubject())
+                .hrRole(claims.get("role", String.class))
+                .employeeNo(claims.get("employeeNo", Long.class))
+                .build();
+    }
+
+    public TokenUserInfo validateRefreshTokenAndGetTokenUserInfo(String token)
+            throws Exception {
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(secretKeyRt)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
 
         return TokenUserInfo.builder()
                 .email(claims.getSubject())
-                .role(Role.valueOf(claims.get("role", String.class)))
+                .hrRole(claims.get("role", String.class))
+                .employeeNo(claims.get("employeeNo", Long.class))
                 .build();
     }
 }

@@ -26,7 +26,6 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-
         http.csrf(csrf -> csrf.disable());
 
         http.sessionManagement(session ->
@@ -35,7 +34,10 @@ public class SecurityConfig {
         //여기에 권한 없이 접근해야할 URL을 명시해주세요. "/actuator/**" 는 건드시면 안됩니다.
         http.authorizeHttpRequests(auth -> {
             auth
-                    .requestMatchers("/actuator/**", "/payroll/hello").permitAll()
+                    .requestMatchers("/actuator/**", "/payroll","/payroll/**",
+                            "/swagger-ui.html", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-resources/**").permitAll()
+                    .requestMatchers(
+                                "/payroll/admin/**").hasAnyRole("USER", "ADMIN")
                     .anyRequest().authenticated();
         });
 

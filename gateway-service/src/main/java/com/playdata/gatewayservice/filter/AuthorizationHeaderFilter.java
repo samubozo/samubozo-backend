@@ -29,24 +29,34 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
 
     //여기에 권한 없이 접근해야할 URL을 명시해주세요.
     private final List<String> allowUrl = Arrays.asList(
-            "/hr/hello"
-            ,"/attendance/hello"
-            ,"/vacation/hello"
-            ,"/payroll/hello"
-            ,"/schedule/hello"
-            ,"/auth/hello"
+            "/hr/user/feign/**"
+            ,"/hr/positions"
+            ,"/hr/departments"
+            ,"/auth/login"
+            ,"/auth/email-valid"
+            ,"/auth/verify"
+            ,"/auth/verify-code"
+            ,"/auth/find-password"
+            ,"/auth/reset-password"
+            ,"/auth/refresh"
+            ,"/notifications/mark-read-by-message-id"
+            ,"/swagger-ui.html",
+            "/swagger-ui/**",
+            "/v3/api-docs/**"
     );
 
     @Override
     public GatewayFilter apply(Object config) {
         return (exchange, chain) -> {
             String path = exchange.getRequest().getURI().getPath();
+            log.info("path: {}", path);
             AntPathMatcher antPathMatcher = new AntPathMatcher();
 
 
             boolean isAllowed
                     = allowUrl.stream()
                     .anyMatch(url -> antPathMatcher.match(url, path));
+            log.info("url: {}", path);
             log.info("isAllowed: {}", isAllowed);
 
             if (isAllowed || path.startsWith("/actuator")) {
@@ -55,16 +65,24 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
                 return chain.filter(exchange);
             }
 
+            String token = null;
             String authorizationHeader = exchange.getRequest().getHeaders().getFirst("Authorization");
 
-            if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
-                if (path.startsWith("/ordering-service/orders/") || path.startsWith("/ordering-service/cart/") ) {
-                    return onError(exchange, "NO_LOGIN", HttpStatus.UNAUTHORIZED);
+            // SSE 구독 요청의 경우 쿼리 파라미터에서 토큰 추출
+            if (path.equals("/notifications/subscribe")) { // <-- 이 부분을 수정합니다.
+                String queryToken = exchange.getRequest().getQueryParams().getFirst("token"); // "token" 파라미터 이름은 프론트엔드와 일치해야 합니다.
+                if (queryToken != null && !queryToken.isEmpty()) {
+                    token = queryToken;
+                    log.info("SSE token from query parameter: {}", token);
                 }
-                return onError(exchange, "Authorization header is missing or invalid", HttpStatus.UNAUTHORIZED);
+            } else if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
+                token = authorizationHeader.replace("Bearer ", "");
+                log.info("Bearer token from Authorization header: {}", token);
             }
 
-            String token = authorizationHeader.replace("Bearer ", "");
+            if (token == null) {
+                return onError(exchange, "Authorization token is missing or invalid", HttpStatus.UNAUTHORIZED);
+            }
 
             Claims claims = validateJwt(token);
             if (claims == null) {
@@ -75,7 +93,11 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
                     .mutate()
                     .header("X-User-Email", claims.getSubject())
                     .header("X-User-Role", claims.get("role", String.class))
+                    .header("X-User-Employee-No", claims.get("employeeNo", Long.class).toString())
                     .build();
+            // 클레임 내용 로깅 (추가)
+            log.info("[Gateway AuthFilter] Validated JWT Claims: Subject={}, Role={}, EmployeeNo={}",
+                    claims.getSubject(), claims.get("role", String.class), claims.get("employeeNo", Long.class));
             return chain.filter(exchange.mutate().request(request).build());
         };
     }

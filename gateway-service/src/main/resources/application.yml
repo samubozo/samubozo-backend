@@ -10,10 +10,10 @@ spring:
         cors-configurations:
           "[/**]":
             allowed-origins:
-
-              - "http://localhost:9090" #사용자 프론트 서버
+              - "http://localhost:5173" #로컬 사용자 프론트 서버
+              - "http://page-samubozo.s3-website.ap-northeast-2.amazonaws.com" #AWS 정적 개발 서버
               - "https://samubozo.co.kr" #AWS 정적 서버
-
+              - "https://www.samubozo.co.kr" #AWS 정적 서버추가 www. 치고 오는 사람들 대비
             allowed-methods:
               - GET
               - POST
@@ -35,18 +35,17 @@ spring:
             postLogger: true
       routes:
         - id: auth-service
-          uri: lb://AUTH-SERVICE
+          uri: lb://auth-service
           predicates:
-            - Path=/auth-service/auth/doLogin
+            - Path=/auth-service/auth/login
             - Method=POST
           filters:
             - RemoveRequestHeader=Cookie
             - RewritePath=/auth-service/(?<segment>.*), /$\{segment}
 
-
         #인증 관리
         - id: auth-service
-          uri: lb://AUTH-SERVICE
+          uri: lb://auth-service
           predicates:
             - Path=/auth-service/**
           filters:
@@ -56,7 +55,7 @@ spring:
 
         #인사 관리
         - id: hr-service
-          uri: lb://HR-SERVICE
+          uri: lb://hr-service
           predicates:
             - Path=/hr-service/**
           filters:
@@ -66,7 +65,7 @@ spring:
 
         # attendance-service 라우트
         - id: attendance-service # 이 ID는 실제 ID로 변경해주세요. (gateway config에 없어서 가정)
-          uri: lb://ATTENDANCE-SERVICE
+          uri: lb://attendance-service
           predicates:
             - Path=/attendance-service/** # 들어오는 요청 경로
           filters:
@@ -78,7 +77,7 @@ spring:
 
         #연차 관리
         - id: vacation-service
-          uri: lb://VACATION-SERVICE
+          uri: lb://vacation-service
           predicates:
             - Path=/vacation-service/**
           filters:
@@ -88,7 +87,7 @@ spring:
 
         #급여 관리
         - id: payroll-service
-          uri: lb://PAYROLL-SERVICE
+          uri: lb://payroll-service
           predicates:
             - Path=/payroll-service/**
           filters:
@@ -98,7 +97,7 @@ spring:
 
         #일정 관리
         - id: schedule-service
-          uri: lb://SCHEDULE-SERVICE
+          uri: lb://schedule-service
           predicates:
             - Path=/schedule-service/**
           filters:
@@ -106,16 +105,84 @@ spring:
             - RewritePath=/schedule-service/(?<segment>.*), /$\{segment}
             - AuthorizationHeaderFilter
 
+        #챗봇 서비스
+        - id: chatbot-service
+          uri: lb://chatbot-service
+          predicates:
+            - Path=/chatbot-service/**
+          filters:
+            - RemoveRequestHeader=Cookie
+            - RewritePath=/chatbot-service/(?<segment>.*), /$\{segment}
+            - AuthorizationHeaderFilter
 
+        #증명서 서비스
+        - id: certificate-service
+          uri: lb://certificate-service
+          predicates:
+            - Path=/certificate-service/**
+          filters:
+            - RemoveRequestHeader=Cookie
+            - RewritePath=/certificate-service/(?<segment>.*), /$\{segment}
+            - AuthorizationHeaderFilter
 
+        #메시지 서비스
+        - id: message-service
+          uri: lb://message-service
+          predicates:
+            - Path=/message-service/**
+          filters:
+            - RemoveRequestHeader=Cookie
+            - RewritePath=/message-service/(?<segment>.*), /$\{segment}
+            - AuthorizationHeaderFilter
 
+        #알림 서비스
+        - id: notification-service
+          uri: lb://notification-service
+          predicates:
+            - Path=/notification-service/**
+          filters:
+            - RemoveRequestHeader=Cookie
+            - RewritePath=/notification-service/(?<segment>.*), /$\{segment}
+            - AuthorizationHeaderFilter
 
+        #결재 서비스
+        - id: approval-service
+          uri: lb://approval-service
+          predicates:
+            - Path=/approval-service/**
+          filters:
+            - RemoveRequestHeader=Cookie
+            - RewritePath=/approval-service/(?<segment>.*), /$\{segment}
+            - AuthorizationHeaderFilter
 
+springdoc:
+  swagger-ui:
+    # 게이트웨이의 통합 Swagger UI 페이지 경로
+    path: /swagger-ui.html
+    # 각 마이크로서비스의 API 문서를 찾기 위한 경로 설정
+    urls:
+      - name: HR-SERVICE # UI 드롭다운에 표시될 이름
+        url: /hr-service/v3/api-docs # 이 경로로 요청오면 gateway가 user-service로 라우팅
+      - name: AUTH-SERVICE
+        url: /auth-service/v3/api-docs
+      - name: APPROVAL-SERVICE
+        url: /approval-service/v3/api-docs
+      - name: ATTENDANCE-SERVICE
+        url: /attendance-service/v3/api-docs
+      - name: CERTIFICATE-SERVICE
+        url: /certificate-service/v3/api-docs
+      - name: CHATBOT-SERVICE
+        url: /chatbot-service/v3/api-docs
+      - name: MESSAGE-SERVICE
+        url: /message-service/v3/api-docs
+      - name: NOTIFICATION-SERVICE
+        url: /notification-service/v3/api-docs
+      - name: PAYROLL-SERVICE
+        url: /payroll-service/v3/api-docs
+      - name: SCHEDULE-SERVICE
+        url: /schedule-service/v3/api-docs
+      - name: VACATION-SERVICE
+        url: /vacation-service/v3/api-docs
 
-
-
-
-
-
-
-
+  # (선택사항) UI 드롭다운에서 기본으로 선택될 서비스 지정
+  urls-primary-name: HR-SERVICE

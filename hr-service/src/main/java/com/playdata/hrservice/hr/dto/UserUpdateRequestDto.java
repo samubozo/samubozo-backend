@@ -2,6 +2,7 @@ package com.playdata.hrservice.hr.dto;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 
@@ -9,11 +10,25 @@ import java.time.LocalDate;
 @Setter
 public class UserUpdateRequestDto {
 
-    private String name;
-    private String address;
-    private String phone;
+    private String userName;
     private String email;
-    private String password;
+    private String residentRegNo;
+    private String externalEmail;
+    private Long departmentId;
+    private String departmentName;
+    private Long positionId;
+    private String positionName;
+    private String address;
+    private String remarks;
+    private MultipartFile profileImage;
+    private String phone;
     private LocalDate birthDate;
+    private LocalDate hireDate;
+    private String bankName;
+    private String accountNumber;
+    private String accountHolder;
+    private LocalDate retireDate;
+    private String activate;
+    private String hrRole;
 
 }

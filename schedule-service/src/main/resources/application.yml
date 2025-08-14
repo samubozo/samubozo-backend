@@ -1,24 +1,16 @@
-server:
-  port: 0
-
 spring:
-  application:
-    name: schedule-service
+  application: # spring은 Map이고, application은 그 Map의 키입니다.
+    name: schedule-service # application은 Map이고, name은 그 Map의 키입니다.
 
-  # 카카오 로그인용 데이터
-oauth2:
-  kakao:
-    client-id: ba98e521fbb271a7148646b621c80c92
-    redirect-uri: http://localhost:8000/hr-service/user/kakao
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    groups:
+      enabled: true
 
-
-
-
-
-
-
-
-
-
-
-
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+    display-request-duration: true
+    doc-expansion: none

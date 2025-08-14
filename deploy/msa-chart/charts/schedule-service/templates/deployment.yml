@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: schedule-service
+spec:
+  replicas: {{ .Values.global.replicaCount | default .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: schedule-service
+  template:
+    metadata:
+      labels:
+        app: schedule-service
+    spec:
+      imagePullSecrets:
+        - name: ecr-secret
+      containers:
+        - name: schedule-service
+          image: {{ .Values.image }}
+          ports:
+            - containerPort: {{ .Values.port }}
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "{{ .Values.global.env.SPRING_PROFILES_ACTIVE }}"
+            - name: SPRING_CLOUD_CONFIG_PROFILE_ACTIVE
+              value: "{{ .Values.global.env.SPRING_CLOUD_CONFIG_PROFILE_ACTIVE }}"
+            - name: SPRING_CLOUD_CONFIG_URI
+              value: "{{ .Values.global.env.SPRING_CLOUD_CONFIG_URI }}"
+            - name: SERVER_PORT
+              value: "8012"
+            - name: TZ
+              value: {{ default "Asia/Seoul" .Values.global.env.TZ | quote }}
+          resources:
+            requests:
+              cpu: "{{ .Values.global.resources.requests.cpu }}"
+              memory: "{{ .Values.global.resources.requests.memory }}"
+            limits:
+              cpu: "{{ .Values.global.resources.limits.cpu }}"
+              memory: "{{ .Values.global.resources.limits.memory }}"

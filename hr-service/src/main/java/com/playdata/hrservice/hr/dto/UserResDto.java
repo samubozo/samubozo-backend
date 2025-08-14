@@ -1,8 +1,6 @@
 package com.playdata.hrservice.hr.dto;
 
 
-
-import com.playdata.hrservice.common.auth.Role;
 import lombok.*;
 
 import java.time.LocalDate;
@@ -15,15 +13,27 @@ import java.time.LocalDate;
 @Builder
 public class UserResDto {
 
-    private Long userid;
+    private Long employeeNo;
+    private String userName;
     private String email;
-    private String name;
-    private Role role;
+    private String externalEmail;
+    private String password;
+    private String gender;
+    private String residentRegNo;
+    private DepartmentResDto department;
+    private Long positionId;
+    private String positionName;
     private String address;
+    private String remarks;
     private String profileImage;
-    private String socialProvider;
     private String phone;
-    private LocalDate birthdate;
-
+    private LocalDate birthDate;
+    private LocalDate hireDate;
+    private LocalDate retireDate;
+    private String bankName;
+    private String accountNumber;
+    private String accountHolder;
+    private String activate;
+    private String hrRole;
 
 }

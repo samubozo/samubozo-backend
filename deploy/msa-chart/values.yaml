@@ -1,0 +1,24 @@
+# Helm 차트에서 사용할 전역 값들을 정의하는 곳.
+# 나중에 생성할 템플릿 파일에 적용할 공통 값을 세팅하는 곳.
+
+imagePullSecrets:
+  - name: ecr-secret
+
+global:
+  replicaCount: 2
+
+  # 모든 서비스에서 사용할 공통 환경변수
+  env:
+    TZ: Asia/Seoul
+    SPRING_PROFILES_ACTIVE: dev,kubernetes
+    SPRING_CLOUD_CONFIG_URI: http://config-service:8888
+    SPRING_CLOUD_CONFIG_PROFILE_ACTIVE: kubernetes
+
+  # 모든 서비스에서 공통으로 사용할 리소스 요청/제한
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"

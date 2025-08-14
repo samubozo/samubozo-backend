@@ -1,15 +1,20 @@
-server:
-  port: 0
 
 spring:
   application:
     name: payroll-service
 
-  # 카카오 로그인용 데이터
-oauth2:
-  kakao:
-    client-id: ba98e521fbb271a7148646b621c80c92
-    redirect-uri: http://localhost:8000/hr-service/user/kakao
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    groups:
+      enabled: true
+
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+    display-request-duration: true
+    doc-expansion: none
 
 
 
