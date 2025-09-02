@@ -1,3 +1,14 @@
+# 프론트가 궁금하신가요?
+https://github.com/samubozo/samubozo-front
+
+# 사무보조 구동 영상
+
+[![Video 1](https://img.youtube.com/vi/fminNemR4aU/0.jpg)](https://youtu.be/fminNemR4aU)
+[![Video 2](https://img.youtube.com/vi/FNfunqiHYh8/0.jpg)](https://youtu.be/FNfunqiHYh8)
+[![Video 4](https://img.youtube.com/vi/I1nTGJL1h5I/0.jpg)](https://youtu.be/I1nTGJL1h5I)
+[![Video 6](https://img.youtube.com/vi/G7RX3c_EYRM/0.jpg)](https://youtu.be/G7RX3c_EYRM)
+
+
 # 사무보조(SAMUBOZO) 서비스 기획
 
 ---
@@ -120,7 +131,9 @@
 ---
 
 ## 13. 시스템 아키텍처  
-<img width="1102" height="744" alt="drawio" src="https://github.com/user-attachments/assets/58e4f5a7-4b7e-4fd5-b9c4-7aa327d9fada" />
+
+<img width="2313" height="1202" alt="image" src="https://github.com/user-attachments/assets/2f107192-e808-4b56-9770-affbb76327ed" />
+
 
 
 ---
@@ -133,22 +146,7 @@
 
 ## 15. WBS (Work Breakdown Structure)
 
-| WBS 번호 | 작업명                       | 담당자         | 기간         | 산출물                                                         | 비고     |
-| -------- | ---------------------------- | -------------- | ------------ | -------------------------------------------------------------- | -------- |
-| 1        | 기획 및 분석                 | 전체           | 6/20~6/27    | 프로젝트 기획서·요구사항 정의서·시스템 아키텍처·ERD·화면 설계서 | 1주차    |
-| 2        | 기능 개발 및 단위 테스트     | 전체           | 6/30~7/18    | 서비스별 코드·API 명세서·SPA 사이트·단위 테스트 결과서        | 2~5주차 |
-| 2.1      | └ hr-service 개발            | 김예은         | 6/30~7/18    | 직원 서비스 코드·MySQL DDL                                     |          |
-| 2.2      | └ auth-service 개발          | 김예은         | 6/30~7/18    | 인증/JWT 모듈                                                  |          |
-| 2.3      | └ message-service 개발       | 이호영         | 6/30~7/18    | 쪽지/알림 서비스 코드                                          |          |
-| 2.4      | └ schedule-service 개발      | 이호영         | 6/30~7/18    | 일정관리 서비스 코드                                           |          |
-| 2.5      | └ attendance-service 개발    | 신현국         | 6/30~7/18    | 출퇴근 관리 서비스 코드                                        |          |
-| 2.6      | └ approval-service 개발      | 신현국         | 6/30~7/18    | 전자결재 서비스 코드                                            |          |
-| 2.7      | └ payroll-service 개발       | 주영찬         | 6/30~7/18    | 급여관리 서비스 코드                                            |          |
-| 2.8      | └ config-service 개발        | 주영찬         | 6/30~7/18    | 공통 설정 서비스 코드                                          |          |
-| 2.9      | └ 프론트엔드 SPA 구현        | 전체           | 6/30~7/18    | React SPA·UI 테스트케이스·스토리보드·소스코드                  |          |
-| 2.10     | └ 단위 테스트 실행           | QA팀           | 6/30~7/18    | JUnit·React 단위 테스트 결과서                                |          |
-| 3        | 통합 테스트 및 피드백 반영   | 전체           | 7/21~8/1     | 통합 테스트 결과서·이슈 목록·개선 문서                        | 6~7주차  |
-| 4        | 최종 배포 및 시연 준비·발표  | 전체·DevOps팀 | 8/4~8/13     | CI/CD 계획서·배포본(AWS EKS/S3)·운영환경 점검 보고서·발표자료 | 8~9주차  |
+- [WBS 전체 계획 웹페이지로 보기](https://shinhyeonguk.github.io/samubozo-project-wbs/wbs.html)
 
 ---
 
