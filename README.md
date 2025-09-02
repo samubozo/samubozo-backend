@@ -1,6 +1,14 @@
 # 프론트가 궁금하신가요?
 https://github.com/samubozo/samubozo-front
 
+# 사무보조 구동 영상
+
+[![Video 1](https://img.youtube.com/vi/fminNemR4aU/0.jpg)](https://youtu.be/fminNemR4aU)
+[![Video 2](https://img.youtube.com/vi/FNfunqiHYh8/0.jpg)](https://youtu.be/FNfunqiHYh8)
+[![Video 4](https://img.youtube.com/vi/I1nTGJL1h5I/0.jpg)](https://youtu.be/I1nTGJL1h5I)
+[![Video 6](https://img.youtube.com/vi/G7RX3c_EYRM/0.jpg)](https://youtu.be/G7RX3c_EYRM)
+
+
 # 사무보조(SAMUBOZO) 서비스 기획
 
 ---
