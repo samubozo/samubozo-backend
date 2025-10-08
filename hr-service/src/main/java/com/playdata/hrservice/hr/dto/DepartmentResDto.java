@@ -16,6 +16,13 @@ public class DepartmentResDto {
     private String departmentColor;
     private String imageUrl;
 
+    // QueryDSL의 UserListResDto에서 사용할, id와 name만 받는 생성자
+    public DepartmentResDto(Long departmentId, String name) {
+        this.departmentId = departmentId;
+        this.name = name;
+    }
+
+
     public DepartmentResDto(Department department) {
         this.departmentId = department.getDepartmentId();
         this.name = department.getName();

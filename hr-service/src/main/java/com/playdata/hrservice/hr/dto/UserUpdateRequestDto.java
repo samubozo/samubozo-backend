@@ -1,5 +1,6 @@
 package com.playdata.hrservice.hr.dto;
 
+import com.playdata.hrservice.common.entity.Address;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.web.multipart.MultipartFile;
@@ -18,7 +19,7 @@ public class UserUpdateRequestDto {
     private String departmentName;
     private Long positionId;
     private String positionName;
-    private String address;
+    private Address address;
     private String remarks;
     private MultipartFile profileImage;
     private String phone;

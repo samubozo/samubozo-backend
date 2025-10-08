@@ -10,19 +10,16 @@ import java.util.List;
 
 public interface UserService {
 
-    @Transactional
     UserResDto createUser(UserSaveReqDto dto, String hrRole);
 
     String uploadProfile(UserRequestDto dto) throws Exception;
 
-    @Transactional
     void updateUser(Long employeeNo, UserUpdateRequestDto dto, String hrRole) throws Exception;
 
     UserResDto getUserByEmployeeNo(Long employeeNo);
 
     UserLoginFeignResDto getUserByEmail(String email);
 
-    @Transactional(readOnly = true)
     UserFeignResDto getEmployeeByEmployeeNo(Long employeeNo);
 
     List<UserFeignResDto> getEmployeeByUserName(String userName);
@@ -31,11 +28,11 @@ public interface UserService {
 
     UserFeignResDto getEmployeeById(Long employeeNo);
 
-    void updatePassword(UserPwUpdateDto dto);
+    void updatePassword(String userEmail, UserPwUpdateDto dto);
 
-    Page<UserResDto> listUsers(Pageable pageable, String hrRole);
+    Page<UserListResDto> listUsers(Pageable pageable, String hrRole);
 
-    Object searchUsers(String userName, String departmentName, String hrRole, Pageable pageable);
+    Page<UserListResDto> searchUsers(UserSearchCondition condition, Pageable pageable);
 
     void retireUser(Long employeeNo, String hrRole);
 
@@ -43,10 +40,8 @@ public interface UserService {
 
     String getApprovedExternalScheduleType(Long userId, LocalDate date);
 
-    @Transactional(readOnly = true)
     List<UserResDto> getUsersByIds(List<Long> employeeNos);
 
-    @Transactional(readOnly = true)
     List<UserResDto> getUsersWithFirstAnniversaryInMonth(int year, int month);
 
 }

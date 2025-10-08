@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
@@ -76,9 +77,11 @@ public class HRController {
     }
 
     @PostMapping("/user/password")
-    ResponseEntity<?> updatePassword(@RequestBody UserPwUpdateDto dto) {
-        userService.updatePassword(dto);
-        return new ResponseEntity<>(HttpStatus.OK);
+    ResponseEntity<?> updatePassword(@AuthenticationPrincipal TokenUserInfo tokenUserInfo,
+                                     @RequestBody UserPwUpdateDto dto) {
+        // 서비스에게 "이 사용자(tokenUserInfo.getEmail())가 비밀번호를 바꾸고 싶어해"라고 전달
+        userService.updatePassword(tokenUserInfo.getEmail(), dto);
+        return new ResponseEntity<>(new CommonResDto<>(HttpStatus.OK, "비밀번호가 성공적으로 변경되었습니다.", null), HttpStatus.OK);
     }
 
     @PatchMapping(value = "/users/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -101,18 +104,17 @@ public class HRController {
 
     @GetMapping("/users/search")
     public ResponseEntity<?> searchUsers(
-            @RequestParam(required = false) String userName,
-            @RequestParam(required = false) String departmentName,
-            @RequestParam(required = false) String hrRole,
+            // 여러 @RequestParam 대신, @ModelAttribute를 사용하여
+            // 검색 조건 DTO(UserSearchCondition)로 파라미터를 한 번에 깔끔하게 받습니다
+            @ModelAttribute UserSearchCondition condition,
             @PageableDefault(sort = "employeeNo") Pageable pageable) {
-        Object result;
-        if (userName != null || departmentName != null || hrRole != null) {
-            result = userService.searchUsers(userName, departmentName, hrRole, null);
-        } else {
-            result = userService.searchUsers(null, null, null, pageable);
-        }
+
+        // 복잡한 if-else 로직이 사라지고, 서비스 호출 한 줄로 완벽하게 대체됩니다.
+        // 서비스는 이제 명확하게 Page<UserResDto> 타입을 반환합니다.
+        Page<UserListResDto> results = userService.searchUsers(condition, pageable);
+
         return new ResponseEntity<>(new CommonResDto<>(HttpStatus.OK,
-                "Success", result), HttpStatus.OK);
+                "Success", results), HttpStatus.OK);
     }
 
     @GetMapping("/departments")

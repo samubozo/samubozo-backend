@@ -3,6 +3,7 @@ package com.playdata.hrservice.hr.dto;
 
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.playdata.hrservice.common.entity.Address;
 import com.playdata.hrservice.hr.entity.*;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
@@ -29,7 +30,7 @@ public class UserSaveReqDto {
     @Size(min = 8, message = "비밀번호는 최소 8자 이상이어야 합니다.")
     private String password;
 
-    private String address;
+    private Address address;
     private String phone;
 
     @JsonFormat(pattern = "yyyy-MM-dd")
@@ -44,7 +45,11 @@ public class UserSaveReqDto {
 
     private Long positionId;
 
-    public User toEntity(PasswordEncoder encoder, Department department, Position position) {
+    /**
+     * DTO의 필드만 사용하여 User 엔티티의 '기본 뼈대'를 생성합니다.
+     * 연관관계 설정(Department, Position)은 서비스 계층의 책임입니다.
+     */
+    public User toEntity(PasswordEncoder encoder) {
         return User.builder()
                 .userName(this.userName)
                 .email(this.email)
@@ -52,12 +57,9 @@ public class UserSaveReqDto {
                 .address(this.address)
                 .phone(this.phone)
                 .birthDate(this.birthDate)
-                .hireDate(this.hireDate)
+                .hireDate(this.hireDate != null ? this.hireDate : LocalDate.now())
                 .gender(this.gender)
                 .createdAt(LocalDateTime.now())
-                .profileImage(null)
-                .department(department)
-                .position(position)
                 .build();
     }
 

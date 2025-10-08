@@ -1,6 +1,7 @@
 package com.playdata.hrservice.hr.entity;
 
 
+import com.playdata.hrservice.common.entity.Address;
 import com.playdata.hrservice.hr.dto.DepartmentResDto;
 import com.playdata.hrservice.hr.dto.UserFeignResDto;
 import com.playdata.hrservice.hr.dto.UserLoginFeignResDto;
@@ -56,8 +57,8 @@ public class User {
     @Column(name = "hire_date", nullable = false)
     private LocalDate hireDate;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
-    private String address;
+    @Embedded
+    private Address address;
 
     @Column(columnDefinition = "TEXT")
     private String remarks;
@@ -95,18 +96,25 @@ public class User {
     private Position position;
 
     public UserResDto fromEntity() {
+        String displayAddress = "";
+        if (address != null) {
+            // [수정] zipCode를 제외하고 city와 street만 조합합니다.
+            displayAddress = (address.getCity() != null ? address.getCity() : "")
+                    + " " + (address.getStreet() != null ? address.getStreet() : "");
+            displayAddress = displayAddress.trim();
+        }
         return UserResDto.builder()
                 .employeeNo(employeeNo)
                 .userName(userName)
                 .email(email)
                 .externalEmail(externalEmail)
-                .password(password)
+                .password(password) // [보안 권장] 상세 정보 조회 시에도 password는 제외하는 것이 좋습니다.
                 .gender(gender)
-                .residentRegNo(residentRegNo)
+                .residentRegNo(residentRegNo) // [보안 권장] 민강 정보이므로 꼭 필요한 경우가 아니면 제외하는 것이 좋습니다.
                 .department(department != null ? new DepartmentResDto(department) : null)
                 .positionId(position != null ? position.getPositionId() : null)
                 .positionName(position != null ? position.getPositionName() : null)
-                .address(address)
+                .address(displayAddress) // [수정] 조합된 주소 문자열을 한 번에 설정
                 .remarks(remarks)
                 .profileImage(profileImage)
                 .phone(phone)
@@ -132,7 +140,19 @@ public class User {
                 .build();
     }
 
+    /**
+     * Feign 통신을 위한 UserFeignResDto로 변환합니다.
+     * Address 객체를 '도시 거리' 형식의 주소 문자열로 조합합니다.
+     */
+
     public UserFeignResDto toUserFeignResDto() {
+        String displayAddress = "";
+        if (address != null) {
+            displayAddress = (address.getCity() != null ? address.getCity() : "")
+                    + " " + (address.getStreet() != null ? address.getStreet() : "");
+            displayAddress = displayAddress.trim();
+        }
+
         return UserFeignResDto.builder()
                 .employeeNo(employeeNo)
                 .userName(userName)
@@ -144,7 +164,7 @@ public class User {
                 .department(department != null ? new DepartmentResDto(department) : null)
                 .positionId(position != null ? position.getPositionId() : null)
                 .positionName(position != null ? position.getPositionName() : null)
-                .address(address)
+                .address(displayAddress) // [수정] 조합된 주소 문자열을 한 번에 설정
                 .remarks(remarks)
                 .profileImage(profileImage)
                 .phone(phone)

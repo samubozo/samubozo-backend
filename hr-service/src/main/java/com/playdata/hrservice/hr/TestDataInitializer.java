@@ -1,5 +1,6 @@
 package com.playdata.hrservice.hr;
 
+import com.playdata.hrservice.common.entity.Address;
 import com.playdata.hrservice.hr.entity.Department;
 import com.playdata.hrservice.hr.entity.Position;
 import com.playdata.hrservice.hr.entity.User;
@@ -42,50 +43,26 @@ public class TestDataInitializer implements CommandLineRunner {
         createPosition(4L, "선임");
         createPosition(5L, "사원");
 
-        // test1 계정 생성: 사장, 경영지원
+        // --- [ 테스트 유저 생성 로직 수정 ] ---
         createTestUser("신현국", "uiuo1266@gmail.com", "1234", 1L, 1L, DEFAULT_PROFILE_IMAGE_URL + "12",
-                "010-1111-2222",
-                LocalDate.of(1996, 3, 11),
-                "M",
-                LocalDate.of(2010, 5, 1),
-                "서울시 성동구",
-                "960311-1084736");
+                "010-1111-2222", LocalDate.of(1996, 3, 11), "M", LocalDate.of(2010, 5, 1),
+                new Address("서울시", "성동구", "12345"), "960311-1084736");
 
-        // test2 계정 생성: 부장, 인사팀
         createTestUser("이호영", "skyroad0704@gmail.com", "1234", 2L, 2L, DEFAULT_PROFILE_IMAGE_URL + "54",
-                "010-9876-5432",
-                LocalDate.of(1994, 12, 24),
-                "M",
-                LocalDate.of(2013, 4, 10),
-                "서울시 동작구",
-                "941224-1036482");
+                "010-9876-5432", LocalDate.of(1994, 12, 24), "M", LocalDate.of(2013, 4, 10),
+                new Address("서울시", "동작구", "23456"), "941224-1036482");
 
-        // test3 계정 생성: 책임, 회계팀
         createTestUser("김예은", "yeeun6328@gmail.com", "1234", 3L, 3L, DEFAULT_PROFILE_IMAGE_URL + "23",
-                "010-5555-8888",
-                LocalDate.of(1997, 10, 26),
-                "F",
-                LocalDate.of(2018, 9, 18),
-                "서울시 강서구",
-                "971026-2022746");
+                "010-5555-8888", LocalDate.of(1997, 10, 26), "F", LocalDate.of(2018, 9, 18),
+                new Address("서울시", "강서구", "34567"), "971026-2022746");
 
-        // test4 계정 생성: 사원, 영업팀
         createTestUser("강원빈", "fnfn1997@naver.com", "1234", 5L, 4L, DEFAULT_PROFILE_IMAGE_URL + "59",
-                "010-3333-8498",
-                LocalDate.of(2001, 5, 18),
-                "M",
-                LocalDate.of(2023, 4, 20),
-                "경기도 성남시",
-                "010518-3027485");
+                "010-3333-8498", LocalDate.of(2001, 5, 18), "M", LocalDate.of(2023, 4, 20),
+                new Address("경기도", "성남시", "45678"), "010518-3027485");
 
-        // test5 계정 생성: 선임, 경영지원
         createTestUser("주영찬", "dudcks7624@gmail.com", "1234", 4L, 1L, DEFAULT_PROFILE_IMAGE_URL + "68",
-                "010-9382-8512",
-                LocalDate.of(1999, 6, 8),
-                "M",
-                LocalDate.of(2025, 2, 12),
-                "경기도 남양주",
-                "990608-1048372");
+                "010-9382-8512", LocalDate.of(1999, 6, 8), "M", LocalDate.of(2025, 2, 12),
+                new Address("경기도", "남양주", "56789"), "990608-1048372");
     }
 
     private void createDepartment(Long id, String name, String color, String imageUrl) {
@@ -120,7 +97,7 @@ public class TestDataInitializer implements CommandLineRunner {
                                 LocalDate birthDate,
                                 String gender,
                                 LocalDate hireDate,
-                                String address,
+                                Address address,
                                 String residentRegNo) {
         if (userRepository.findByEmail(email).isEmpty()) {
             log.info("Creating test user: {}", email);
